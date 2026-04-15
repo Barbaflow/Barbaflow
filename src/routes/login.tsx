@@ -7,8 +7,8 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Login — BarberPro" },
-      { name: "description", content: "Acesse sua conta no BarberPro." },
+      { title: "Login — BarbaFlow" },
+      { name: "description", content: "Acesse sua conta no BarbaFlow." },
     ],
   }),
   component: LoginPage,
