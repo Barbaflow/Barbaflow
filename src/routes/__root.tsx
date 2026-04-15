@@ -40,6 +40,8 @@ export const Route = createRootRoute({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@BarbaFlow" },
+      { name: "twitter:title", content: "BarbaFlow" },
+      { name: "twitter:description", content: "Plataforma de agendamento para barbearias" },
     ],
     links: [
       {
