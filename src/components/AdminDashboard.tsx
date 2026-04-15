@@ -506,6 +506,47 @@ export function AdminDashboard() {
             )}
           </>
         )}
+        {/* Plan Change Logs */}
+        {showLogs && (
+          <Card className="bg-card border-border">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <History className="w-4 h-4 text-primary" />
+                <h3 className="font-display text-sm font-semibold text-foreground">Histórico de alterações de plano</h3>
+              </div>
+              {logs.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">Nenhuma alteração registrada.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                  {logs.map((log) => {
+                    const shopName = barbershops.find((s) => s.id === log.barbershop_id)?.name || "Barbearia removida";
+                    const oldPlan = plans.find((p) => p.id === log.old_plan_id)?.name || "nenhum";
+                    const newPlan = plans.find((p) => p.id === log.new_plan_id)?.name || "—";
+                    const date = new Date(log.created_at).toLocaleString("pt-BR", {
+                      day: "2-digit", month: "2-digit", year: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
+                    });
+
+                    return (
+                      <div key={log.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-muted/50 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Crown className="w-3 h-3 text-primary flex-shrink-0" />
+                          <span className="font-medium text-foreground truncate">{shopName}</span>
+                          <span className="text-muted-foreground">
+                            <span className="capitalize">{oldPlan}</span>
+                            {" → "}
+                            <span className="capitalize font-semibold text-foreground">{newPlan}</span>
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground flex-shrink-0">{date}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </main>
     </div>
   );
