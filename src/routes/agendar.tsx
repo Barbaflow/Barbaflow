@@ -1,9 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { BookingCalendar } from "@/components/BookingCalendar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { useBarbershop } from "@/hooks/use-barbershop";
 
 export const Route = createFileRoute("/agendar")({
   head: () => ({
@@ -18,17 +18,21 @@ export const Route = createFileRoute("/agendar")({
 
 function AgendarPage() {
   const { user, loading } = useAuth();
-
-  const barbershopId = DEFAULT_BARBERSHOP_ID;
+  const { barbershopId, barbershop } = useBarbershop();
+  const name = barbershop?.name || "BarbaFlow";
 
   return (
     <div className="min-h-screen bg-background">
       <nav className="flex items-center justify-between px-6 py-5 md:px-12 border-b border-border">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold">
-            <Scissors className="w-5 h-5 text-primary-foreground" />
-          </div>
-          <span className="font-display text-xl text-foreground">BarbaFlow</span>
+          {barbershop?.logo_url ? (
+            <img src={barbershop.logo_url} alt={name} className="h-10 w-10 rounded-full object-cover" />
+          ) : (
+            <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold">
+              <Scissors className="w-5 h-5 text-primary-foreground" />
+            </div>
+          )}
+          <span className="font-display text-xl text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/">
