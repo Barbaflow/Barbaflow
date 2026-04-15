@@ -26,7 +26,7 @@ interface Appointment {
   created_at: string;
   barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
-  barber_profile: { full_name: string | null } | null;
+  barber_profile: { full_name: string | null; avatar_url: string | null } | null;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
