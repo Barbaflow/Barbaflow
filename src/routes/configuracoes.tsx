@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { useAuth } from "@/hooks/use-auth";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { Button } from "@/components/ui/button";
@@ -33,8 +34,7 @@ function ConfiguracoesPage() {
     );
   }
 
-  // TODO: resolve barbershopId from user roles
-  const barbershopId = "demo";
+  const barbershopId = DEFAULT_BARBERSHOP_ID;
 
   return (
     <div className="min-h-screen bg-background">
