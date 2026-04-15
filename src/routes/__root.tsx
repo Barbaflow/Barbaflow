@@ -68,8 +68,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  // TODO: resolve barbershopId from subdomain dynamically
-  const barbershopId = "demo";
+  const barbershopId = DEFAULT_BARBERSHOP_ID;
 
   return (
     <TenantThemeProvider barbershopId={barbershopId}>
