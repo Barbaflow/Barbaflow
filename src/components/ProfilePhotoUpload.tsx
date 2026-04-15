@@ -12,21 +12,42 @@ export function ProfilePhotoUpload() {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [originalName, setOriginalName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("avatar_url")
+      .select("avatar_url, full_name")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+        setFullName(data?.full_name || "");
+        setOriginalName(data?.full_name || "");
         setLoading(false);
       });
   }, [user]);
+
+  const handleSaveName = async () => {
+    if (!user || fullName.trim() === originalName) return;
+    setSavingName(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName.trim() })
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("Erro ao salvar nome.");
+    } else {
+      setOriginalName(fullName.trim());
+      toast.success("Nome atualizado!");
+    }
+    setSavingName(false);
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
