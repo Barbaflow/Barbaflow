@@ -1,20 +1,101 @@
 import { Link } from "@tanstack/react-router";
-import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Scissors, Calendar } from "lucide-react";
+import { Scissors, Calendar, Store } from "lucide-react";
 
 interface LandingHeroProps {
   barbershopName?: string;
   primaryColor?: string;
   logoUrl?: string;
+  isDefault?: boolean;
 }
 
-export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHeroProps) {
+export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }: LandingHeroProps) {
   const name = barbershopName || "BarbaFlow";
 
+  // SaaS landing — no specific barbershop
+  if (isDefault || !barbershopName) {
+    return (
+      <div className="relative min-h-screen flex flex-col">
+        <div
+          className="absolute inset-0 opacity-[0.03]"
+          style={{
+            backgroundImage: `linear-gradient(var(--gold) 1px, transparent 1px), linear-gradient(90deg, var(--gold) 1px, transparent 1px)`,
+            backgroundSize: "60px 60px",
+          }}
+        />
+
+        <nav className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold">
+              <Scissors className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <span className="font-display text-xl text-foreground">BarbaFlow</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link to="/login">
+              <Button variant="ghost" size="sm">Entrar</Button>
+            </Link>
+            <Link to="/onboarding">
+              <Button variant="gold" size="sm">
+                <Store className="w-4 h-4" />
+                Abrir Barbearia
+              </Button>
+            </Link>
+          </div>
+        </nav>
+
+        <main className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
+          <div className="max-w-3xl text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
+            <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-4 font-body font-medium">
+              Plataforma para Barbearias
+            </p>
+            <h1 className="text-5xl md:text-7xl font-display font-bold leading-[1.1] text-foreground mb-6">
+              Sua barbearia{" "}
+              <span className="text-gradient-gold">online</span> em minutos
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-xl mx-auto mb-10 font-body">
+              Crie seu site de agendamento personalizado, gerencie sua equipe e acompanhe seus resultados. Tudo em um só lugar.
+            </p>
+
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
+              <Link to="/onboarding">
+                <Button variant="gold" size="xl">
+                  <Store className="w-5 h-5" />
+                  Abrir minha barbearia
+                </Button>
+              </Link>
+              <Link to="/login">
+                <Button variant="gold-outline" size="xl">
+                  Já tenho conta
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </main>
+
+        <div className="relative z-10 border-t border-border animate-in fade-in duration-1000 delay-500">
+          <div className="max-w-5xl mx-auto px-6 py-8 grid grid-cols-3 gap-8 text-center">
+            <div>
+              <p className="text-2xl md:text-3xl font-display font-bold text-gradient-gold">Grátis</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Para começar</p>
+            </div>
+            <div>
+              <p className="text-2xl md:text-3xl font-display font-bold text-gradient-gold">White-label</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Sua marca</p>
+            </div>
+            <div>
+              <p className="text-2xl md:text-3xl font-display font-bold text-gradient-gold">100%</p>
+              <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Online</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Tenant-specific landing
   return (
     <div className="relative min-h-screen flex flex-col">
-      {/* Subtle grid pattern overlay */}
       <div
         className="absolute inset-0 opacity-[0.03]"
         style={{
@@ -23,7 +104,6 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHe
         }}
       />
 
-      {/* Nav */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
         <div className="flex items-center gap-3">
           {logoUrl ? (
@@ -45,13 +125,9 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHe
           <Link to="/agendar">
             <Button variant="gold" size="sm">Agendar</Button>
           </Link>
-          <Link to="/onboarding">
-            <Button variant="outline" size="sm" className="hidden sm:inline-flex">Abrir Barbearia</Button>
-          </Link>
         </div>
       </nav>
 
-      {/* Hero */}
       <main className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
         <div className="max-w-3xl text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-4 font-body font-medium">
@@ -83,7 +159,6 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHe
         </div>
       </main>
 
-      {/* Stats bar */}
       <div className="relative z-10 border-t border-border animate-in fade-in duration-1000 delay-500">
         <div className="max-w-5xl mx-auto px-6 py-8 grid grid-cols-3 gap-8 text-center">
           <div>

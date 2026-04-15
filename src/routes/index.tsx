@@ -15,13 +15,14 @@ export const Route = createFileRoute("/")({
 });
 
 function IndexPage() {
-  const { barbershop } = useBarbershop();
+  const { barbershop, isDefault } = useBarbershop();
 
   return (
     <LandingHero
       barbershopName={barbershop?.name}
       primaryColor={barbershop?.primary_color}
       logoUrl={barbershop?.logo_url ?? undefined}
+      isDefault={isDefault}
     />
   );
 }
