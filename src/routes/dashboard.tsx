@@ -14,6 +14,9 @@ export const Route = createFileRoute("/dashboard")({
       { name: "description", content: "Painel de controle do BarbaFlow." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    checkout: (search.checkout as string) || undefined,
+  }),
   component: DashboardPage,
 });
 
