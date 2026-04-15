@@ -113,6 +113,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
         }))
       );
     }
+
+    setLoading(false);
   }, [user, barbershopId, statusFilter, dateRange]);
 
   useEffect(() => {
