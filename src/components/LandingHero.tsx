@@ -231,7 +231,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                   <span className="text-muted-foreground font-body">/mês</span>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {["Tudo do Pro", "Suporte prioritário", "Personalização avançada", "Múltiplas unidades (em breve)", "SLA garantido"].map((f) => (
+                  {["Tudo do Pro", "Personalização de cores e logo", "Suporte prioritário", "Múltiplas unidades (em breve)", "SLA garantido"].map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
                       <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
                       {f}
