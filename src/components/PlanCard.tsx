@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "@tanstack/react-router";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +31,12 @@ export function PlanCard() {
         body: { environment },
       });
       if (error || !data?.url) {
-        console.error("Portal error:", error || data?.error);
+        toast.error("Não foi possível abrir o portal de assinatura. Tente novamente.");
         return;
       }
       window.open(data.url, "_blank");
+    } catch {
+      toast.error("Erro ao conectar com o serviço de pagamentos. Tente novamente.");
     } finally {
       setPortalLoading(false);
     }
