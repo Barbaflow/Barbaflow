@@ -108,6 +108,26 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
 
   return (
     <div className="space-y-5">
+      {/* Plan warning */}
+      {isWarning && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 text-yellow-500 text-sm border border-yellow-500/20">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Você usou {appointmentsUsed}/{appointmentLimit} agendamentos do plano Free este mês.
+          </span>
+        </div>
+      )}
+      {isAtLimit && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Limite de agendamentos atingido. Faça upgrade para continuar.
+          </span>
+        </div>
+      )}
+
+      <PlanPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
+
       {/* Filters — stacked on mobile, inline on desktop */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={selectedService} onValueChange={setSelectedService}>
