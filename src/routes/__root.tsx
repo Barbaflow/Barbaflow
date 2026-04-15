@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
 import { TenantThemeProvider } from "@/components/TenantThemeProvider";
+import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 
 import appCss from "../styles.css?url";
 

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { BookingCalendar } from "@/components/BookingCalendar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
@@ -18,8 +19,7 @@ export const Route = createFileRoute("/agendar")({
 function AgendarPage() {
   const { user, loading } = useAuth();
 
-  // TODO: In production, resolve barbershopId from subdomain
-  const barbershopId = "demo";
+  const barbershopId = DEFAULT_BARBERSHOP_ID;
 
   return (
     <div className="min-h-screen bg-background">
