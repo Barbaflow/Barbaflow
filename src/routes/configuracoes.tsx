@@ -71,9 +71,13 @@ function ConfiguracoesPage() {
             <span className="text-gradient-gold">Configurações</span>
           </h1>
           <p className="text-muted-foreground mb-8">
-            Personalize o branding da sua barbearia.
+            Personalize seu perfil e a sua barbearia.
           </p>
-          <BarbershopSettings barbershopId={barbershopId} />
+
+          <div className="space-y-6">
+            <ProfilePhotoUpload />
+            <BarbershopSettings barbershopId={barbershopId} />
+          </div>
         </div>
 
         <div>
