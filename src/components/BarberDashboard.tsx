@@ -209,6 +209,12 @@ export function BarberDashboard() {
                 <span className="hidden sm:inline">Agenda</span>
               </Button>
             </Link>
+            <Link to="/relatorios">
+              <Button variant="ghost" size="sm">
+                <TrendingUp className="w-4 h-4" />
+                <span className="hidden sm:inline">Relatórios</span>
+              </Button>
+            </Link>
             <Link to="/configuracoes">
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
