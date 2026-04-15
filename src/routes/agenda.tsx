@@ -71,6 +71,10 @@ function AgendaPage() {
               <Calendar className="w-4 h-4" />
               Agenda Semanal
             </TabsTrigger>
+            <TabsTrigger value="bloqueios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <CalendarOff className="w-4 h-4" />
+              Bloqueios
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="horarios">
@@ -79,6 +83,10 @@ function AgendaPage() {
 
           <TabsContent value="agenda">
             <ScheduleManager barbershopId={barbershopId} />
+          </TabsContent>
+
+          <TabsContent value="bloqueios">
+            <ScheduleBlocks barbershopId={barbershopId} />
           </TabsContent>
         </Tabs>
       </main>
