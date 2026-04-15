@@ -171,6 +171,55 @@ export type Database = {
           },
         ]
       }
+      plan_change_logs: {
+        Row: {
+          barbershop_id: string
+          changed_by: string
+          created_at: string
+          id: string
+          new_plan_id: string
+          old_plan_id: string | null
+        }
+        Insert: {
+          barbershop_id: string
+          changed_by: string
+          created_at?: string
+          id?: string
+          new_plan_id: string
+          old_plan_id?: string | null
+        }
+        Update: {
+          barbershop_id?: string
+          changed_by?: string
+          created_at?: string
+          id?: string
+          new_plan_id?: string
+          old_plan_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_change_logs_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_change_logs_new_plan_id_fkey"
+            columns: ["new_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_change_logs_old_plan_id_fkey"
+            columns: ["old_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           appointment_limit: number | null
