@@ -64,8 +64,8 @@ export function TenantThemeProvider({ barbershopId, children }: TenantThemeProvi
       .select("primary_color, secondary_color, logo_url, name")
       .eq("id", barbershopId)
       .single()
-      .then(({ data }) => {
-        if (data) {
+      .then(({ data, error }) => {
+        if (data && !error) {
           setTheme({
             primaryColor: data.primary_color,
             secondaryColor: data.secondary_color,
@@ -73,6 +73,7 @@ export function TenantThemeProvider({ barbershopId, children }: TenantThemeProvi
             name: data.name,
           });
         }
+        // If barbershopId is invalid (e.g. "demo"), silently use default theme
       });
   }, [barbershopId]);
 
