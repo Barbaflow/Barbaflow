@@ -200,30 +200,41 @@ export function ProfilePhotoUpload() {
           </div>
         </div>
 
-        {/* Name field */}
-        <div className="mt-5 pt-5 border-t border-border space-y-2">
-          <Label className="text-xs text-muted-foreground">Nome Completo</Label>
-          <div className="flex gap-2">
+        {/* Profile fields */}
+        <div className="mt-5 pt-5 border-t border-border space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Nome Completo</Label>
             <Input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Seu nome completo"
               className="bg-background border-border"
             />
-            <Button
-              size="sm"
-              onClick={handleSaveName}
-              disabled={savingName || fullName.trim() === originalName}
-              className="flex-shrink-0"
-            >
-              {savingName ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              Salvar
-            </Button>
           </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(11) 99999-9999"
+                className="bg-background border-border pl-9"
+              />
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSaveProfile}
+            disabled={savingProfile || !profileChanged}
+          >
+            {savingProfile ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            Salvar Perfil
+          </Button>
         </div>
 
         <input
