@@ -17,6 +17,27 @@ const PLAN_LABELS: Record<string, string> = {
 
 export function PlanCard() {
   const { planName, appointmentLimit, appointmentsUsed, loading } = usePlan();
+  const { user } = useAuth();
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handleManageSubscription = async () => {
+    if (!user) return;
+    setPortalLoading(true);
+    try {
+      const clientToken = import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN || "";
+      const environment = clientToken.startsWith("test_") ? "sandbox" : "live";
+      const { data, error } = await supabase.functions.invoke("create-portal-session", {
+        body: { environment },
+      });
+      if (error || !data?.url) {
+        console.error("Portal error:", error || data?.error);
+        return;
+      }
+      window.open(data.url, "_blank");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   if (loading) return null;
 
