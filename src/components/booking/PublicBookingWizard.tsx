@@ -22,6 +22,7 @@ import {
   ChevronRight,
   MapPin,
   Search,
+  Phone,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -37,6 +38,7 @@ interface BarberWithProfile {
   user_id: string;
   full_name: string | null;
   avatar_url: string | null;
+  phone: string | null;
 }
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
@@ -98,9 +100,9 @@ export function PublicBookingWizard() {
         const userIds = roles.map((r) => r.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, full_name, avatar_url")
+          .select("user_id, full_name, avatar_url, phone")
           .in("user_id", userIds);
-        setBarbers(profiles || userIds.map((id) => ({ user_id: id, full_name: null, avatar_url: null })));
+        setBarbers(profiles || userIds.map((id) => ({ user_id: id, full_name: null, avatar_url: null, phone: null })));
         setLoadingStep(false);
       });
   }, [selectedBarbershop]);
@@ -375,6 +377,18 @@ export function PublicBookingWizard() {
                         {b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`}
                       </h3>
                       <p className="text-xs text-muted-foreground">Profissional</p>
+                      {b.phone && (
+                        <a
+                          href={`https://wa.me/${b.phone.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-primary flex items-center gap-1 hover:underline mt-0.5"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {b.phone}
+                        </a>
+                      )}
                     </div>
                     <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                   </CardContent>
@@ -449,6 +463,18 @@ export function PublicBookingWizard() {
                 <User className="w-3 h-3 mr-1" />
                 {selectedBarber.full_name || `Barbeiro ${selectedBarber.user_id.slice(0, 6)}`}
               </Badge>
+            )}
+            {selectedBarber?.phone && (
+              <a
+                href={`https://wa.me/${selectedBarber.phone.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Badge variant="outline" className="text-xs text-primary hover:bg-primary/10 cursor-pointer">
+                  <Phone className="w-3 h-3 mr-1" />
+                  WhatsApp
+                </Badge>
+              </a>
             )}
             {selectedService && (
               <Badge variant="outline" className="text-xs">
