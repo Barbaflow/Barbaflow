@@ -305,10 +305,18 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         </Badge>
                       </div>
 
-                      {apt.barber_profile?.full_name && (
+                      {(apt.barber_profile?.full_name || apt.barber_profile?.avatar_url) && (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <User className="w-3.5 h-3.5 text-primary" />
-                          <span className="truncate">{apt.barber_profile.full_name}</span>
+                          {apt.barber_profile.avatar_url ? (
+                            <img
+                              src={apt.barber_profile.avatar_url}
+                              alt={apt.barber_profile.full_name || "Barbeiro"}
+                              className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          )}
+                          <span className="truncate">{apt.barber_profile.full_name || "Barbeiro"}</span>
                         </div>
                       )}
 
