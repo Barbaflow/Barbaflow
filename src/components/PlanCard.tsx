@@ -35,6 +35,8 @@ export function PlanCard() {
         return;
       }
       window.open(data.url, "_blank");
+    } catch {
+      toast.error("Erro ao conectar com o serviço de pagamentos. Tente novamente.");
     } finally {
       setPortalLoading(false);
     }
