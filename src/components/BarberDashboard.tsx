@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PlanCard } from "@/components/PlanCard";
 import {
   Scissors,
   LogOut,
@@ -309,6 +310,9 @@ export function BarberDashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Plan usage card */}
+        <PlanCard />
 
         {/* Error */}
         {error && (
