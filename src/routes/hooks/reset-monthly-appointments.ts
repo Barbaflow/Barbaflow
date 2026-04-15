@@ -35,12 +35,11 @@ export const Route = createFileRoute("/hooks/reset-monthly-appointments")({
           );
         }
 
-        console.log(`Reset monthly appointments for ${count} barbershops`);
+        console.log("Reset monthly appointments completed");
 
         return new Response(
           JSON.stringify({
             success: true,
-            reset_count: count,
             timestamp: new Date().toISOString(),
           }),
           { headers: { "Content-Type": "application/json" } }
