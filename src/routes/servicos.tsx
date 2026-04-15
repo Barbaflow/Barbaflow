@@ -50,7 +50,7 @@ function ServicosPage() {
           Nossos <span className="text-gradient-gold">Serviços</span>
         </h1>
         <p className="text-muted-foreground mb-8">Confira preços e duração de cada serviço.</p>
-        <ServicesList />
+        <ServicesList barbershopId={barbershop?.id} />
       </main>
     </div>
   );
