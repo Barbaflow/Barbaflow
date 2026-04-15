@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Crown, Zap, ArrowUpRight } from "lucide-react";
+import { Crown, Zap, ArrowUpRight, Settings, Loader2 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
