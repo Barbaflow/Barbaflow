@@ -52,7 +52,7 @@ function ConfiguracoesPage() {
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/dashboard">
+          <Link to="/dashboard" search={{}}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
               Dashboard
