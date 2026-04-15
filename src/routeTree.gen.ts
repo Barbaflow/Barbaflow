@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
@@ -26,6 +27,11 @@ const ServicosRoute = ServicosRouteImport.update({
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MeusAgendamentosRoute = MeusAgendamentosRouteImport.update({
+  id: '/meus-agendamentos',
+  path: '/meus-agendamentos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/servicos': typeof ServicosRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/servicos': typeof ServicosRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/configuracoes': typeof ConfiguracoesRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/servicos': typeof ServicosRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/login'
+    | '/meus-agendamentos'
     | '/onboarding'
     | '/servicos'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/login'
+    | '/meus-agendamentos'
     | '/onboarding'
     | '/servicos'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/configuracoes'
     | '/dashboard'
     | '/login'
+    | '/meus-agendamentos'
     | '/onboarding'
     | '/servicos'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  MeusAgendamentosRoute: typeof MeusAgendamentosRoute
   OnboardingRoute: typeof OnboardingRoute
   ServicosRoute: typeof ServicosRoute
 }
@@ -148,6 +161,13 @@ declare module '@tanstack/react-router' {
       path: '/onboarding'
       fullPath: '/onboarding'
       preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/meus-agendamentos': {
+      id: '/meus-agendamentos'
+      path: '/meus-agendamentos'
+      fullPath: '/meus-agendamentos'
+      preLoaderRoute: typeof MeusAgendamentosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConfiguracoesRoute: ConfiguracoesRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  MeusAgendamentosRoute: MeusAgendamentosRoute,
   OnboardingRoute: OnboardingRoute,
   ServicosRoute: ServicosRoute,
 }
