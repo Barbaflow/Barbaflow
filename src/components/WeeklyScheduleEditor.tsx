@@ -291,6 +291,15 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
           <Button
             size="sm"
             variant="outline"
+            onClick={handleApplyTemplate}
+          >
+            <Clock className="w-4 h-4" />
+            Seg-Sex 9h-18h
+          </Button>
+
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleGenerateSlots}
             disabled={generating || schedule.filter((s) => s.is_active).length === 0}
           >
