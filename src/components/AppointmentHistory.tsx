@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarIcon, Clock, Scissors, AlertCircle, History, X } from "lucide-react";
+import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
@@ -24,7 +24,9 @@ interface Appointment {
   status: "scheduled" | "completed" | "cancelled" | "no_show";
   notes: string | null;
   created_at: string;
+  barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
+  barber_profile: { full_name: string | null } | null;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -69,7 +71,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, created_at, service:services(name, price, duration_minutes)")
+      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, service:services(name, price, duration_minutes)")
       .eq("barbershop_id", barbershopId)
       .eq("client_id", user.id)
       .order("date", { ascending: false })
@@ -91,7 +93,25 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     if (err) {
       setError("Erro ao carregar agendamentos.");
     } else {
-      setAppointments((data as unknown as Appointment[]) || []);
+      const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
+      // Fetch barber profiles
+      const barberIds = [...new Set(rawAppointments.map((a) => a.barber_id))];
+      let profileMap: Record<string, string | null> = {};
+      if (barberIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", barberIds);
+        if (profiles) {
+          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, p.full_name]));
+        }
+      }
+      setAppointments(
+        rawAppointments.map((a) => ({
+          ...a,
+          barber_profile: { full_name: profileMap[a.barber_id] || null },
+        }))
+      );
     }
 
     setLoading(false);
@@ -284,6 +304,13 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                           {status.label}
                         </Badge>
                       </div>
+
+                      {apt.barber_profile?.full_name && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <User className="w-3.5 h-3.5 text-primary" />
+                          <span className="truncate">{apt.barber_profile.full_name}</span>
+                        </div>
+                      )}
 
                       {apt.service && (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
