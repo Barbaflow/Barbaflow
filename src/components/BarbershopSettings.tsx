@@ -113,6 +113,43 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     );
   }
 
+  if (isFree) {
+    return (
+      <Card className="border-border bg-card relative overflow-hidden">
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4 p-6 text-center">
+          <Lock className="w-10 h-10 text-gold" />
+          <h3 className="font-display text-lg font-bold text-foreground">
+            Personalização disponível no plano Pro
+          </h3>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Faça upgrade para personalizar o logo e as cores da sua barbearia.
+          </p>
+          <Link to="/upgrade">
+            <Button variant="gold" size="sm">
+              Fazer Upgrade
+            </Button>
+          </Link>
+        </div>
+        <CardContent className="p-6 opacity-40 pointer-events-none">
+          <div className="flex items-center gap-6 mb-6">
+            <div className="w-24 h-24 rounded-xl border-2 border-dashed border-border flex items-center justify-center bg-secondary">
+              <ImageIcon className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <div className="space-y-2">
+              <Button variant="outline" size="sm" disabled>
+                <Upload className="w-4 h-4" /> Enviar logo
+              </Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="h-10 rounded bg-secondary" />
+            <div className="h-10 rounded bg-secondary" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Logo Upload */}
