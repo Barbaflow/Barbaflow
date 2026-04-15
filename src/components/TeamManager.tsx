@@ -249,14 +249,24 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
               </Select>
             </div>
           </div>
-          <Button
-            onClick={handleInvite}
-            disabled={sending || !inviteEmail.trim()}
-            className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Mail className="w-4 h-4" />
-            {sending ? "Enviando..." : "Enviar Convite"}
-          </Button>
+          {hasReachedBarberLimit ? (
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                Limite de {barberLimit} barbeiro(s) atingido no plano {planName === "free" ? "Free" : planName}.{" "}
+                <Link to="/upgrade" className="underline font-medium">Fazer upgrade</Link>
+              </span>
+            </div>
+          ) : (
+            <Button
+              onClick={handleInvite}
+              disabled={sending || !inviteEmail.trim()}
+              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Mail className="w-4 h-4" />
+              {sending ? "Enviando..." : "Enviar Convite"}
+            </Button>
+          )}
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5" />
             O convidado receberá um link para aceitar. Convites expiram em 7 dias.
