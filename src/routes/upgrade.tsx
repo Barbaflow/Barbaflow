@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePlan } from "@/hooks/use-plan";
+import { useBarbershop } from "@/hooks/use-barbershop";
+import { usePaddleCheckout } from "@/hooks/use-paddle-checkout";
+import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +15,6 @@ import {
   Zap,
   Building2,
   ArrowLeft,
-  Infinity,
 } from "lucide-react";
 
 export const Route = createFileRoute("/upgrade")({
@@ -36,6 +38,7 @@ interface Plan {
 const PLAN_CONFIG: Record<string, {
   icon: typeof Zap;
   color: string;
+  priceId?: string;
   features: string[];
   popular?: boolean;
 }> = {
@@ -52,6 +55,7 @@ const PLAN_CONFIG: Record<string, {
   pro: {
     icon: Crown,
     color: "text-primary",
+    priceId: "pro_monthly",
     popular: true,
     features: [
       "Agendamentos ilimitados",
@@ -64,6 +68,7 @@ const PLAN_CONFIG: Record<string, {
   enterprise: {
     icon: Building2,
     color: "text-primary",
+    priceId: "enterprise_monthly",
     features: [
       "Tudo do Pro",
       "Multi-unidades",
@@ -78,6 +83,8 @@ const PLAN_CONFIG: Record<string, {
 function UpgradePage() {
   const { user } = useAuth();
   const { planName } = usePlan();
+  const { barbershopId } = useBarbershop();
+  const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -93,15 +100,23 @@ function UpgradePage() {
   }, []);
 
   const handleUpgrade = (plan: Plan) => {
-    // TODO: Integrate with payment provider after enabling
-    // For now show a toast
-    import("sonner").then(({ toast }) => {
-      toast.info("Integração de pagamento em breve! Entre em contato para upgrade.");
+    const config = PLAN_CONFIG[plan.name];
+    if (!config?.priceId || !user) return;
+
+    openCheckout({
+      priceId: config.priceId,
+      customerEmail: user.email ?? undefined,
+      customData: {
+        userId: user.id,
+        barbershopId: barbershopId,
+      },
+      successUrl: `${window.location.origin}/dashboard?checkout=success`,
     });
   };
 
   return (
     <div className="min-h-screen bg-background">
+      <PaymentTestModeBanner />
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-16">
         <Link to="/dashboard" className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8">
           <ArrowLeft className="w-4 h-4" />
@@ -149,7 +164,7 @@ function UpgradePage() {
                     </div>
                   )}
                   <CardHeader className="text-center pb-4">
-                    <div className={`mx-auto mb-3 h-10 w-10 rounded-full bg-secondary flex items-center justify-center`}>
+                    <div className="mx-auto mb-3 h-10 w-10 rounded-full bg-secondary flex items-center justify-center">
                       <Icon className={`w-5 h-5 ${config.color}`} />
                     </div>
                     <CardTitle className="font-display text-xl capitalize">
@@ -186,8 +201,9 @@ function UpgradePage() {
                       <Button
                         className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
                         onClick={() => handleUpgrade(plan)}
+                        disabled={checkoutLoading}
                       >
-                        Fazer upgrade
+                        {checkoutLoading ? "Abrindo checkout..." : "Fazer upgrade"}
                       </Button>
                     ) : (
                       <Button variant="outline" className="w-full" disabled>
