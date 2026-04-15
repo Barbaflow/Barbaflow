@@ -129,6 +129,7 @@ export function PlanCard() {
             )}
             Gerenciar assinatura
           </Button>
+          </>
         )}
       </CardContent>
     </Card>
