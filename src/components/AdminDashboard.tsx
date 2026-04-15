@@ -31,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  History,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -138,10 +139,18 @@ export function AdminDashboard() {
   const changePlan = async (shopId: string, shopName: string, newPlanId: string) => {
     setChangingPlan(shopId);
 
-    // Validate plan exists
     const plan = plans.find((p) => p.id === newPlanId);
     if (!plan) {
       toast.error("Plano inválido.");
+      setChangingPlan(null);
+      return;
+    }
+
+    // Get current plan_id for the log
+    const shop = barbershops.find((s) => s.id === shopId);
+    const oldPlanId = shop?.plan_id || null;
+
+    if (oldPlanId === newPlanId) {
       setChangingPlan(null);
       return;
     }
@@ -151,16 +160,42 @@ export function AdminDashboard() {
       .update({ plan_id: newPlanId })
       .eq("id", shopId);
 
-    setChangingPlan(null);
-
     if (error) {
       toast.error("Erro ao alterar plano.");
+      setChangingPlan(null);
       return;
     }
 
+    // Log the change
+    await supabase.from("plan_change_logs").insert({
+      barbershop_id: shopId,
+      old_plan_id: oldPlanId,
+      new_plan_id: newPlanId,
+      changed_by: user!.id,
+    });
+
+    setChangingPlan(null);
     toast.success(`Plano de "${shopName}" alterado para ${plan.name.toUpperCase()}.`);
     fetchBarbershops();
+    fetchLogs();
   };
+
+  // Plan change logs
+  const [logs, setLogs] = useState<any[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+
+  const fetchLogs = useCallback(async () => {
+    const { data } = await supabase
+      .from("plan_change_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setLogs(data || []);
+  }, []);
+
+  useEffect(() => {
+    if (showLogs) fetchLogs();
+  }, [showLogs, fetchLogs]);
 
   const filtered = useMemo(() => {
     let list = filter === "all" ? barbershops : barbershops.filter((s) => s.status === filter);
@@ -208,6 +243,14 @@ export function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant={showLogs ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowLogs((v) => !v)}
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">Histórico</span>
+            </Button>
             <Link to="/configuracoes">
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
@@ -462,6 +505,47 @@ export function AdminDashboard() {
               </div>
             )}
           </>
+        )}
+        {/* Plan Change Logs */}
+        {showLogs && (
+          <Card className="bg-card border-border">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-2">
+                <History className="w-4 h-4 text-primary" />
+                <h3 className="font-display text-sm font-semibold text-foreground">Histórico de alterações de plano</h3>
+              </div>
+              {logs.length === 0 ? (
+                <p className="text-xs text-muted-foreground py-4 text-center">Nenhuma alteração registrada.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                  {logs.map((log) => {
+                    const shopName = barbershops.find((s) => s.id === log.barbershop_id)?.name || "Barbearia removida";
+                    const oldPlan = plans.find((p) => p.id === log.old_plan_id)?.name || "nenhum";
+                    const newPlan = plans.find((p) => p.id === log.new_plan_id)?.name || "—";
+                    const date = new Date(log.created_at).toLocaleString("pt-BR", {
+                      day: "2-digit", month: "2-digit", year: "2-digit",
+                      hour: "2-digit", minute: "2-digit",
+                    });
+
+                    return (
+                      <div key={log.id} className="flex items-center justify-between gap-2 px-3 py-2 rounded-md bg-muted/50 text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Crown className="w-3 h-3 text-primary flex-shrink-0" />
+                          <span className="font-medium text-foreground truncate">{shopName}</span>
+                          <span className="text-muted-foreground">
+                            <span className="capitalize">{oldPlan}</span>
+                            {" → "}
+                            <span className="capitalize font-semibold text-foreground">{newPlan}</span>
+                          </span>
+                        </div>
+                        <span className="text-muted-foreground flex-shrink-0">{date}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         )}
       </main>
     </div>
