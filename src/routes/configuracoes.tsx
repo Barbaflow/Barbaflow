@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { TeamManager } from "@/components/TeamManager";
+import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors, LogOut } from "lucide-react";
 import { useEffect } from "react";
@@ -70,9 +71,13 @@ function ConfiguracoesPage() {
             <span className="text-gradient-gold">Configurações</span>
           </h1>
           <p className="text-muted-foreground mb-8">
-            Personalize o branding da sua barbearia.
+            Personalize seu perfil e a sua barbearia.
           </p>
-          <BarbershopSettings barbershopId={barbershopId} />
+
+          <div className="space-y-6">
+            <ProfilePhotoUpload />
+            <BarbershopSettings barbershopId={barbershopId} />
+          </div>
         </div>
 
         <div>
