@@ -464,6 +464,18 @@ export function PublicBookingWizard() {
                 {selectedBarber.full_name || `Barbeiro ${selectedBarber.user_id.slice(0, 6)}`}
               </Badge>
             )}
+            {selectedBarber?.phone && (
+              <a
+                href={`https://wa.me/${selectedBarber.phone.replace(/\D/g, "")}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Badge variant="outline" className="text-xs text-primary hover:bg-primary/10 cursor-pointer">
+                  <Phone className="w-3 h-3 mr-1" />
+                  WhatsApp
+                </Badge>
+              </a>
+            )}
             {selectedService && (
               <Badge variant="outline" className="text-xs">
                 <Scissors className="w-3 h-3 mr-1" />
