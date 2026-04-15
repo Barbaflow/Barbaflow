@@ -193,6 +193,32 @@ export function ProfilePhotoUpload() {
           </div>
         </div>
 
+        {/* Name field */}
+        <div className="mt-5 pt-5 border-t border-border space-y-2">
+          <Label className="text-xs text-muted-foreground">Nome Completo</Label>
+          <div className="flex gap-2">
+            <Input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Seu nome completo"
+              className="bg-background border-border"
+            />
+            <Button
+              size="sm"
+              onClick={handleSaveName}
+              disabled={savingName || fullName.trim() === originalName}
+              className="flex-shrink-0"
+            >
+              {savingName ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              Salvar
+            </Button>
+          </div>
+        </div>
+
         <input
           ref={fileInputRef}
           type="file"
