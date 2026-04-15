@@ -305,6 +305,13 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         </Badge>
                       </div>
 
+                      {apt.barber_profile?.full_name && (
+                        <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <User className="w-3.5 h-3.5 text-primary" />
+                          <span className="truncate">{apt.barber_profile.full_name}</span>
+                        </div>
+                      )}
+
                       {apt.service && (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                           <Scissors className="w-3.5 h-3.5 text-primary" />
