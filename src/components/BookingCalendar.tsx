@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { notifyBookingConfirmed } from "@/lib/notifications";
 import { useBookingData } from "./booking/useBookingData";
 import { DateSelector } from "./booking/DateSelector";
 import { TimeSlotGrid } from "./booking/TimeSlotGrid";

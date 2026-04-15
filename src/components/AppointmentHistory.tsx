@@ -10,6 +10,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarIcon, Clock, Scissors, AlertCircle, History, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
