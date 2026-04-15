@@ -102,7 +102,9 @@ export function AdminDashboard() {
     toast.success(
       status === "approved"
         ? `"${name}" foi aprovada! ✅`
-        : `"${name}" foi rejeitada.`
+        : status === "rejected"
+          ? `"${name}" foi rejeitada.`
+          : `"${name}" voltou para pendente.`
     );
     fetchBarbershops();
   };
