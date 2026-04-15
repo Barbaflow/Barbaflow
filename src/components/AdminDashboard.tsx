@@ -31,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crown,
+  History,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
