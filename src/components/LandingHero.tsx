@@ -39,8 +39,11 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHe
           <Link to="/login">
             <Button variant="ghost" size="sm">Entrar</Button>
           </Link>
-          <Link to="/login">
+          <Link to="/agendar">
             <Button variant="gold" size="sm">Agendar</Button>
+          </Link>
+          <Link to="/onboarding">
+            <Button variant="outline" size="sm" className="hidden sm:inline-flex">Abrir Barbearia</Button>
           </Link>
         </div>
       </nav>
