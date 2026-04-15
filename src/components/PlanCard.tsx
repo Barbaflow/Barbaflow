@@ -111,6 +111,7 @@ export function PlanCard() {
             </Link>
           </>
         ) : (
+          <>
           <p className="text-sm text-muted-foreground mb-3">
             Agendamentos ilimitados ✨
           </p>
