@@ -1,10 +1,11 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { BarberDashboard } from "@/components/BarberDashboard";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -13,6 +14,9 @@ export const Route = createFileRoute("/dashboard")({
       { name: "description", content: "Painel de controle do BarbaFlow." },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    checkout: (search.checkout as string) || undefined,
+  }),
   component: DashboardPage,
 });
 
@@ -20,8 +24,20 @@ function DashboardPage() {
   const { user, loading } = useAuth();
   const { barbershopId } = useBarbershop();
   const navigate = useNavigate();
+  const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const toastShown = useRef(false);
+
+  useEffect(() => {
+    if (checkout === "success" && !toastShown.current) {
+      toastShown.current = true;
+      toast.success("Upgrade realizado com sucesso! 🎉", {
+        description: "Seu plano foi atualizado. Aproveite todos os recursos.",
+      });
+      navigate({ to: "/dashboard", search: {}, replace: true });
+    }
+  }, [checkout, navigate]);
 
   useEffect(() => {
     if (!loading && !user) {
