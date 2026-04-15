@@ -100,9 +100,9 @@ export function PublicBookingWizard() {
         const userIds = roles.map((r) => r.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, full_name, avatar_url")
+          .select("user_id, full_name, avatar_url, phone")
           .in("user_id", userIds);
-        setBarbers(profiles || userIds.map((id) => ({ user_id: id, full_name: null, avatar_url: null })));
+        setBarbers(profiles || userIds.map((id) => ({ user_id: id, full_name: null, avatar_url: null, phone: null })));
         setLoadingStep(false);
       });
   }, [selectedBarbershop]);
