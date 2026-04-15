@@ -446,16 +446,36 @@ export function AdminDashboard() {
                               <CheckCircle className="w-3.5 h-3.5" />
                               Aprovar
                             </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-destructive border-destructive/30 hover:bg-destructive/10 text-xs h-8"
-                              onClick={() => updateStatus(shop.id, shop.name, "rejected")}
-                              disabled={isUpdating}
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              Rejeitar
-                            </Button>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-destructive border-destructive/30 hover:bg-destructive/10 text-xs h-8"
+                                  disabled={isUpdating}
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Rejeitar
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Rejeitar "{shop.name}"?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Essa barbearia não poderá receber agendamentos enquanto estiver rejeitada. Você pode reverter depois.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                    onClick={() => updateStatus(shop.id, shop.name, "rejected")}
+                                  >
+                                    Confirmar rejeição
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         ) : (
                           <Button
