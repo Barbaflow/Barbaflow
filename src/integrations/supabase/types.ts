@@ -120,11 +120,13 @@ export type Database = {
       }
       barbershops: {
         Row: {
+          appointments_this_month: number
           created_at: string
           id: string
           logo_url: string | null
           name: string
           owner_id: string | null
+          plan_id: string | null
           primary_color: string
           secondary_color: string
           status: Database["public"]["Enums"]["approval_status"]
@@ -132,11 +134,13 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          appointments_this_month?: number
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
           owner_id?: string | null
+          plan_id?: string | null
           primary_color?: string
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
@@ -144,15 +148,55 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          appointments_this_month?: number
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
           owner_id?: string | null
+          plan_id?: string | null
           primary_color?: string
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "barbershops_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          appointment_limit: number | null
+          created_at: string
+          has_subscriptions: boolean
+          id: string
+          name: Database["public"]["Enums"]["plan_name"]
+          price: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_limit?: number | null
+          created_at?: string
+          has_subscriptions?: boolean
+          id?: string
+          name: Database["public"]["Enums"]["plan_name"]
+          price?: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_limit?: number | null
+          created_at?: string
+          has_subscriptions?: boolean
+          id?: string
+          name?: Database["public"]["Enums"]["plan_name"]
+          price?: number
           updated_at?: string
         }
         Relationships: []
@@ -401,6 +445,10 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      check_appointment_limit: {
+        Args: { _barbershop_id: string }
+        Returns: boolean
+      }
       generate_availability_from_schedule: {
         Args: {
           _barber_id: string
@@ -432,6 +480,7 @@ export type Database = {
       approval_status: "pending" | "approved" | "rejected"
       availability_status: "livre" | "ocupado" | "folga"
       block_type: "feriado" | "ferias" | "pessoal"
+      plan_name: "free" | "pro" | "enterprise"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -564,6 +613,7 @@ export const Constants = {
       approval_status: ["pending", "approved", "rejected"],
       availability_status: ["livre", "ocupado", "folga"],
       block_type: ["feriado", "ferias", "pessoal"],
+      plan_name: ["free", "pro", "enterprise"],
     },
   },
 } as const
