@@ -360,9 +360,23 @@ export function AdminDashboard() {
                             <CalendarDays className="w-3.5 h-3.5" />
                             {shop.appointments_this_month} ags
                           </span>
-                          <Badge variant="secondary" className="text-[10px] capitalize">
-                            {shop._planName}
-                          </Badge>
+                          <Select
+                            value={shop.plan_id || ""}
+                            onValueChange={(val) => changePlan(shop.id, shop.name, val)}
+                            disabled={changingPlan === shop.id}
+                          >
+                            <SelectTrigger className="h-6 w-[90px] text-[10px] capitalize border-border">
+                              <Crown className="w-3 h-3 mr-1 text-primary" />
+                              <SelectValue placeholder="Plano" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {plans.map((p) => (
+                                <SelectItem key={p.id} value={p.id} className="text-xs capitalize">
+                                  {p.name} — R${Number(p.price).toFixed(0)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <span className="hidden sm:inline">{createdDate}</span>
                         </div>
 
