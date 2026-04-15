@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Scissors,
   LogOut,
   CheckCircle,
@@ -23,8 +30,11 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Crown,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+
+type Plan = Tables<"plans">;
 
 type Barbershop = Tables<"barbershops"> & {
   _teamCount?: number;
@@ -49,6 +59,15 @@ export function AdminDashboard() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [changingPlan, setChangingPlan] = useState<string | null>(null);
+
+  // Fetch all plans once
+  useEffect(() => {
+    supabase.from("plans").select("*").order("price", { ascending: true }).then(({ data }) => {
+      if (data) setPlans(data);
+    });
+  }, []);
 
   const fetchBarbershops = useCallback(async () => {
     const { data: shops } = await supabase
@@ -113,6 +132,33 @@ export function AdminDashboard() {
           ? `"${name}" foi rejeitada.`
           : `"${name}" voltou para pendente.`
     );
+    fetchBarbershops();
+  };
+
+  const changePlan = async (shopId: string, shopName: string, newPlanId: string) => {
+    setChangingPlan(shopId);
+
+    // Validate plan exists
+    const plan = plans.find((p) => p.id === newPlanId);
+    if (!plan) {
+      toast.error("Plano inválido.");
+      setChangingPlan(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("barbershops")
+      .update({ plan_id: newPlanId })
+      .eq("id", shopId);
+
+    setChangingPlan(null);
+
+    if (error) {
+      toast.error("Erro ao alterar plano.");
+      return;
+    }
+
+    toast.success(`Plano de "${shopName}" alterado para ${plan.name.toUpperCase()}.`);
     fetchBarbershops();
   };
 
@@ -314,9 +360,23 @@ export function AdminDashboard() {
                             <CalendarDays className="w-3.5 h-3.5" />
                             {shop.appointments_this_month} ags
                           </span>
-                          <Badge variant="secondary" className="text-[10px] capitalize">
-                            {shop._planName}
-                          </Badge>
+                          <Select
+                            value={shop.plan_id || ""}
+                            onValueChange={(val) => changePlan(shop.id, shop.name, val)}
+                            disabled={changingPlan === shop.id}
+                          >
+                            <SelectTrigger className="h-6 w-[90px] text-[10px] capitalize border-border">
+                              <Crown className="w-3 h-3 mr-1 text-primary" />
+                              <SelectValue placeholder="Plano" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {plans.map((p) => (
+                                <SelectItem key={p.id} value={p.id} className="text-xs capitalize">
+                                  {p.name} — R${Number(p.price).toFixed(0)}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                           <span className="hidden sm:inline">{createdDate}</span>
                         </div>
 
