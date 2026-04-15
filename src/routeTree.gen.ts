@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
@@ -20,7 +21,13 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as AgendarRouteImport } from './routes/agendar'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
 
+const UpgradeRoute = UpgradeRouteImport.update({
+  id: '/upgrade',
+  path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicosRoute = ServicosRouteImport.update({
   id: '/servicos',
   path: '/servicos',
@@ -76,6 +83,12 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const HooksResetMonthlyAppointmentsRoute =
+  HooksResetMonthlyAppointmentsRouteImport.update({
+    id: '/hooks/reset-monthly-appointments',
+    path: '/hooks/reset-monthly-appointments',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -89,6 +102,8 @@ export interface FileRoutesByFullPath {
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
+  '/upgrade': typeof UpgradeRoute
+  '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -102,6 +117,8 @@ export interface FileRoutesByTo {
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
+  '/upgrade': typeof UpgradeRoute
+  '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -116,6 +133,8 @@ export interface FileRoutesById {
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
+  '/upgrade': typeof UpgradeRoute
+  '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -131,6 +150,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/relatorios'
     | '/servicos'
+    | '/upgrade'
+    | '/hooks/reset-monthly-appointments'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -144,6 +165,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/relatorios'
     | '/servicos'
+    | '/upgrade'
+    | '/hooks/reset-monthly-appointments'
   id:
     | '__root__'
     | '/'
@@ -157,6 +180,8 @@ export interface FileRouteTypes {
     | '/onboarding'
     | '/relatorios'
     | '/servicos'
+    | '/upgrade'
+    | '/hooks/reset-monthly-appointments'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -171,10 +196,19 @@ export interface RootRouteChildren {
   OnboardingRoute: typeof OnboardingRoute
   RelatoriosRoute: typeof RelatoriosRoute
   ServicosRoute: typeof ServicosRoute
+  UpgradeRoute: typeof UpgradeRoute
+  HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/upgrade': {
+      id: '/upgrade'
+      path: '/upgrade'
+      fullPath: '/upgrade'
+      preLoaderRoute: typeof UpgradeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/servicos': {
       id: '/servicos'
       path: '/servicos'
@@ -252,6 +286,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hooks/reset-monthly-appointments': {
+      id: '/hooks/reset-monthly-appointments'
+      path: '/hooks/reset-monthly-appointments'
+      fullPath: '/hooks/reset-monthly-appointments'
+      preLoaderRoute: typeof HooksResetMonthlyAppointmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -267,6 +308,8 @@ const rootRouteChildren: RootRouteChildren = {
   OnboardingRoute: OnboardingRoute,
   RelatoriosRoute: RelatoriosRoute,
   ServicosRoute: ServicosRoute,
+  UpgradeRoute: UpgradeRoute,
+  HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

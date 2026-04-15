@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
 import { notifyBookingConfirmed } from "@/lib/notifications";
 import { useBookingData } from "./booking/useBookingData";
 import { DateSelector } from "./booking/DateSelector";
 import { TimeSlotGrid } from "./booking/TimeSlotGrid";
 import { BookingConfirmation } from "./booking/BookingConfirmation";
+import { PlanPaywallModal } from "./PlanPaywallModal";
+import { AlertTriangle } from "lucide-react";
 import type { AvailabilitySlot } from "./booking/types";
 
 interface BookingCalendarProps {
@@ -31,6 +34,13 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
   const [selectedBarber, setSelectedBarber] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [booking, setBooking] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const { planName, appointmentLimit, appointmentsUsed } = usePlan();
+  const isFree = planName === "free";
+  const usagePercent = appointmentLimit ? Math.round((appointmentsUsed / appointmentLimit) * 100) : 0;
+  const isAtLimit = isFree && appointmentLimit !== null && appointmentsUsed >= appointmentLimit;
+  const isWarning = isFree && usagePercent >= 80 && !isAtLimit;
 
   // Fetch slots when date or barber changes
   useEffect(() => {
@@ -44,6 +54,11 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
 
   const handleBook = async () => {
     if (!selectedSlot || !selectedService || !user) return;
+
+    if (isAtLimit) {
+      setShowPaywall(true);
+      return;
+    }
 
     const service = services.find((s) => s.id === selectedService);
     if (!service) return;
@@ -93,6 +108,26 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
 
   return (
     <div className="space-y-5">
+      {/* Plan warning */}
+      {isWarning && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-yellow-500/10 text-yellow-500 text-sm border border-yellow-500/20">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Você usou {appointmentsUsed}/{appointmentLimit} agendamentos do plano Free este mês.
+          </span>
+        </div>
+      )}
+      {isAtLimit && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm border border-destructive/20">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>
+            Limite de agendamentos atingido. Faça upgrade para continuar.
+          </span>
+        </div>
+      )}
+
+      <PlanPaywallModal open={showPaywall} onOpenChange={setShowPaywall} />
+
       {/* Filters — stacked on mobile, inline on desktop */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={selectedService} onValueChange={setSelectedService}>
