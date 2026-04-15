@@ -96,7 +96,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
       // Fetch barber profiles
       const barberIds = [...new Set(rawAppointments.map((a) => a.barber_id))];
-      let profileMap: Record<string, string | null> = {};
+      let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
       if (barberIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
