@@ -135,6 +135,33 @@ export function AdminDashboard() {
     fetchBarbershops();
   };
 
+  const changePlan = async (shopId: string, shopName: string, newPlanId: string) => {
+    setChangingPlan(shopId);
+
+    // Validate plan exists
+    const plan = plans.find((p) => p.id === newPlanId);
+    if (!plan) {
+      toast.error("Plano inválido.");
+      setChangingPlan(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("barbershops")
+      .update({ plan_id: newPlanId })
+      .eq("id", shopId);
+
+    setChangingPlan(null);
+
+    if (error) {
+      toast.error("Erro ao alterar plano.");
+      return;
+    }
+
+    toast.success(`Plano de "${shopName}" alterado para ${plan.name.toUpperCase()}.`);
+    fetchBarbershops();
+  };
+
   const filtered = useMemo(() => {
     let list = filter === "all" ? barbershops : barbershops.filter((s) => s.status === filter);
 
