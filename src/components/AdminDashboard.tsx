@@ -30,8 +30,11 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
+  Crown,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
+
+type Plan = Tables<"plans">;
 
 type Barbershop = Tables<"barbershops"> & {
   _teamCount?: number;
