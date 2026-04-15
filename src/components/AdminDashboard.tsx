@@ -89,7 +89,7 @@ export function AdminDashboard() {
     fetchBarbershops();
   }, [fetchBarbershops]);
 
-  const updateStatus = async (id: string, name: string, status: "approved" | "rejected") => {
+  const updateStatus = async (id: string, name: string, status: "approved" | "rejected" | "pending") => {
     setUpdating(id);
     const { error } = await supabase.from("barbershops").update({ status }).eq("id", id);
     setUpdating(null);
