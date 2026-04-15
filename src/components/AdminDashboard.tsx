@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { Scissors, LogOut, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Scissors, LogOut, CheckCircle, XCircle, Clock, Settings } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Barbershop = Tables<"barbershops">;
@@ -48,10 +49,18 @@ export function AdminDashboard() {
             <p className="text-xs text-muted-foreground">{user?.email}</p>
           </div>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => signOut()}>
-          <LogOut className="w-4 h-4" />
-          Sair
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/configuracoes">
+            <Button variant="ghost" size="sm">
+              <Settings className="w-4 h-4" />
+              Configurações
+            </Button>
+          </Link>
+          <Button variant="ghost" size="sm" onClick={() => signOut()}>
+            <LogOut className="w-4 h-4" />
+            Sair
+          </Button>
+        </div>
       </header>
 
       {/* Content */}
