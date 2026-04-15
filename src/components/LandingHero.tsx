@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Scissors, Calendar, Store, UserPlus, Palette, CalendarCheck, Rocket } from "lucide-react";
+import { Scissors, Calendar, Store, UserPlus, Palette, CalendarCheck, Rocket, Check, Zap, Crown } from "lucide-react";
 
 interface LandingHeroProps {
   barbershopName?: string;
@@ -150,6 +150,98 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                   Começar agora — é grátis
                 </Button>
               </Link>
+            </div>
+          </div>
+        </div>
+
+        {/* Planos */}
+        <div className="relative z-10 px-6 md:px-12 py-16 md:py-24 border-t border-border">
+          <div className="max-w-5xl mx-auto">
+            <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-3 font-body font-medium text-center">
+              Planos
+            </p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground text-center mb-14">
+              Escolha o plano <span className="text-gradient-gold">ideal</span>
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Free */}
+              <div className="flex flex-col rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 hover:border-gold/20 transition-colors">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                    <Zap className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold text-foreground">Free</h3>
+                </div>
+                <div className="mb-6">
+                  <span className="text-4xl font-display font-bold text-foreground">R$0</span>
+                  <span className="text-muted-foreground font-body">/mês</span>
+                </div>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {["Até 50 agendamentos/mês", "1 barbeiro", "Subdomínio personalizado", "Agendamento online"].map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
+                      <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/onboarding" className="w-full">
+                  <Button variant="gold-outline" size="lg" className="w-full">Começar grátis</Button>
+                </Link>
+              </div>
+
+              {/* Pro */}
+              <div className="relative flex flex-col rounded-2xl border-2 border-gold/50 bg-card/50 backdrop-blur-sm p-6 shadow-gold">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-gradient-gold text-primary-foreground text-xs font-body font-semibold px-4 py-1 rounded-full">
+                  Mais popular
+                </span>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold">
+                    <Rocket className="w-5 h-5 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold text-foreground">Pro</h3>
+                </div>
+                <div className="mb-6">
+                  <span className="text-4xl font-display font-bold text-gradient-gold">R$99</span>
+                  <span className="text-muted-foreground font-body">/mês</span>
+                </div>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {["Agendamentos ilimitados", "Barbeiros ilimitados", "Relatórios avançados", "Suporte prioritário", "Personalização completa"].map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
+                      <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/onboarding" className="w-full">
+                  <Button variant="gold" size="lg" className="w-full">Assinar Pro</Button>
+                </Link>
+              </div>
+
+              {/* Enterprise */}
+              <div className="flex flex-col rounded-2xl border border-border bg-card/50 backdrop-blur-sm p-6 hover:border-gold/20 transition-colors">
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                    <Crown className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <h3 className="font-display text-xl font-semibold text-foreground">Enterprise</h3>
+                </div>
+                <div className="mb-6">
+                  <span className="text-4xl font-display font-bold text-foreground">R$299</span>
+                  <span className="text-muted-foreground font-body">/mês</span>
+                </div>
+                <ul className="space-y-3 mb-8 flex-1">
+                  {["Tudo do Pro", "Múltiplas unidades", "API personalizada", "Gerente de conta dedicado", "SLA garantido"].map((f) => (
+                    <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
+                      <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+                <Link to="/onboarding" className="w-full">
+                  <Button variant="gold-outline" size="lg" className="w-full">Fale conosco</Button>
+                </Link>
+              </div>
             </div>
           </div>
         </div>
