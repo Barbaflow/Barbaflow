@@ -478,16 +478,33 @@ export function AdminDashboard() {
                             </AlertDialog>
                           </div>
                         ) : (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-xs h-8 text-muted-foreground hover:text-foreground"
-                            onClick={() => updateStatus(shop.id, shop.name, "pending")}
-                            disabled={isUpdating}
-                          >
-                            <RotateCcw className="w-3.5 h-3.5" />
-                            Reverter
-                          </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-xs h-8 text-muted-foreground hover:text-foreground"
+                              disabled={isUpdating}
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              Reverter
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Reverter "{shop.name}" para pendente?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                O status atual ({STATUS_MAP[shop.status]?.label}) será alterado para pendente novamente.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => updateStatus(shop.id, shop.name, "pending")}>
+                                Confirmar reversão
+                              </AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                         )}
                       </div>
                     </CardContent>
