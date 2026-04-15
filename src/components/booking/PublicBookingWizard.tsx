@@ -267,52 +267,74 @@ export function PublicBookingWizard() {
       {step === "barbershop" && (
         <div className="space-y-3">
           <h2 className="font-display text-lg font-semibold text-foreground">Escolha a Barbearia</h2>
+
+          {/* Search */}
+          {!loadingStep && barbershops.length > 0 && (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Buscar por nome..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 bg-card border-border"
+              />
+            </div>
+          )}
+
           {loadingStep ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Skeleton key={i} className="h-24 rounded-xl" />
               ))}
             </div>
-          ) : barbershops.length === 0 ? (
-            <p className="text-muted-foreground text-sm py-10 text-center">Nenhuma barbearia disponível.</p>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {barbershops.map((bs) => (
-                <Card
-                  key={bs.id}
-                  className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group"
-                  onClick={() => handleSelectBarbershop(bs)}
-                >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    {bs.logo_url ? (
-                      <img
-                        src={bs.logo_url}
-                        alt={bs.name}
-                        className="h-14 w-14 rounded-xl object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div
-                        className="h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ backgroundColor: bs.primary_color + "22" }}
-                      >
-                        <Store className="w-6 h-6" style={{ color: bs.primary_color }} />
+          ) : (() => {
+            const filtered = barbershops.filter((bs) =>
+              bs.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              bs.subdomain.toLowerCase().includes(searchQuery.toLowerCase())
+            );
+            return filtered.length === 0 ? (
+              <p className="text-muted-foreground text-sm py-10 text-center">
+                {searchQuery ? "Nenhuma barbearia encontrada." : "Nenhuma barbearia disponível."}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {filtered.map((bs) => (
+                  <Card
+                    key={bs.id}
+                    className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group"
+                    onClick={() => handleSelectBarbershop(bs)}
+                  >
+                    <CardContent className="p-4 flex items-center gap-4">
+                      {bs.logo_url ? (
+                        <img
+                          src={bs.logo_url}
+                          alt={bs.name}
+                          className="h-14 w-14 rounded-xl object-cover flex-shrink-0"
+                        />
+                      ) : (
+                        <div
+                          className="h-14 w-14 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: bs.primary_color + "22" }}
+                        >
+                          <Store className="w-6 h-6" style={{ color: bs.primary_color }} />
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {bs.name}
+                        </h3>
+                        <p className="text-xs text-muted-foreground flex items-center gap-1">
+                          <MapPin className="w-3 h-3" />
+                          {bs.subdomain}
+                        </p>
                       </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {bs.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        {bs.subdomain}
-                      </p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+                      <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
