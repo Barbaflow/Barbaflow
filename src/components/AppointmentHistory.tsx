@@ -26,7 +26,7 @@ interface Appointment {
   created_at: string;
   barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
-  barber_profile: { full_name: string | null } | null;
+  barber_profile: { full_name: string | null; avatar_url: string | null } | null;
 }
 
 const STATUS_MAP: Record<string, { label: string; variant: "default" | "secondary" | "destructive" | "outline" }> = {
@@ -96,20 +96,20 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
       // Fetch barber profiles
       const barberIds = [...new Set(rawAppointments.map((a) => a.barber_id))];
-      let profileMap: Record<string, string | null> = {};
+      let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
       if (barberIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, full_name")
+          .select("user_id, full_name, avatar_url")
           .in("user_id", barberIds);
         if (profiles) {
-          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, p.full_name]));
+          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }]));
         }
       }
       setAppointments(
         rawAppointments.map((a) => ({
           ...a,
-          barber_profile: { full_name: profileMap[a.barber_id] || null },
+          barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
         }))
       );
     }
@@ -305,10 +305,18 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         </Badge>
                       </div>
 
-                      {apt.barber_profile?.full_name && (
+                      {(apt.barber_profile?.full_name || apt.barber_profile?.avatar_url) && (
                         <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                          <User className="w-3.5 h-3.5 text-primary" />
-                          <span className="truncate">{apt.barber_profile.full_name}</span>
+                          {apt.barber_profile.avatar_url ? (
+                            <img
+                              src={apt.barber_profile.avatar_url}
+                              alt={apt.barber_profile.full_name || "Barbeiro"}
+                              className="w-5 h-5 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <User className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                          )}
+                          <span className="truncate">{apt.barber_profile.full_name || "Barbeiro"}</span>
                         </div>
                       )}
 
