@@ -29,7 +29,7 @@ export function AdminDashboard() {
 
   const statusIcon = (status: string) => {
     switch (status) {
-      case "approved": return <CheckCircle className="w-4 h-4 text-green-500" />;
+      case "approved": return <CheckCircle className="w-4 h-4 text-primary" />;
       case "rejected": return <XCircle className="w-4 h-4 text-destructive" />;
       default: return <Clock className="w-4 h-4 text-gold-muted" />;
     }
