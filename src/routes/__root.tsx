@@ -1,7 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
-import { TenantThemeProvider } from "@/components/TenantThemeProvider";
-import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
+import { TenantThemeApplier } from "@/components/TenantThemeProvider";
+import { BarbershopProvider } from "@/hooks/use-barbershop";
 
 import appCss from "../styles.css?url";
 
@@ -68,12 +68,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
-  const barbershopId = DEFAULT_BARBERSHOP_ID;
-
   return (
-    <TenantThemeProvider barbershopId={barbershopId}>
+    <BarbershopProvider>
+      <TenantThemeApplier />
       <Outlet />
       <Toaster position="top-right" richColors />
-    </TenantThemeProvider>
+    </BarbershopProvider>
   );
 }
