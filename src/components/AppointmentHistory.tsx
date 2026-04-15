@@ -93,10 +93,26 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     if (err) {
       setError("Erro ao carregar agendamentos.");
     } else {
-      setAppointments((data as unknown as Appointment[]) || []);
+      const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
+      // Fetch barber profiles
+      const barberIds = [...new Set(rawAppointments.map((a) => a.barber_id))];
+      let profileMap: Record<string, string | null> = {};
+      if (barberIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("user_id, full_name")
+          .in("user_id", barberIds);
+        if (profiles) {
+          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, p.full_name]));
+        }
+      }
+      setAppointments(
+        rawAppointments.map((a) => ({
+          ...a,
+          barber_profile: { full_name: profileMap[a.barber_id] || null },
+        }))
+      );
     }
-
-    setLoading(false);
   }, [user, barbershopId, statusFilter, dateRange]);
 
   useEffect(() => {
