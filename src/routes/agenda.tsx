@@ -1,4 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
@@ -19,8 +20,7 @@ function AgendaPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
 
-  // TODO: resolve barbershopId from user's role
-  const barbershopId = "demo";
+  const barbershopId = DEFAULT_BARBERSHOP_ID;
 
   if (!loading && !user) {
     navigate({ to: "/login" });
