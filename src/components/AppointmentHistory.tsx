@@ -100,16 +100,16 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       if (barberIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, full_name")
+          .select("user_id, full_name, avatar_url")
           .in("user_id", barberIds);
         if (profiles) {
-          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, p.full_name]));
+          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }]));
         }
       }
       setAppointments(
         rawAppointments.map((a) => ({
           ...a,
-          barber_profile: { full_name: profileMap[a.barber_id] || null },
+          barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
         }))
       );
     }
