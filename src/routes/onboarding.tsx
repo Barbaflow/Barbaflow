@@ -20,7 +20,7 @@ function OnboardingPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({ to: "/login" });
+      navigate({ to: "/login", replace: true });
     }
   }, [user, loading, navigate]);
 
