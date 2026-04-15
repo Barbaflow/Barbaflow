@@ -13,40 +13,47 @@ export function ProfilePhotoUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [originalName, setOriginalName] = useState("");
+  const [originalPhone, setOriginalPhone] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [savingName, setSavingName] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("avatar_url, full_name")
+      .select("avatar_url, full_name, phone")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
         setFullName(data?.full_name || "");
         setOriginalName(data?.full_name || "");
+        setPhone((data as any)?.phone || "");
+        setOriginalPhone((data as any)?.phone || "");
         setLoading(false);
       });
   }, [user]);
 
-  const handleSaveName = async () => {
-    if (!user || fullName.trim() === originalName) return;
-    setSavingName(true);
+  const profileChanged = fullName.trim() !== originalName || phone.trim() !== originalPhone;
+
+  const handleSaveProfile = async () => {
+    if (!user || !profileChanged) return;
+    setSavingProfile(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim() })
+      .update({ full_name: fullName.trim(), phone: phone.trim() || null } as any)
       .eq("user_id", user.id);
     if (error) {
-      toast.error("Erro ao salvar nome.");
+      toast.error("Erro ao salvar perfil.");
     } else {
       setOriginalName(fullName.trim());
-      toast.success("Nome atualizado!");
+      setOriginalPhone(phone.trim());
+      toast.success("Perfil atualizado!");
     }
-    setSavingName(false);
+    setSavingProfile(false);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
