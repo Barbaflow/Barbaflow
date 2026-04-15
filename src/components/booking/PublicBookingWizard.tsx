@@ -63,6 +63,7 @@ export function PublicBookingWizard() {
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [booking, setBooking] = useState(false);
   const [loadingStep, setLoadingStep] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Fetch barbershops
   useEffect(() => {
