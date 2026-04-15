@@ -74,7 +74,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       .order("start_time", { ascending: false });
 
     if (statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
+      query = query.eq("status", statusFilter as "scheduled" | "completed" | "cancelled" | "no_show");
     }
 
     if (dateRange?.from) {
