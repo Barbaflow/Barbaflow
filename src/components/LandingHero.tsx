@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Scissors, Calendar, Store } from "lucide-react";
+import { Scissors, Calendar, Store, UserPlus, Palette, CalendarCheck, Rocket } from "lucide-react";
 
 interface LandingHeroProps {
   barbershopName?: string;
@@ -86,6 +86,70 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
             <div>
               <p className="text-2xl md:text-3xl font-display font-bold text-gradient-gold">100%</p>
               <p className="text-xs uppercase tracking-wider text-muted-foreground mt-1">Online</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Como funciona */}
+        <div className="relative z-10 px-6 md:px-12 py-16 md:py-24">
+          <div className="max-w-5xl mx-auto">
+            <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-3 font-body font-medium text-center">
+              Simples e rápido
+            </p>
+            <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground text-center mb-14">
+              Como <span className="text-gradient-gold">funciona</span>
+            </h2>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-8 md:gap-6">
+              {[
+                {
+                  icon: UserPlus,
+                  step: "01",
+                  title: "Crie sua conta",
+                  description: "Cadastre-se gratuitamente em segundos.",
+                },
+                {
+                  icon: Palette,
+                  step: "02",
+                  title: "Personalize",
+                  description: "Defina nome, logo, cores e subdomínio da sua barbearia.",
+                },
+                {
+                  icon: CalendarCheck,
+                  step: "03",
+                  title: "Configure a agenda",
+                  description: "Adicione serviços, barbeiros e horários de atendimento.",
+                },
+                {
+                  icon: Rocket,
+                  step: "04",
+                  title: "Comece a agendar",
+                  description: "Compartilhe o link e receba agendamentos dos clientes.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.step}
+                  className="relative flex flex-col items-center text-center p-6 rounded-2xl border border-border bg-card/50 backdrop-blur-sm hover:border-gold/30 transition-colors duration-300"
+                >
+                  <span className="text-xs font-body font-semibold text-gold-muted tracking-widest mb-3">
+                    PASSO {item.step}
+                  </span>
+                  <div className="h-12 w-12 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold mb-4">
+                    <item.icon className="w-6 h-6 text-primary-foreground" />
+                  </div>
+                  <h3 className="font-display text-lg font-semibold text-foreground mb-2">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground font-body">{item.description}</p>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex justify-center mt-12 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              <Link to="/onboarding">
+                <Button variant="gold" size="xl">
+                  <Store className="w-5 h-5" />
+                  Começar agora — é grátis
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
