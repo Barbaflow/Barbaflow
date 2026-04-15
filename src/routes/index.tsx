@@ -1,26 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { LandingHero } from "@/components/LandingHero";
 
 export const Route = createFileRoute("/")({
-  component: Index,
+  head: () => ({
+    meta: [
+      { title: "BarberPro — Agendamento para Barbearias" },
+      { name: "description", content: "Plataforma white-label de agendamento para barbearias. Crie seu subdomínio e gerencie sua barbearia." },
+      { property: "og:title", content: "BarberPro — Agendamento para Barbearias" },
+      { property: "og:description", content: "Plataforma white-label de agendamento para barbearias." },
+    ],
+  }),
+  component: IndexPage,
 });
 
-// IMPORTANT: Replace this placeholder. For sites with multiple pages (About, Services, Contact, etc.),
-// create separate route files (about.tsx, services.tsx, contact.tsx) — don't put all pages in this file.
-function PlaceholderIndex() {
-  return (
-    <div
-      className="flex min-h-screen items-center justify-center"
-      style={{ backgroundColor: "#fcfbf8" }}
-    >
-      <img
-        data-lovable-blank-page-placeholder="REMOVE_THIS"
-        src="https://cdn.gpteng.co/blank-app-v1.svg"
-        alt="Your app will live here!"
-      />
-    </div>
-  );
-}
-
-function Index() {
-  return <PlaceholderIndex />;
+function IndexPage() {
+  return <LandingHero />;
 }
