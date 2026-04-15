@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ServicosRouteImport } from './routes/servicos'
+import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos'
 import { Route as LoginRouteImport } from './routes/login'
@@ -22,6 +23,11 @@ import { Route as IndexRouteImport } from './routes/index'
 const ServicosRoute = ServicosRouteImport.update({
   id: '/servicos',
   path: '/servicos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RelatoriosRoute = RelatoriosRouteImport.update({
+  id: '/relatorios',
+  path: '/relatorios',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -74,6 +80,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
 }
 export interface FileRoutesByTo {
@@ -85,6 +92,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
 }
 export interface FileRoutesById {
@@ -97,6 +105,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
+  '/relatorios': typeof RelatoriosRoute
   '/servicos': typeof ServicosRoute
 }
 export interface FileRouteTypes {
@@ -110,6 +119,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-agendamentos'
     | '/onboarding'
+    | '/relatorios'
     | '/servicos'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -121,6 +131,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-agendamentos'
     | '/onboarding'
+    | '/relatorios'
     | '/servicos'
   id:
     | '__root__'
@@ -132,6 +143,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/meus-agendamentos'
     | '/onboarding'
+    | '/relatorios'
     | '/servicos'
   fileRoutesById: FileRoutesById
 }
@@ -144,6 +156,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MeusAgendamentosRoute: typeof MeusAgendamentosRoute
   OnboardingRoute: typeof OnboardingRoute
+  RelatoriosRoute: typeof RelatoriosRoute
   ServicosRoute: typeof ServicosRoute
 }
 
@@ -154,6 +167,13 @@ declare module '@tanstack/react-router' {
       path: '/servicos'
       fullPath: '/servicos'
       preLoaderRoute: typeof ServicosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/relatorios': {
+      id: '/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof RelatoriosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -224,6 +244,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MeusAgendamentosRoute: MeusAgendamentosRoute,
   OnboardingRoute: OnboardingRoute,
+  RelatoriosRoute: RelatoriosRoute,
   ServicosRoute: ServicosRoute,
 }
 export const routeTree = rootRouteImport
