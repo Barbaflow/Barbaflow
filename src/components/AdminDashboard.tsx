@@ -267,7 +267,7 @@ export function AdminDashboard() {
                       </div>
 
                       {/* Actions */}
-                      {isPending && (
+                      {isPending ? (
                         <div className="flex gap-1.5 flex-shrink-0">
                           <Button
                             size="sm"
@@ -289,6 +289,17 @@ export function AdminDashboard() {
                             Rejeitar
                           </Button>
                         </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => updateStatus(shop.id, shop.name, "pending")}
+                          disabled={isUpdating}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Reverter
+                        </Button>
                       )}
                     </div>
                   </CardContent>
