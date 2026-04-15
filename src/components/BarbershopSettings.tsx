@@ -21,6 +21,8 @@ interface BarbershopData {
 
 export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
+  const { planName, loading: planLoading } = usePlan();
+  const isFree = planName === "free";
   const [data, setData] = useState<BarbershopData | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#C8A96E");
   const [secondaryColor, setSecondaryColor] = useState("#1A1A2E");
