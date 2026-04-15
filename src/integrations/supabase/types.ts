@@ -223,6 +223,7 @@ export type Database = {
       plans: {
         Row: {
           appointment_limit: number | null
+          barber_limit: number | null
           created_at: string
           has_subscriptions: boolean
           id: string
@@ -232,6 +233,7 @@ export type Database = {
         }
         Insert: {
           appointment_limit?: number | null
+          barber_limit?: number | null
           created_at?: string
           has_subscriptions?: boolean
           id?: string
@@ -241,6 +243,7 @@ export type Database = {
         }
         Update: {
           appointment_limit?: number | null
+          barber_limit?: number | null
           created_at?: string
           has_subscriptions?: boolean
           id?: string
@@ -546,6 +549,7 @@ export type Database = {
         Args: { _barbershop_id: string }
         Returns: boolean
       }
+      check_barber_limit: { Args: { _barbershop_id: string }; Returns: boolean }
       generate_availability_from_schedule: {
         Args: {
           _barber_id: string
