@@ -20,7 +20,7 @@ function LoginPage() {
 
   useEffect(() => {
     if (!loading && user) {
-      navigate({ to: "/dashboard", search: {} });
+      navigate({ to: "/dashboard", search: { checkout: undefined } });
     }
   }, [user, loading, navigate]);
 

@@ -35,13 +35,13 @@ function DashboardPage() {
       toast.success("Upgrade realizado com sucesso! 🎉", {
         description: "Seu plano foi atualizado. Aproveite todos os recursos.",
       });
-      navigate({ to: "/dashboard", search: {}, replace: true });
+      navigate({ to: "/dashboard", search: { checkout: undefined }, replace: true });
     }
   }, [checkout, navigate]);
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({ to: "/login", search: {} });
+      navigate({ to: "/login" });
     }
   }, [user, loading, navigate]);
 

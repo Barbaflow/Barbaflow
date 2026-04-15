@@ -118,7 +118,7 @@ function UpgradePage() {
     <div className="min-h-screen bg-background">
       <PaymentTestModeBanner />
       <div className="max-w-5xl mx-auto px-4 py-8 md:py-16">
-        <Link to="/dashboard" search={{}} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8">
+        <Link to="/dashboard" search={{ checkout: undefined }} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-8">
           <ArrowLeft className="w-4 h-4" />
           Voltar ao dashboard
         </Link>

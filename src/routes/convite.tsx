@@ -90,7 +90,7 @@ function ConvitePage() {
                 Bem-vindo à equipe!
               </h1>
               <p className="text-sm text-muted-foreground">{message}</p>
-              <Link to="/dashboard" search={{}}>
+              <Link to="/dashboard" search={{ checkout: undefined }}>
                 <Button className="bg-primary text-primary-foreground hover:bg-primary/90">
                   Ir para o Dashboard
                 </Button>

@@ -124,7 +124,7 @@ export function OnboardingWizard() {
       });
 
       toast.success("Barbearia criada com sucesso! Aguardando aprovação.");
-      navigate({ to: "/dashboard", search: {} });
+      navigate({ to: "/dashboard", search: { checkout: undefined } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro inesperado.");
     } finally {
