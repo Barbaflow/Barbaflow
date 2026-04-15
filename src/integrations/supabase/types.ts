@@ -184,6 +184,47 @@ export type Database = {
         }
         Relationships: []
       }
+      schedule_blocks: {
+        Row: {
+          barber_id: string
+          barbershop_id: string
+          block_date: string
+          block_type: Database["public"]["Enums"]["block_type"]
+          created_at: string
+          id: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          barber_id: string
+          barbershop_id: string
+          block_date: string
+          block_type?: Database["public"]["Enums"]["block_type"]
+          created_at?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          barber_id?: string
+          barbershop_id?: string
+          block_date?: string
+          block_type?: Database["public"]["Enums"]["block_type"]
+          created_at?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "schedule_blocks_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           active: boolean
@@ -387,6 +428,7 @@ export type Database = {
       appointment_status: "scheduled" | "completed" | "cancelled" | "no_show"
       approval_status: "pending" | "approved" | "rejected"
       availability_status: "livre" | "ocupado" | "folga"
+      block_type: "feriado" | "ferias" | "pessoal"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -518,6 +560,7 @@ export const Constants = {
       appointment_status: ["scheduled", "completed", "cancelled", "no_show"],
       approval_status: ["pending", "approved", "rejected"],
       availability_status: ["livre", "ocupado", "folga"],
+      block_type: ["feriado", "ferias", "pessoal"],
     },
   },
 } as const
