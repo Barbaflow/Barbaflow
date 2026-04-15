@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
-import { Scissors } from "lucide-react";
+import { ArrowLeft, Scissors } from "lucide-react";
 
 export function AuthForm() {
   const [mode, setMode] = useState<"login" | "register">("login");
@@ -36,6 +37,14 @@ export function AuthForm() {
 
   return (
     <div className="w-full max-w-md mx-auto">
+      <div className="mb-4">
+        <Link to="/">
+          <Button variant="ghost" size="sm" className="gap-1 text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="w-4 h-4" />
+            Voltar
+          </Button>
+        </Link>
+      </div>
       <div className="flex flex-col items-center mb-8">
         <div className="w-16 h-16 rounded-full bg-gradient-gold flex items-center justify-center mb-4 shadow-gold">
           <Scissors className="w-8 h-8 text-primary-foreground" />
