@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
+import { TeamManager } from "@/components/TeamManager";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors, LogOut } from "lucide-react";
 import { useEffect } from "react";
@@ -63,15 +64,26 @@ function ConfiguracoesPage() {
         </div>
       </nav>
 
-      <main className="max-w-2xl mx-auto px-6 py-10">
-        <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-2">
-          <span className="text-gradient-gold">Configurações</span>
-        </h1>
-        <p className="text-muted-foreground mb-8">
-          Personalize o branding da sua barbearia.
-        </p>
+      <main className="max-w-2xl mx-auto px-6 py-10 space-y-10">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-2">
+            <span className="text-gradient-gold">Configurações</span>
+          </h1>
+          <p className="text-muted-foreground mb-8">
+            Personalize o branding da sua barbearia.
+          </p>
+          <BarbershopSettings barbershopId={barbershopId} />
+        </div>
 
-        <BarbershopSettings barbershopId={barbershopId} />
+        <div>
+          <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+            <span className="text-gradient-gold">Equipe</span>
+          </h2>
+          <p className="text-muted-foreground mb-6">
+            Gerencie barbeiros e administradores da sua barbearia.
+          </p>
+          <TeamManager barbershopId={barbershopId} />
+        </div>
       </main>
     </div>
   );
