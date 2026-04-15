@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ScheduleManager } from "@/components/ScheduleManager";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
+import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Scissors, Calendar, Clock } from "lucide-react";
+import { ArrowLeft, Scissors, Calendar, Clock, CalendarOff } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 
