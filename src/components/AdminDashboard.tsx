@@ -14,6 +14,7 @@ import {
   XCircle,
   Clock,
   Settings,
+  RotateCcw,
   Store,
   Users,
   CalendarDays,
@@ -88,7 +89,7 @@ export function AdminDashboard() {
     fetchBarbershops();
   }, [fetchBarbershops]);
 
-  const updateStatus = async (id: string, name: string, status: "approved" | "rejected") => {
+  const updateStatus = async (id: string, name: string, status: "approved" | "rejected" | "pending") => {
     setUpdating(id);
     const { error } = await supabase.from("barbershops").update({ status }).eq("id", id);
     setUpdating(null);
@@ -101,7 +102,9 @@ export function AdminDashboard() {
     toast.success(
       status === "approved"
         ? `"${name}" foi aprovada! ✅`
-        : `"${name}" foi rejeitada.`
+        : status === "rejected"
+          ? `"${name}" foi rejeitada.`
+          : `"${name}" voltou para pendente.`
     );
     fetchBarbershops();
   };
@@ -266,7 +269,7 @@ export function AdminDashboard() {
                       </div>
 
                       {/* Actions */}
-                      {isPending && (
+                      {isPending ? (
                         <div className="flex gap-1.5 flex-shrink-0">
                           <Button
                             size="sm"
@@ -288,6 +291,17 @@ export function AdminDashboard() {
                             Rejeitar
                           </Button>
                         </div>
+                      ) : (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs h-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => updateStatus(shop.id, shop.name, "pending")}
+                          disabled={isUpdating}
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          Reverter
+                        </Button>
                       )}
                     </div>
                   </CardContent>
