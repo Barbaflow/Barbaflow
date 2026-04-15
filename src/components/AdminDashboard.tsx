@@ -243,6 +243,14 @@ export function AdminDashboard() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant={showLogs ? "secondary" : "ghost"}
+              size="sm"
+              onClick={() => setShowLogs((v) => !v)}
+            >
+              <History className="w-4 h-4" />
+              <span className="hidden sm:inline">Histórico</span>
+            </Button>
             <Link to="/configuracoes">
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
