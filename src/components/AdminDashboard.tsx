@@ -138,10 +138,18 @@ export function AdminDashboard() {
   const changePlan = async (shopId: string, shopName: string, newPlanId: string) => {
     setChangingPlan(shopId);
 
-    // Validate plan exists
     const plan = plans.find((p) => p.id === newPlanId);
     if (!plan) {
       toast.error("Plano inválido.");
+      setChangingPlan(null);
+      return;
+    }
+
+    // Get current plan_id for the log
+    const shop = barbershops.find((s) => s.id === shopId);
+    const oldPlanId = shop?.plan_id || null;
+
+    if (oldPlanId === newPlanId) {
       setChangingPlan(null);
       return;
     }
@@ -151,16 +159,42 @@ export function AdminDashboard() {
       .update({ plan_id: newPlanId })
       .eq("id", shopId);
 
-    setChangingPlan(null);
-
     if (error) {
       toast.error("Erro ao alterar plano.");
+      setChangingPlan(null);
       return;
     }
 
+    // Log the change
+    await supabase.from("plan_change_logs").insert({
+      barbershop_id: shopId,
+      old_plan_id: oldPlanId,
+      new_plan_id: newPlanId,
+      changed_by: user!.id,
+    });
+
+    setChangingPlan(null);
     toast.success(`Plano de "${shopName}" alterado para ${plan.name.toUpperCase()}.`);
     fetchBarbershops();
+    fetchLogs();
   };
+
+  // Plan change logs
+  const [logs, setLogs] = useState<any[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+
+  const fetchLogs = useCallback(async () => {
+    const { data } = await supabase
+      .from("plan_change_logs")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    setLogs(data || []);
+  }, []);
+
+  useEffect(() => {
+    if (showLogs) fetchLogs();
+  }, [showLogs, fetchLogs]);
 
   const filtered = useMemo(() => {
     let list = filter === "all" ? barbershops : barbershops.filter((s) => s.status === filter);
