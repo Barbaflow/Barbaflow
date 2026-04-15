@@ -55,6 +55,11 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
   const handleBook = async () => {
     if (!selectedSlot || !selectedService || !user) return;
 
+    if (isAtLimit) {
+      setShowPaywall(true);
+      return;
+    }
+
     const service = services.find((s) => s.id === selectedService);
     if (!service) return;
 
