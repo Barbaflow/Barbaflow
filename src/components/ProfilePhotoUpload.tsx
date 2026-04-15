@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Camera, Loader2, Trash2, User, Check } from "lucide-react";
+import { Camera, Loader2, Trash2, User, Check, Phone } from "lucide-react";
 import { toast } from "sonner";
 
 export function ProfilePhotoUpload() {
@@ -13,40 +13,47 @@ export function ProfilePhotoUpload() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [originalName, setOriginalName] = useState("");
+  const [originalPhone, setOriginalPhone] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [savingName, setSavingName] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("avatar_url, full_name")
+      .select("avatar_url, full_name, phone")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
         setFullName(data?.full_name || "");
         setOriginalName(data?.full_name || "");
+        setPhone((data as any)?.phone || "");
+        setOriginalPhone((data as any)?.phone || "");
         setLoading(false);
       });
   }, [user]);
 
-  const handleSaveName = async () => {
-    if (!user || fullName.trim() === originalName) return;
-    setSavingName(true);
+  const profileChanged = fullName.trim() !== originalName || phone.trim() !== originalPhone;
+
+  const handleSaveProfile = async () => {
+    if (!user || !profileChanged) return;
+    setSavingProfile(true);
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim() })
+      .update({ full_name: fullName.trim(), phone: phone.trim() || null } as any)
       .eq("user_id", user.id);
     if (error) {
-      toast.error("Erro ao salvar nome.");
+      toast.error("Erro ao salvar perfil.");
     } else {
       setOriginalName(fullName.trim());
-      toast.success("Nome atualizado!");
+      setOriginalPhone(phone.trim());
+      toast.success("Perfil atualizado!");
     }
-    setSavingName(false);
+    setSavingProfile(false);
   };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -193,30 +200,41 @@ export function ProfilePhotoUpload() {
           </div>
         </div>
 
-        {/* Name field */}
-        <div className="mt-5 pt-5 border-t border-border space-y-2">
-          <Label className="text-xs text-muted-foreground">Nome Completo</Label>
-          <div className="flex gap-2">
+        {/* Profile fields */}
+        <div className="mt-5 pt-5 border-t border-border space-y-4">
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Nome Completo</Label>
             <Input
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Seu nome completo"
               className="bg-background border-border"
             />
-            <Button
-              size="sm"
-              onClick={handleSaveName}
-              disabled={savingName || fullName.trim() === originalName}
-              className="flex-shrink-0"
-            >
-              {savingName ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Check className="w-4 h-4" />
-              )}
-              Salvar
-            </Button>
           </div>
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp</Label>
+            <div className="relative">
+              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(11) 99999-9999"
+                className="bg-background border-border pl-9"
+              />
+            </div>
+          </div>
+          <Button
+            size="sm"
+            onClick={handleSaveProfile}
+            disabled={savingProfile || !profileChanged}
+          >
+            {savingProfile ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            Salvar Perfil
+          </Button>
         </div>
 
         <input
