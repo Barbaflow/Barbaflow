@@ -137,11 +137,42 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     }
   };
 
+  const handleApplyTemplate = async () => {
+    if (!user) return;
+    const templateSlots = [];
+    for (let day = 1; day <= 5; day++) {
+      const exists = schedule.some(
+        (s) => s.day_of_week === day && s.start_time.slice(0, 5) === "09:00" && s.end_time.slice(0, 5) === "18:00"
+      );
+      if (!exists) {
+        templateSlots.push({
+          barber_id: user.id,
+          barbershop_id: barbershopId,
+          day_of_week: day,
+          start_time: "09:00:00",
+          end_time: "18:00:00",
+        });
+      }
+    }
+
+    if (templateSlots.length === 0) {
+      toast.info("Horário comercial já está configurado (Seg-Sex 09:00-18:00).");
+      return;
+    }
+
+    const { error } = await supabase.from("weekly_schedule").insert(templateSlots);
+    if (error) {
+      toast.error("Erro ao aplicar template.");
+    } else {
+      toast.success(`Template aplicado! ${templateSlots.length} horários adicionados.`);
+      fetchSchedule();
+    }
+  };
+
   const handleGenerateSlots = async () => {
     if (!user) return;
     setGenerating(true);
 
-    // Generate for next 14 days
     const startDate = new Date();
     const endDate = new Date();
     endDate.setDate(endDate.getDate() + 14);
