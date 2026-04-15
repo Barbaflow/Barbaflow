@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookingCalendar } from "@/components/BookingCalendar";
+import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -9,7 +9,7 @@ export const Route = createFileRoute("/agendar")({
   head: () => ({
     meta: [
       { title: "Agendar — BarbaFlow" },
-      { name: "description", content: "Agende seu horário na barbearia. Escolha serviço, barbeiro e horário disponível." },
+      { name: "description", content: "Agende seu horário na barbearia. Escolha barbearia, barbeiro, serviço e horário." },
       { property: "og:title", content: "Agendar — BarbaFlow" },
     ],
   }),
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/agendar")({
 
 function AgendarPage() {
   const { user, loading } = useAuth();
-  const { barbershopId, barbershop } = useBarbershop();
+  const { barbershop } = useBarbershop();
   const name = barbershop?.name || "BarbaFlow";
 
   return (
@@ -49,12 +49,12 @@ function AgendarPage() {
         </div>
       </nav>
 
-      <main className="max-w-5xl mx-auto px-6 py-10">
+      <main className="max-w-4xl mx-auto px-6 py-10">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-2">
           <span className="text-gradient-gold">Agendar</span> Horário
         </h1>
         <p className="text-muted-foreground mb-8">
-          Selecione serviço, data e horário disponível.
+          Escolha a barbearia, barbeiro, serviço e horário desejado.
         </p>
 
         {!user && !loading && (
@@ -64,7 +64,7 @@ function AgendarPage() {
           </div>
         )}
 
-        <BookingCalendar barbershopId={barbershopId} />
+        <PublicBookingWizard />
       </main>
     </div>
   );
