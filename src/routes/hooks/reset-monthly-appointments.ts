@@ -1,28 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
 export const Route = createFileRoute("/hooks/reset-monthly-appointments")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const lovableContext = request.headers.get("lovable-context");
         const authHeader = request.headers.get("authorization");
-        const token = authHeader?.replace("Bearer ", "");
 
-        if (!token) {
+        if (!lovableContext && !authHeader) {
           return new Response(
-            JSON.stringify({ error: "Missing authorization header" }),
+            JSON.stringify({ error: "Unauthorized" }),
             { status: 401, headers: { "Content-Type": "application/json" } }
           );
         }
 
-        const supabase = createClient(
-          import.meta.env.VITE_SUPABASE_URL!,
-          token,
-          { auth: { autoRefreshToken: false, persistSession: false } }
-        );
-
-        // Reset all barbershops' monthly appointment counter
-        const { error } = await supabase
+        // Use admin client to bypass RLS and reset all barbershops
+        const { error } = await supabaseAdmin
           .from("barbershops")
           .update({ appointments_this_month: 0 } as any)
           .gte("appointments_this_month", 0);
@@ -35,7 +29,7 @@ export const Route = createFileRoute("/hooks/reset-monthly-appointments")({
           );
         }
 
-        console.log("Reset monthly appointments completed");
+        console.log("Reset monthly appointments completed at", new Date().toISOString());
 
         return new Response(
           JSON.stringify({
