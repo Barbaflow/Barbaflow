@@ -21,7 +21,9 @@ import {
   Check,
   ChevronRight,
   MapPin,
+  Search,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface Barbershop {
   id: string;
