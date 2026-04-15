@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Scissors, Calendar, Users } from "lucide-react";
+import { Scissors, Calendar } from "lucide-react";
 
 interface LandingHeroProps {
   barbershopName?: string;
@@ -60,16 +60,16 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHe
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300">
-            <Link to="/login">
+            <Link to="/agendar">
               <Button variant="gold" size="xl">
                 <Calendar className="w-5 h-5" />
                 Agendar agora
               </Button>
             </Link>
-            <Link to="/login">
+            <Link to="/servicos">
               <Button variant="gold-outline" size="xl">
-                <Users className="w-5 h-5" />
-                Criar conta
+                <Scissors className="w-5 h-5" />
+                Ver serviços
               </Button>
             </Link>
           </div>
