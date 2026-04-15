@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { TeamManager } from "@/components/TeamManager";
+import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors, LogOut } from "lucide-react";
 import { useEffect } from "react";
