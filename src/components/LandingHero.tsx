@@ -10,7 +10,7 @@ interface LandingHeroProps {
 }
 
 export function LandingHero({ barbershopName, primaryColor, logoUrl }: LandingHeroProps) {
-  const name = barbershopName || "BarberPro";
+  const name = barbershopName || "BarbaFlow";
 
   return (
     <div className="relative min-h-screen flex flex-col">

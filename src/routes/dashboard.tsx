@@ -6,8 +6,8 @@ import { useEffect } from "react";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — BarberPro" },
-      { name: "description", content: "Painel de controle do BarberPro." },
+      { title: "Dashboard — BarbaFlow" },
+      { name: "description", content: "Painel de controle do BarbaFlow." },
     ],
   }),
   component: DashboardPage,
