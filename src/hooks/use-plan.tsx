@@ -6,6 +6,7 @@ interface PlanInfo {
   planName: "free" | "pro" | "enterprise";
   appointmentLimit: number | null;
   appointmentsUsed: number;
+  barberLimit: number | null;
   hasSubscriptions: boolean;
   price: number;
   loading: boolean;
@@ -17,6 +18,7 @@ export function usePlan(): PlanInfo {
     planName: "free",
     appointmentLimit: 50,
     appointmentsUsed: 0,
+    barberLimit: 1,
     hasSubscriptions: false,
     price: 0,
     loading: true,
@@ -36,6 +38,7 @@ export function usePlan(): PlanInfo {
         planName: (data?.name as PlanInfo["planName"]) ?? "free",
         appointmentLimit: data?.appointment_limit ?? 50,
         appointmentsUsed: (barbershop as any)?.appointments_this_month ?? 0,
+        barberLimit: (data as any)?.barber_limit ?? 1,
         hasSubscriptions: data?.has_subscriptions ?? false,
         price: Number(data?.price ?? 0),
         loading: false,
@@ -44,7 +47,6 @@ export function usePlan(): PlanInfo {
 
     fetchPlan();
 
-    // Realtime subscription for counter updates
     const channel = supabase
       .channel("barbershop-plan")
       .on(
@@ -77,4 +79,19 @@ export function usePlanUsagePercent() {
   const { appointmentLimit, appointmentsUsed } = usePlan();
   if (!appointmentLimit) return 0;
   return Math.round((appointmentsUsed / appointmentLimit) * 100);
+}
+
+/** Check if the current plan allows a feature */
+export function useCanAccessFeature(feature: "reports" | "team_unlimited") {
+  const { planName, loading } = usePlan();
+  if (loading) return { canAccess: false, loading: true };
+  
+  switch (feature) {
+    case "reports":
+      return { canAccess: planName !== "free", loading: false };
+    case "team_unlimited":
+      return { canAccess: planName !== "free", loading: false };
+    default:
+      return { canAccess: true, loading: false };
+  }
 }

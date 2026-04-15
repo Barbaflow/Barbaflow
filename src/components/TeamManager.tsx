@@ -1,7 +1,9 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { usePlan } from "@/hooks/use-plan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,12 +53,16 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
   const { barbershop } = useBarbershop();
+  const { barberLimit, planName } = usePlan();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("barbeiro");
   const [sending, setSending] = useState(false);
+
+  const teamCount = members.length;
+  const hasReachedBarberLimit = barberLimit !== null && teamCount >= barberLimit;
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
@@ -106,6 +112,11 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !user) return;
+
+    if (hasReachedBarberLimit) {
+      toast.error(`O plano ${planName === "free" ? "Free" : planName} permite apenas ${barberLimit} barbeiro(s). Faça upgrade para adicionar mais.`);
+      return;
+    }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(inviteEmail)) {
@@ -239,14 +250,24 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
               </Select>
             </div>
           </div>
-          <Button
-            onClick={handleInvite}
-            disabled={sending || !inviteEmail.trim()}
-            className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Mail className="w-4 h-4" />
-            {sending ? "Enviando..." : "Enviar Convite"}
-          </Button>
+          {hasReachedBarberLimit ? (
+            <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                Limite de {barberLimit} barbeiro(s) atingido no plano {planName === "free" ? "Free" : planName}.{" "}
+                <Link to="/upgrade" className="underline font-medium">Fazer upgrade</Link>
+              </span>
+            </div>
+          ) : (
+            <Button
+              onClick={handleInvite}
+              disabled={sending || !inviteEmail.trim()}
+              className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Mail className="w-4 h-4" />
+              {sending ? "Enviando..." : "Enviar Convite"}
+            </Button>
+          )}
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             <AlertCircle className="w-3.5 h-3.5" />
             O convidado receberá um link para aceitar. Convites expiram em 7 dias.

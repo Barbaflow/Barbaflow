@@ -178,7 +178,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                   <span className="text-muted-foreground font-body">/mês</span>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {["Até 50 agendamentos/mês", "1 barbeiro", "Subdomínio personalizado", "Agendamento online"].map((f) => (
+                  {["Até 50 agendamentos/mês", "1 barbeiro na equipe", "Subdomínio personalizado", "Agendamento online", "Gestão de agenda"].map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
                       <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
                       {f}
@@ -206,7 +206,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                   <span className="text-muted-foreground font-body">/mês</span>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {["Agendamentos ilimitados", "Barbeiros ilimitados", "Relatórios avançados", "Suporte prioritário", "Personalização completa"].map((f) => (
+                  {["Agendamentos ilimitados", "Barbeiros ilimitados", "Relatórios avançados", "Gestão de equipe completa", "Bloqueios de agenda"].map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
                       <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
                       {f}
@@ -231,7 +231,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                   <span className="text-muted-foreground font-body">/mês</span>
                 </div>
                 <ul className="space-y-3 mb-8 flex-1">
-                  {["Tudo do Pro", "Múltiplas unidades", "API personalizada", "Gerente de conta dedicado", "SLA garantido"].map((f) => (
+                  {["Tudo do Pro", "Suporte prioritário", "Personalização avançada", "Múltiplas unidades (em breve)", "SLA garantido"].map((f) => (
                     <li key={f} className="flex items-start gap-2 text-sm text-muted-foreground font-body">
                       <Check className="w-4 h-4 text-gold-muted mt-0.5 shrink-0" />
                       {f}
