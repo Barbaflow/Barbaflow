@@ -1,7 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ScheduleManager } from "@/components/ScheduleManager";
+import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Scissors } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ArrowLeft, Scissors, Calendar, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 
@@ -55,9 +57,29 @@ function AgendaPage() {
           Gestão de <span className="text-gradient-gold">Agenda</span>
         </h1>
         <p className="text-muted-foreground mb-8">
-          Gerencie disponibilidade, turnos e agendamentos.
+          Defina seus horários semanais e gerencie disponibilidade.
         </p>
-        <ScheduleManager barbershopId={barbershopId} />
+
+        <Tabs defaultValue="horarios" className="space-y-6">
+          <TabsList className="bg-card border border-border">
+            <TabsTrigger value="horarios" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Clock className="w-4 h-4" />
+              Meus Horários
+            </TabsTrigger>
+            <TabsTrigger value="agenda" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Calendar className="w-4 h-4" />
+              Agenda Semanal
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="horarios">
+            <WeeklyScheduleEditor barbershopId={barbershopId} />
+          </TabsContent>
+
+          <TabsContent value="agenda">
+            <ScheduleManager barbershopId={barbershopId} />
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   );
