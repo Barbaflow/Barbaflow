@@ -59,6 +59,15 @@ export function AdminDashboard() {
   const [updating, setUpdating] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [changingPlan, setChangingPlan] = useState<string | null>(null);
+
+  // Fetch all plans once
+  useEffect(() => {
+    supabase.from("plans").select("*").order("price", { ascending: true }).then(({ data }) => {
+      if (data) setPlans(data);
+    });
+  }, []);
 
   const fetchBarbershops = useCallback(async () => {
     const { data: shops } = await supabase
