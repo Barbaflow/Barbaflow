@@ -103,6 +103,9 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
   // Cancel appointment
   const handleCancel = async (id: string) => {
+    // Fetch notification data before cancelling
+    const notifData = await getAppointmentNotificationData(id);
+
     const { error: err } = await supabase
       .from("appointments")
       .update({ status: "cancelled" })
@@ -111,6 +114,13 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     if (err) {
       setError("Erro ao cancelar agendamento.");
     } else {
+      toast.success("Agendamento cancelado.");
+      
+      // Fire cancellation notification (non-blocking)
+      if (notifData) {
+        notifyBookingCancelled(notifData).catch(console.error);
+      }
+
       fetchAppointments();
     }
   };
