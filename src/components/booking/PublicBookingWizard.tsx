@@ -377,6 +377,18 @@ export function PublicBookingWizard() {
                         {b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`}
                       </h3>
                       <p className="text-xs text-muted-foreground">Profissional</p>
+                      {b.phone && (
+                        <a
+                          href={`https://wa.me/${b.phone.replace(/\D/g, "")}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-primary flex items-center gap-1 hover:underline mt-0.5"
+                        >
+                          <Phone className="w-3 h-3" />
+                          {b.phone}
+                        </a>
+                      )}
                     </div>
                     <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
                   </CardContent>
