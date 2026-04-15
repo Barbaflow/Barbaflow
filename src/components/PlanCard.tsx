@@ -1,10 +1,13 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Crown, Zap, ArrowUpRight } from "lucide-react";
+import { Crown, Zap, ArrowUpRight, Settings, Loader2 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
+import { useAuth } from "@/hooks/use-auth";
+import { supabase } from "@/integrations/supabase/client";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
@@ -14,6 +17,27 @@ const PLAN_LABELS: Record<string, string> = {
 
 export function PlanCard() {
   const { planName, appointmentLimit, appointmentsUsed, loading } = usePlan();
+  const { user } = useAuth();
+  const [portalLoading, setPortalLoading] = useState(false);
+
+  const handleManageSubscription = async () => {
+    if (!user) return;
+    setPortalLoading(true);
+    try {
+      const clientToken = import.meta.env.VITE_PAYMENTS_CLIENT_TOKEN || "";
+      const environment = clientToken.startsWith("test_") ? "sandbox" : "live";
+      const { data, error } = await supabase.functions.invoke("create-portal-session", {
+        body: { environment },
+      });
+      if (error || !data?.url) {
+        console.error("Portal error:", error || data?.error);
+        return;
+      }
+      window.open(data.url, "_blank");
+    } finally {
+      setPortalLoading(false);
+    }
+  };
 
   if (loading) return null;
 
@@ -87,9 +111,25 @@ export function PlanCard() {
             </Link>
           </>
         ) : (
-          <p className="text-sm text-muted-foreground">
+          <>
+          <p className="text-sm text-muted-foreground mb-3">
             Agendamentos ilimitados ✨
           </p>
+          <Button
+            size="sm"
+            variant="outline"
+            className="w-full"
+            onClick={handleManageSubscription}
+            disabled={portalLoading}
+          >
+            {portalLoading ? (
+              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+            ) : (
+              <Settings className="w-3.5 h-3.5 mr-1" />
+            )}
+            Gerenciar assinatura
+          </Button>
+          </>
         )}
       </CardContent>
     </Card>
