@@ -71,7 +71,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, created_at, service:services(name, price, duration_minutes)")
+      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, service:services(name, price, duration_minutes)")
       .eq("barbershop_id", barbershopId)
       .eq("client_id", user.id)
       .order("date", { ascending: false })
