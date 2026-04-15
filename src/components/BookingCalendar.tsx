@@ -2,12 +2,15 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import { usePlan } from "@/hooks/use-plan";
 import { toast } from "sonner";
 import { notifyBookingConfirmed } from "@/lib/notifications";
 import { useBookingData } from "./booking/useBookingData";
 import { DateSelector } from "./booking/DateSelector";
 import { TimeSlotGrid } from "./booking/TimeSlotGrid";
 import { BookingConfirmation } from "./booking/BookingConfirmation";
+import { PlanPaywallModal } from "./PlanPaywallModal";
+import { AlertTriangle } from "lucide-react";
 import type { AvailabilitySlot } from "./booking/types";
 
 interface BookingCalendarProps {
@@ -31,6 +34,13 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
   const [selectedBarber, setSelectedBarber] = useState<string>("");
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [booking, setBooking] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+
+  const { planName, appointmentLimit, appointmentsUsed } = usePlan();
+  const isFree = planName === "free";
+  const usagePercent = appointmentLimit ? Math.round((appointmentsUsed / appointmentLimit) * 100) : 0;
+  const isAtLimit = isFree && appointmentLimit !== null && appointmentsUsed >= appointmentLimit;
+  const isWarning = isFree && usagePercent >= 80 && !isAtLimit;
 
   // Fetch slots when date or barber changes
   useEffect(() => {
