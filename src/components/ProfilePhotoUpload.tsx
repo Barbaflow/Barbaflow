@@ -2,29 +2,52 @@ import { useState, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import { Camera, Loader2, Trash2, User } from "lucide-react";
+import { Camera, Loader2, Trash2, User, Check } from "lucide-react";
 import { toast } from "sonner";
 
 export function ProfilePhotoUpload() {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [fullName, setFullName] = useState("");
+  const [originalName, setOriginalName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [savingName, setSavingName] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
     supabase
       .from("profiles")
-      .select("avatar_url")
+      .select("avatar_url, full_name")
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
+        setFullName(data?.full_name || "");
+        setOriginalName(data?.full_name || "");
         setLoading(false);
       });
   }, [user]);
+
+  const handleSaveName = async () => {
+    if (!user || fullName.trim() === originalName) return;
+    setSavingName(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName.trim() })
+      .eq("user_id", user.id);
+    if (error) {
+      toast.error("Erro ao salvar nome.");
+    } else {
+      setOriginalName(fullName.trim());
+      toast.success("Nome atualizado!");
+    }
+    setSavingName(false);
+  };
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -167,6 +190,32 @@ export function ProfilePhotoUpload() {
                 </Button>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* Name field */}
+        <div className="mt-5 pt-5 border-t border-border space-y-2">
+          <Label className="text-xs text-muted-foreground">Nome Completo</Label>
+          <div className="flex gap-2">
+            <Input
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Seu nome completo"
+              className="bg-background border-border"
+            />
+            <Button
+              size="sm"
+              onClick={handleSaveName}
+              disabled={savingName || fullName.trim() === originalName}
+              className="flex-shrink-0"
+            >
+              {savingName ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              Salvar
+            </Button>
           </div>
         </div>
 
