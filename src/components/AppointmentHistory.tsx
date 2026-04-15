@@ -10,6 +10,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CalendarIcon, Clock, Scissors, AlertCircle, History, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
@@ -101,6 +103,9 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
   // Cancel appointment
   const handleCancel = async (id: string) => {
+    // Fetch notification data before cancelling
+    const notifData = await getAppointmentNotificationData(id);
+
     const { error: err } = await supabase
       .from("appointments")
       .update({ status: "cancelled" })
@@ -109,6 +114,13 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     if (err) {
       setError("Erro ao cancelar agendamento.");
     } else {
+      toast.success("Agendamento cancelado.");
+      
+      // Fire cancellation notification (non-blocking)
+      if (notifData) {
+        notifyBookingCancelled(notifData).catch(console.error);
+      }
+
       fetchAppointments();
     }
   };

@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { notifyBookingConfirmed } from "@/lib/notifications";
 import { useBookingData } from "./booking/useBookingData";
 import { DateSelector } from "./booking/DateSelector";
 import { TimeSlotGrid } from "./booking/TimeSlotGrid";
@@ -72,6 +73,15 @@ export function BookingCalendar({ barbershopId }: BookingCalendarProps) {
         .eq("id", selectedSlot.id);
 
       toast.success("Agendamento confirmado!");
+
+      // Fire notification (non-blocking)
+      notifyBookingConfirmed({
+        appointmentId: crypto.randomUUID(),
+        serviceName: service.name,
+        date: selectedSlot.date,
+        startTime: selectedSlot.start_time,
+      }).catch(console.error);
+
       setSelectedSlot(null);
       fetchAvailability(selectedBarber || undefined);
     }
