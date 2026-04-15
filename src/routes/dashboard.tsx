@@ -24,8 +24,20 @@ function DashboardPage() {
   const { user, loading } = useAuth();
   const { barbershopId } = useBarbershop();
   const navigate = useNavigate();
+  const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const toastShown = useRef(false);
+
+  useEffect(() => {
+    if (checkout === "success" && !toastShown.current) {
+      toastShown.current = true;
+      toast.success("Upgrade realizado com sucesso! 🎉", {
+        description: "Seu plano foi atualizado. Aproveite todos os recursos.",
+      });
+      navigate({ to: "/dashboard", search: {}, replace: true });
+    }
+  }, [checkout, navigate]);
 
   useEffect(() => {
     if (!loading && !user) {
