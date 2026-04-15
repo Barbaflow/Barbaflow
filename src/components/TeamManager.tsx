@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { usePlan } from "@/hooks/use-plan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -51,12 +52,16 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
   const { barbershop } = useBarbershop();
+  const { barberLimit, planName } = usePlan();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("barbeiro");
   const [sending, setSending] = useState(false);
+
+  const teamCount = members.length;
+  const hasReachedBarberLimit = barberLimit !== null && teamCount >= barberLimit;
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
@@ -106,6 +111,11 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   const handleInvite = async () => {
     if (!inviteEmail.trim() || !user) return;
+
+    if (hasReachedBarberLimit) {
+      toast.error(`O plano ${planName === "free" ? "Free" : planName} permite apenas ${barberLimit} barbeiro(s). Faça upgrade para adicionar mais.`);
+      return;
+    }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(inviteEmail)) {
