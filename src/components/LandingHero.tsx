@@ -1,6 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { Scissors, Calendar, Users } from "lucide-react";
+import { Scissors, Calendar } from "lucide-react";
 
 interface LandingHeroProps {
   barbershopName?: string;
