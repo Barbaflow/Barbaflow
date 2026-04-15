@@ -1,5 +1,6 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import { Toaster } from "@/components/ui/sonner";
+import { TenantThemeProvider } from "@/components/TenantThemeProvider";
 
 import appCss from "../styles.css?url";
 
@@ -66,10 +67,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 }
 
 function RootComponent() {
+  // TODO: resolve barbershopId from subdomain dynamically
+  const barbershopId = "demo";
+
   return (
-    <>
+    <TenantThemeProvider barbershopId={barbershopId}>
       <Outlet />
       <Toaster position="top-right" richColors />
-    </>
+    </TenantThemeProvider>
   );
 }
