@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { LandingHero } from "@/components/LandingHero";
+import { useBarbershop } from "@/hooks/use-barbershop";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -14,5 +15,13 @@ export const Route = createFileRoute("/")({
 });
 
 function IndexPage() {
-  return <LandingHero />;
+  const { barbershop } = useBarbershop();
+
+  return (
+    <LandingHero
+      barbershopName={barbershop?.name}
+      primaryColor={barbershop?.primary_color}
+      logoUrl={barbershop?.logo_url ?? undefined}
+    />
+  );
 }
