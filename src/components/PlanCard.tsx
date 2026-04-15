@@ -31,7 +31,7 @@ export function PlanCard() {
         body: { environment },
       });
       if (error || !data?.url) {
-        console.error("Portal error:", error || data?.error);
+        toast.error("Não foi possível abrir o portal de assinatura. Tente novamente.");
         return;
       }
       window.open(data.url, "_blank");
