@@ -22,11 +22,10 @@ export const Route = createFileRoute("/hooks/reset-monthly-appointments")({
         );
 
         // Reset all barbershops' monthly appointment counter
-        const { error, count } = await supabase
+        const { error } = await supabase
           .from("barbershops")
-          .update({ appointments_this_month: 0 })
-          .gte("appointments_this_month", 0)
-          .select("id", { count: "exact" });
+          .update({ appointments_this_month: 0 } as any)
+          .gte("appointments_this_month", 0);
 
         if (error) {
           console.error("Reset monthly appointments error:", error);
