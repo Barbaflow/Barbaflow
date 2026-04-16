@@ -384,6 +384,24 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       </div>
 
+      {/* Barber filter (admin only) */}
+      {isAdmin && barbers.length > 0 && (
+        <div className="flex items-center gap-3">
+          <Users className="w-4 h-4 text-muted-foreground" />
+          <Select value={selectedBarber} onValueChange={setSelectedBarber}>
+            <SelectTrigger className="w-[220px] h-9">
+              <SelectValue placeholder="Filtrar por barbeiro" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os barbeiros</SelectItem>
+              {barbers.map((b) => (
+                <SelectItem key={b.id} value={b.id}>{b.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
       {/* Metrics */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="bg-card border-border">
