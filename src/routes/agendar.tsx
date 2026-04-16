@@ -8,9 +8,16 @@ import { useBarbershop } from "@/hooks/use-barbershop";
 export const Route = createFileRoute("/agendar")({
   head: () => ({
     meta: [
-      { title: "Agendar — BarbaFlow" },
-      { name: "description", content: "Agende seu horário na barbearia. Escolha barbearia, barbeiro, serviço e horário." },
-      { property: "og:title", content: "Agendar — BarbaFlow" },
+      { title: "Agendar Horário — BarbaFlow" },
+      { name: "description", content: "Agende seu horário na barbearia de forma rápida e fácil. Escolha o barbeiro, serviço e horário ideal para você." },
+      { property: "og:title", content: "Agende seu Horário — BarbaFlow" },
+      { property: "og:description", content: "Agende seu horário na barbearia de forma rápida e fácil. Escolha o barbeiro, serviço e horário ideal para você." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Agende seu Horário — BarbaFlow" },
+      { name: "twitter:description", content: "Agende seu horário na barbearia de forma rápida e fácil." },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: AgendarPage,
