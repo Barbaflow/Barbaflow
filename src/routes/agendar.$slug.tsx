@@ -3,6 +3,7 @@ import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
+import { InstallAppButton } from "@/components/InstallAppButton";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -119,6 +120,7 @@ function AgendarSlugPage() {
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-3">
+          <InstallAppButton />
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />

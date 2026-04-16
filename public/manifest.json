@@ -1,7 +1,7 @@
 {
-  "name": "BarbaFlow",
+  "name": "BarbaFlow Cliente",
   "short_name": "BarbaFlow",
-  "description": "Plataforma de agendamento para barbearias",
+  "description": "Agende seu horário na barbearia",
   "start_url": "/dashboard",
   "display": "standalone",
   "background_color": "#0F172A",

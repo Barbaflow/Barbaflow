@@ -8,7 +8,7 @@ const getManifest = createServerFn({ method: "GET" }).handler(async () => {
   const url = getRequestUrl();
   const hostname = url.hostname;
 
-  let name = "BarbaFlow";
+  let name = "BarbaFlow Cliente";
   let shortName = "BarbaFlow";
   let themeColor = "#C8A96E";
   let backgroundColor = "#0F172A";
