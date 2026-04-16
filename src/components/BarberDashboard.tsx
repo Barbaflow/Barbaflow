@@ -38,6 +38,8 @@ import {
   Plus,
   Trash2,
   Edit,
+  Globe,
+  Copy,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -215,7 +217,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
 
 function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const { user } = useAuth();
-  const { barbershopId } = useBarbershop();
+  const { barbershopId, barbershop } = useBarbershop();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -412,6 +414,48 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             </SelectContent>
           </Select>
         </div>
+      )}
+
+      {/* Subdomain link for admin */}
+      {isAdmin && barbershop?.subdomain && (
+        <Card className="bg-card border-primary/20">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Globe className="w-4 h-4 text-primary" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground">Link de agendamento</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {barbershop.subdomain}.barbaflow.pro
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const url = `https://${barbershop.subdomain}.barbaflow.pro`;
+                  navigator.clipboard.writeText(url);
+                  toast.success("Link copiado!");
+                }}
+              >
+                <Copy className="w-4 h-4" />
+                Copiar link
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+              >
+                <a href={`https://${barbershop.subdomain}.barbaflow.pro`} target="_blank" rel="noopener noreferrer">
+                  Abrir
+                </a>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Metrics */}
