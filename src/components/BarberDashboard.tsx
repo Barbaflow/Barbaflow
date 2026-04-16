@@ -982,7 +982,13 @@ function ProductsTab() {
   const handleEdit = async () => {
     if (!editingProduct || !editName.trim() || !editPrice) return;
     setEditSaving(true);
-    const updateData: Record<string, unknown> = {
+    const updateData: {
+      name: string;
+      description: string | null;
+      price: number;
+      stock_quantity: number;
+      image_url?: string;
+    } = {
       name: editName.trim(),
       description: editDescription.trim() || null,
       price: parseFloat(editPrice),
