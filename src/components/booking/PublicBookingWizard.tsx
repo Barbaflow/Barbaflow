@@ -41,12 +41,16 @@ interface BarberWithProfile {
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
 
-export function PublicBookingWizard() {
+interface PublicBookingWizardProps {
+  preselectedBarbershopId?: string;
+}
+
+export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWizardProps = {}) {
   const { user } = useAuth();
   const { barbershop: tenantBarbershop, isDefault } = useBarbershop();
 
-  // If we're on a tenant subdomain, skip barbershop selection
-  const skipBarbershopStep = !isDefault && !!tenantBarbershop;
+  // Skip barbershop selection if preselected via route param OR tenant context
+  const skipBarbershopStep = !!preselectedBarbershopId || (!isDefault && !!tenantBarbershop);
 
   const [step, setStep] = useState<Step>(skipBarbershopStep ? "barber" : "barbershop");
   const [barbershops, setBarbershops] = useState<Barbershop[]>([]);
