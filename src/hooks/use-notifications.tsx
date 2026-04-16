@@ -1,6 +1,16 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+
+const NOTIF_ENABLED_KEY = "barbaflow_notifications_enabled";
+
+function subscribeToStorage(cb: () => void) {
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+function getNotifEnabled() {
+  return localStorage.getItem(NOTIF_ENABLED_KEY) !== "false";
+}
 
 export interface Notification {
   id: string;
@@ -83,5 +93,7 @@ export function useNotifications() {
     setUnreadCount(0);
   }, [user]);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refetch: fetchNotifications };
+  const notificationsEnabled = useSyncExternalStore(subscribeToStorage, getNotifEnabled);
+
+  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refetch: fetchNotifications, notificationsEnabled };
 }
