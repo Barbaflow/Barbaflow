@@ -127,6 +127,11 @@ function AgendarSlugPage() {
               Voltar
             </Button>
           </Link>
+          {user && (
+            <Link to="/meus-agendamentos">
+              <Button variant="ghost" size="sm">Meus Agendamentos</Button>
+            </Link>
+          )}
           {!user && !loading && (
             <Link to="/login" search={{ redirect: `/agendar/${slug}` }}>
               <Button variant="gold" size="sm">Entrar</Button>
