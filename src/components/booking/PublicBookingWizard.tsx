@@ -31,6 +31,7 @@ interface Barbershop {
   logo_url: string | null;
   primary_color: string;
   subdomain: string;
+  owner_id: string | null;
 }
 
 interface BarberWithProfile {
