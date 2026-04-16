@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlanCard } from "@/components/PlanCard";
 import { NotificationBell } from "@/components/NotificationBell";
+import { InstallAppButton } from "@/components/InstallAppButton";
+import { EnableNotificationsButton } from "@/components/EnableNotificationsButton";
 import {
   Scissors,
   LogOut,
@@ -223,6 +225,8 @@ export function BarberDashboard() {
                 <span className="hidden sm:inline">Config</span>
               </Button>
             </Link>
+            <InstallAppButton />
+            <EnableNotificationsButton />
             <NotificationBell />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
