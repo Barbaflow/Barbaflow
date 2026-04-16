@@ -52,7 +52,7 @@ function AgendarSlugPage() {
       });
   }, [slug]);
 
-  // Role-based redirect: admin/barber → dashboard, client → meus-agendamentos
+  // Role-based redirect + auto-assign cliente role for path-based access
   useEffect(() => {
     if (!user || loading || loadingShop || !barbershop || roleCheckDone.current) return;
     roleCheckDone.current = true;
@@ -79,6 +79,17 @@ function AgendarSlugPage() {
 
       if (roleList.includes("admin_barbearia") || roleList.includes("barbeiro")) {
         navigate({ to: "/dashboard", search: { checkout: undefined } });
+        return;
+      }
+
+      // No role yet in this barbershop → auto-assign cliente
+      // (the global AutoClientRole hook only runs on subdomain access; this covers path-based /agendar/$slug)
+      if (roleList.length === 0) {
+        await supabase.from("user_roles").insert({
+          user_id: user.id,
+          barbershop_id: barbershop.id,
+          role: "cliente" as const,
+        });
       }
       // clients stay on the booking page — no redirect
     })();
