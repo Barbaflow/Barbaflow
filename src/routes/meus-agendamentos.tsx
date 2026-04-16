@@ -42,6 +42,7 @@ function MeusAgendamentosPage() {
               <span className="hidden sm:inline">Voltar</span>
             </Button>
           </Link>
+          {user && <NotificationBell />}
           {!user && !loading && (
             <Link to="/login">
               <Button variant="gold" size="sm">Entrar</Button>
