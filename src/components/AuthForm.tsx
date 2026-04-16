@@ -84,18 +84,32 @@ export function AuthForm() {
             required
           />
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Senha</Label>
-          <Input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            required
-            minLength={6}
-          />
-        </div>
+        {mode !== "forgot" && (
+          <div className="space-y-2">
+            <Label htmlFor="password">Senha</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              minLength={6}
+            />
+          </div>
+        )}
+
+        {mode === "login" && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              className="text-xs text-muted-foreground hover:text-primary transition-colors"
+              onClick={() => { setMode("forgot"); setError(""); setSuccess(""); }}
+            >
+              Esqueceu a senha?
+            </button>
+          </div>
+        )}
 
         {error && (
           <p className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</p>
@@ -105,7 +119,7 @@ export function AuthForm() {
         )}
 
         <Button type="submit" variant="gold" size="lg" className="w-full" disabled={submitting}>
-          {submitting ? "Aguarde..." : mode === "login" ? "Entrar" : "Criar conta"}
+          {submitting ? "Aguarde..." : mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Enviar link"}
         </Button>
       </form>
 
