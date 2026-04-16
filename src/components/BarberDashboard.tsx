@@ -470,7 +470,11 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       {/* Appointments list */}
       <div>
         <h3 className="font-display text-lg font-semibold text-foreground mb-3">
-          {isAdmin ? "Agendamentos da barbearia" : "Agendamentos do dia"}
+          {isAdmin
+            ? selectedBarber !== "all"
+              ? `Agendamentos de ${barbers.find((b) => b.id === selectedBarber)?.name || "barbeiro"}`
+              : "Agendamentos da barbearia"
+            : "Agendamentos do dia"}
         </h3>
 
         {loading ? (
