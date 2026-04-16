@@ -43,14 +43,14 @@ export const Route = createRootRoute({
       { property: "og:title", content: "BarbaFlow" },
       { property: "og:description", content: "Plataforma de agendamento para barbearias" },
       { property: "og:type", content: "website" },
-      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { property: "og:image", content: "https://barbaflow.pro/og-image.jpg" },
       { property: "og:image:width", content: "1200" },
       { property: "og:image:height", content: "630" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@BarbaFlow" },
       { name: "twitter:title", content: "BarbaFlow" },
       { name: "twitter:description", content: "Plataforma de agendamento para barbearias" },
-      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
     links: [
       {

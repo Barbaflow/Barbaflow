@@ -4,7 +4,7 @@ export const Route = createFileRoute("/sitemap.xml")({
   server: {
     handlers: {
       GET: async () => {
-        const baseUrl = "https://barbaflow-pro.lovable.app";
+        const baseUrl = "https://barbaflow.pro";
         const now = new Date().toISOString().split("T")[0];
 
         const staticRoutes = [

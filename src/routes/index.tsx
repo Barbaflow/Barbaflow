@@ -9,14 +9,14 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Plataforma white-label de agendamento para barbearias. Crie seu subdomínio, personalize sua marca e gerencie sua equipe." },
       { property: "og:title", content: "BarbaFlow — Agendamento Inteligente para Barbearias" },
       { property: "og:description", content: "Crie seu site de agendamento personalizado, gerencie sua equipe e acompanhe resultados. Comece grátis em minutos." },
-      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
-      { property: "og:url", content: "https://barbaflow-pro.lovable.app/" },
+      { property: "og:image", content: "https://barbaflow.pro/og-image.jpg" },
+      { property: "og:url", content: "https://barbaflow.pro/" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "BarbaFlow — Agendamento Inteligente para Barbearias" },
-      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
     links: [
-      { rel: "canonical", href: "https://barbaflow-pro.lovable.app/" },
+      { rel: "canonical", href: "https://barbaflow.pro/" },
     ],
     scripts: [
       {
@@ -28,7 +28,7 @@ export const Route = createFileRoute("/")({
           applicationCategory: "BusinessApplication",
           operatingSystem: "Web",
           description: "Plataforma white-label de agendamento para barbearias.",
-          url: "https://barbaflow-pro.lovable.app",
+          url: "https://barbaflow.pro",
           offers: {
             "@type": "Offer",
             price: "0",
