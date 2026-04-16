@@ -40,6 +40,7 @@ import {
   Edit,
   Globe,
   Copy,
+  Package,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -117,11 +118,12 @@ function formatDateFull(dateStr: string) {
   return `${weekdays[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
 }
 
-type AdminTab = "overview" | "services" | "team" | "schedule" | "settings";
+type AdminTab = "overview" | "services" | "products" | "team" | "schedule" | "settings";
 
 const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { id: "services", label: "Serviços", icon: Wrench },
+  { id: "products", label: "Produtos", icon: Package },
   { id: "team", label: "Equipe", icon: UserCog },
   { id: "schedule", label: "Horários", icon: CalendarCog },
   { id: "settings", label: "Configurações", icon: Settings },
@@ -206,6 +208,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
         {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} />}
         {activeTab === "services" && <ServicesTab />}
+        {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
         {activeTab === "schedule" && <ScheduleTab />}
         {activeTab === "settings" && <SettingsTab />}
@@ -877,6 +880,252 @@ function ServicesTab() {
     </div>
   );
 }
+// ─── Products Tab ────────────────────────────────────────
+
+function ProductsTab() {
+  const { user } = useAuth();
+  const { barbershopId } = useBarbershop();
+  const [products, setProducts] = useState<{ id: string; name: string; description: string | null; price: number; stock_quantity: number; active: boolean; image_url: string | null }[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [newPrice, setNewPrice] = useState("");
+  const [newStock, setNewStock] = useState("0");
+  const [editingProduct, setEditingProduct] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editStock, setEditStock] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const fetchProducts = useCallback(async () => {
+    setLoading(true);
+    const { data } = await supabase
+      .from("products")
+      .select("*")
+      .eq("barbershop_id", barbershopId)
+      .order("name");
+    setProducts(data || []);
+    setLoading(false);
+  }, [barbershopId]);
+
+  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+  const handleAdd = async () => {
+    if (!newName.trim() || !newPrice || !user) return;
+    setSaving(true);
+    const { error } = await supabase.from("products").insert({
+      barbershop_id: barbershopId,
+      name: newName.trim(),
+      description: newDescription.trim() || null,
+      price: parseFloat(newPrice),
+      stock_quantity: parseInt(newStock) || 0,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Erro ao adicionar produto.");
+    } else {
+      toast.success("Produto adicionado!");
+      setNewName(""); setNewDescription(""); setNewPrice(""); setNewStock("0");
+      setShowAdd(false);
+      fetchProducts();
+    }
+  };
+
+  const openEdit = (p: typeof products[0]) => {
+    setEditingProduct(p.id);
+    setEditName(p.name);
+    setEditDescription(p.description || "");
+    setEditPrice(String(p.price));
+    setEditStock(String(p.stock_quantity));
+  };
+
+  const handleEdit = async () => {
+    if (!editingProduct || !editName.trim() || !editPrice) return;
+    setEditSaving(true);
+    await supabase.from("products").update({
+      name: editName.trim(),
+      description: editDescription.trim() || null,
+      price: parseFloat(editPrice),
+      stock_quantity: parseInt(editStock) || 0,
+    }).eq("id", editingProduct);
+    setEditSaving(false);
+    setEditingProduct(null);
+    toast.success("Produto atualizado!");
+    fetchProducts();
+  };
+
+  const toggleActive = async (id: string, currentActive: boolean) => {
+    await supabase.from("products").update({ active: !currentActive }).eq("id", id);
+    fetchProducts();
+    toast.success(currentActive ? "Produto desativado." : "Produto ativado!");
+  };
+
+  const deleteProduct = async (id: string) => {
+    const { error } = await supabase.from("products").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir produto.");
+    } else {
+      toast.success("Produto excluído!");
+      fetchProducts();
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-display font-bold text-foreground">Produtos</h2>
+          <p className="text-sm text-muted-foreground">Gerencie os produtos vendidos na barbearia.</p>
+        </div>
+        <Dialog open={showAdd} onOpenChange={setShowAdd}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="w-4 h-4" />
+              Novo Produto
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Produto</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label>Nome</Label>
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Pomada modeladora" />
+              </div>
+              <div>
+                <Label>Descrição (opcional)</Label>
+                <Input value={newDescription} onChange={(e) => setNewDescription(e.target.value)} placeholder="Breve descrição do produto" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Preço (R$)</Label>
+                  <Input type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="0.00" />
+                </div>
+                <div>
+                  <Label>Estoque</Label>
+                  <Input type="number" value={newStock} onChange={(e) => setNewStock(e.target.value)} />
+                </div>
+              </div>
+              <Button onClick={handleAdd} disabled={saving || !newName.trim() || !newPrice} className="w-full">
+                {saving ? "Salvando..." : "Adicionar"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Edit dialog */}
+      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Produto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Nome</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div>
+              <Label>Descrição</Label>
+              <Input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Preço (R$)</Label>
+                <Input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
+              </div>
+              <div>
+                <Label>Estoque</Label>
+                <Input type="number" value={editStock} onChange={(e) => setEditStock(e.target.value)} />
+              </div>
+            </div>
+            <Button onClick={handleEdit} disabled={editSaving || !editName.trim() || !editPrice} className="w-full">
+              {editSaving ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+        </div>
+      ) : products.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+            <Package className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Nenhum produto cadastrado ainda.</p>
+            <Button size="sm" onClick={() => setShowAdd(true)}>
+              <Plus className="w-4 h-4" />
+              Adicionar primeiro produto
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {products.map((prod) => (
+            <Card key={prod.id} className={`bg-card border-border ${!prod.active ? "opacity-50" : ""}`}>
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground truncate">{prod.name}</p>
+                    {!prod.active && (
+                      <Badge variant="secondary" className="text-[10px]">Inativo</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    R$ {Number(prod.price).toFixed(2)} · Estoque: {prod.stock_quantity}
+                  </p>
+                  {prod.description && (
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{prod.description}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => openEdit(prod)}>
+                    <Edit className="w-3.5 h-3.5" />
+                    Editar
+                  </Button>
+                  <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => toggleActive(prod.id, prod.active)}>
+                    {prod.active ? "Desativar" : "Ativar"}
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="sm" className="text-destructive hover:bg-destructive/10 h-8">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Excluir produto</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Tem certeza que deseja excluir <strong>{prod.name}</strong>? Esta ação não pode ser desfeita.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => deleteProduct(prod.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Excluir
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Team Tab ────────────────────────────────────────────
 
 function TeamTab() {
