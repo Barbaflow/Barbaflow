@@ -65,6 +65,11 @@ export const Route = createRootRoute({
         rel: "apple-touch-startup-image",
         href: "/splash-1170x2532.png",
       },
+      {
+        rel: "icon",
+        type: "image/x-icon",
+        href: "/favicon.ico",
+      },
     ],
   }),
   shellComponent: RootShell,
