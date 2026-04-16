@@ -301,6 +301,8 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
     if (!isAdmin) {
       query = query.eq("barber_id", user.id);
+    } else if (selectedBarber !== "all") {
+      query = query.eq("barber_id", selectedBarber);
     }
 
     const { data } = await query;
@@ -314,7 +316,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         }, 0);
       setWeekMetrics({ totalWeek, revenueWeek });
     }
-  }, [user, barbershopId, selectedDate, isAdmin]);
+  }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
 
   useEffect(() => {
     fetchAppointments();
