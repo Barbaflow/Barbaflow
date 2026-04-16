@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UpgradeRouteImport } from './routes/upgrade'
+import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
@@ -28,6 +29,11 @@ import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hook
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
   path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SobreRoute = SobreRouteImport.update({
+  id: '/sobre',
+  path: '/sobre',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
@@ -116,6 +122,7 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
@@ -133,6 +140,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
@@ -151,6 +159,7 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
+  '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
+    | '/sobre'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
   fileRoutesByTo: FileRoutesByTo
@@ -187,6 +197,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
+    | '/sobre'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
   id:
@@ -204,6 +215,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
+    | '/sobre'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
   fileRoutesById: FileRoutesById
@@ -222,6 +234,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   ServicosRoute: typeof ServicosRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
+  SobreRoute: typeof SobreRoute
   UpgradeRoute: typeof UpgradeRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
 }
@@ -233,6 +246,13 @@ declare module '@tanstack/react-router' {
       path: '/upgrade'
       fullPath: '/upgrade'
       preLoaderRoute: typeof UpgradeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sobre': {
+      id: '/sobre'
+      path: '/sobre'
+      fullPath: '/sobre'
+      preLoaderRoute: typeof SobreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sitemap.xml': {
@@ -350,6 +370,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   ServicosRoute: ServicosRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
+  SobreRoute: SobreRoute,
   UpgradeRoute: UpgradeRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
 }
