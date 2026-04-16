@@ -28,7 +28,7 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardPage() {
   const { user, loading } = useAuth();
-  const { barbershopId } = useBarbershop();
+  const { barbershopId, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
@@ -52,7 +52,7 @@ function DashboardPage() {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || barbershopLoading) return;
 
     // Check if super_admin first
     supabase
@@ -77,9 +77,9 @@ function DashboardPage() {
             setRoleLoading(false);
           });
       });
-  }, [user, barbershopId]);
+  }, [user, barbershopId, barbershopLoading]);
 
-  if (loading || !user || roleLoading) {
+  if (loading || !user || roleLoading || barbershopLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
