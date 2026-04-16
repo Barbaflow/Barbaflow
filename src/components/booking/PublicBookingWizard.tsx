@@ -108,17 +108,23 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       .eq("barbershop_id", selectedBarbershop.id)
       .in("role", ["barbeiro", "admin_barbearia"])
       .then(async ({ data: roles }) => {
-        if (!roles || roles.length === 0) {
+        // Dedupe user_ids (a user can have both 'barbeiro' and 'admin_barbearia' roles)
+        const userIds = Array.from(new Set((roles || []).map((r) => r.user_id)));
+        if (userIds.length === 0) {
           setBarbers([]);
           setLoadingStep(false);
           return;
         }
-        const userIds = roles.map((r) => r.user_id);
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name, avatar_url")
           .in("user_id", userIds);
-        setBarbers(profiles || userIds.map((id) => ({ user_id: id, full_name: null, avatar_url: null })));
+        // Ensure every user_id has an entry, even if profile is missing
+        const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
+        const barberList: BarberWithProfile[] = userIds.map(
+          (id) => profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null }
+        );
+        setBarbers(barberList);
         setLoadingStep(false);
       });
   }, [selectedBarbershop]);
