@@ -24,7 +24,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
           }}
         />
 
-        <nav className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
+        <nav aria-label="Navegação principal" className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
           <div className="flex items-center gap-3">
             <div className="h-10 w-10 rounded-full bg-gradient-gold flex items-center justify-center shadow-gold">
               <Scissors className="w-5 h-5 text-primary-foreground" />
@@ -44,7 +44,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
           </div>
         </nav>
 
-        <main className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
+        <main role="main" className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
           <div className="max-w-3xl text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
             <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-4 font-body font-medium">
               Plataforma para Barbearias
@@ -260,7 +260,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
         }}
       />
 
-      <nav className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
+      <nav aria-label="Navegação principal" className="relative z-10 flex items-center justify-between px-6 py-5 md:px-12">
         <div className="flex items-center gap-3">
           {logoUrl ? (
             <img src={logoUrl} alt={name} className="h-10 w-10 rounded-full object-cover" />
@@ -284,7 +284,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
         </div>
       </nav>
 
-      <main className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
+      <main role="main" className="relative z-10 flex-1 flex items-center justify-center px-6 md:px-12">
         <div className="max-w-3xl text-center animate-in fade-in slide-in-from-bottom-4 duration-700">
           <p className="text-sm uppercase tracking-[0.3em] text-gold-muted mb-4 font-body font-medium">
             Barbearia Premium
