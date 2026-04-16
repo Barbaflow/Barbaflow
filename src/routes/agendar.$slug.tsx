@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
+import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
