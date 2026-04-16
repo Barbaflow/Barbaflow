@@ -41,17 +41,21 @@ interface BarberWithProfile {
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
 
-export function PublicBookingWizard() {
+interface PublicBookingWizardProps {
+  preselectedBarbershopId?: string;
+}
+
+export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWizardProps = {}) {
   const { user } = useAuth();
   const { barbershop: tenantBarbershop, isDefault } = useBarbershop();
 
-  // If we're on a tenant subdomain, skip barbershop selection
-  const skipBarbershopStep = !isDefault && !!tenantBarbershop;
+  // Skip barbershop selection if preselected via route param OR tenant context
+  const skipBarbershopStep = !!preselectedBarbershopId || (!isDefault && !!tenantBarbershop);
 
   const [step, setStep] = useState<Step>(skipBarbershopStep ? "barber" : "barbershop");
   const [barbershops, setBarbershops] = useState<Barbershop[]>([]);
   const [selectedBarbershop, setSelectedBarbershop] = useState<Barbershop | null>(
-    skipBarbershopStep ? tenantBarbershop as unknown as Barbershop : null
+    (!preselectedBarbershopId && skipBarbershopStep) ? tenantBarbershop as unknown as Barbershop : null
   );
   const [barbers, setBarbers] = useState<BarberWithProfile[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<BarberWithProfile | null>(null);
@@ -64,6 +68,19 @@ export function PublicBookingWizard() {
   const [booking, setBooking] = useState(false);
   const [loadingStep, setLoadingStep] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Load preselected barbershop by ID (from route param)
+  useEffect(() => {
+    if (!preselectedBarbershopId) return;
+    supabase
+      .from("barbershops")
+      .select("id, name, logo_url, primary_color, subdomain")
+      .eq("id", preselectedBarbershopId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setSelectedBarbershop(data);
+      });
+  }, [preselectedBarbershopId]);
 
   // Fetch barbershops
   useEffect(() => {
