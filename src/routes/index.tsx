@@ -8,7 +8,7 @@ export const Route = createFileRoute("/")({
       { title: "BarbaFlow — Agendamento Inteligente para Barbearias" },
       { name: "description", content: "Plataforma white-label de agendamento para barbearias. Crie seu subdomínio, personalize sua marca e gerencie sua equipe." },
       { property: "og:title", content: "BarbaFlow — Agendamento Inteligente para Barbearias" },
-      { property: "og:description", content: "Plataforma white-label de agendamento para barbearias. Comece grátis." },
+      { property: "og:description", content: "Crie seu site de agendamento personalizado, gerencie sua equipe e acompanhe resultados. Comece grátis em minutos." },
       { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
       { property: "og:url", content: "https://barbaflow-pro.lovable.app/" },
       { name: "twitter:card", content: "summary_large_image" },
