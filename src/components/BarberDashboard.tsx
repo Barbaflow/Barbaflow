@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlanCard } from "@/components/PlanCard";
+import { NotificationBell } from "@/components/NotificationBell";
 import {
   Scissors,
   LogOut,
@@ -222,6 +223,7 @@ export function BarberDashboard() {
                 <span className="hidden sm:inline">Config</span>
               </Button>
             </Link>
+            <NotificationBell />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
             </Button>

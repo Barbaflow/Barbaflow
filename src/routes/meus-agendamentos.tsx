@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export const Route = createFileRoute("/meus-agendamentos")({
   head: () => ({
@@ -41,6 +42,7 @@ function MeusAgendamentosPage() {
               <span className="hidden sm:inline">Voltar</span>
             </Button>
           </Link>
+          {user && <NotificationBell />}
           {!user && !loading && (
             <Link to="/login">
               <Button variant="gold" size="sm">Entrar</Button>
