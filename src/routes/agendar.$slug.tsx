@@ -114,7 +114,15 @@ function AgendarSlugPage() {
           )}
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {isStaff && (
+            <Link to="/dashboard" search={{ checkout: undefined }}>
+              <Button variant="gold" size="sm">
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
+              </Button>
+            </Link>
+          )}
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
