@@ -63,6 +63,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { QRCodeSVG } from "qrcode.react";
 
 // ─── Types ───────────────────────────────────────────────
 
