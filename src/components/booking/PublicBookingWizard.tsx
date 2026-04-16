@@ -396,9 +396,16 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
                       </div>
                     )}
                     <div className="min-w-0 flex-1">
-                      <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
-                        {b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`}
-                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
+                          {b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`}
+                        </h3>
+                        {selectedBarbershop?.owner_id === b.user_id && (
+                          <Badge variant="outline" className="border-primary/40 text-primary text-[10px] px-1.5 py-0 h-5">
+                            Proprietário
+                          </Badge>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">Profissional</p>
                     </div>
                     <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
