@@ -428,7 +428,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">Link de agendamento</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  {barbershop.subdomain}.barbaflow.pro
+                  barbaflow.pro/agendar/{barbershop.subdomain}
                 </p>
               </div>
             </div>
@@ -437,7 +437,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const url = `https://${barbershop.subdomain}.barbaflow.pro`;
+                  const url = `https://barbaflow.pro/agendar/${barbershop.subdomain}`;
                   navigator.clipboard.writeText(url);
                   toast.success("Link copiado!");
                 }}
@@ -450,7 +450,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 size="sm"
                 asChild
               >
-                <a href={`https://${barbershop.subdomain}.barbaflow.pro`} target="_blank" rel="noopener noreferrer">
+                <a href={`https://barbaflow.pro/agendar/${barbershop.subdomain}`} target="_blank" rel="noopener noreferrer">
                   Abrir
                 </a>
               </Button>
@@ -926,7 +926,7 @@ function SettingsTab() {
 
       {/* Booking link */}
       {barbershop?.subdomain && (() => {
-        const bookingUrl = `https://${barbershop.subdomain}.barbaflow.pro`;
+        const bookingUrl = `https://barbaflow.pro/agendar/${barbershop.subdomain}`;
         const handlePrintQR = () => {
           const printWindow = window.open("", "_blank");
           if (!printWindow) return;
