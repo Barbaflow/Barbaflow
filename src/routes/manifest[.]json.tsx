@@ -5,7 +5,7 @@ import { getRequestUrl } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 
 const getManifest = createServerFn({ method: "GET" }).handler(async () => {
-  const url = getRequestURL();
+  const url = getRequestUrl();
   const hostname = url.hostname;
 
   let name = "BarbaFlow";
