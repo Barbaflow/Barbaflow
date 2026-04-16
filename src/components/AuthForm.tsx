@@ -7,7 +7,12 @@ import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { Scissors } from "lucide-react";
 
-export function AuthForm() {
+interface AuthFormProps {
+  /** Path to redirect to after a successful login or after the email confirmation flow. */
+  redirectTo?: string;
+}
+
+export function AuthForm({ redirectTo }: AuthFormProps = {}) {
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -16,6 +21,12 @@ export function AuthForm() {
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const { signIn, signUp } = useAuth();
+
+  const buildLoginRedirect = () => {
+    if (typeof window === "undefined") return undefined;
+    const target = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/login";
+    return `${window.location.origin}/login${target !== "/login" ? `?redirect=${encodeURIComponent(target)}` : ""}`;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,8 +43,8 @@ export function AuthForm() {
       } else if (mode === "login") {
         await signIn(email, password);
       } else {
-        await signUp(email, password, fullName);
-        setSuccess("Verifique seu email para confirmar o cadastro.");
+        await signUp(email, password, fullName, buildLoginRedirect());
+        setSuccess("Verifique seu email para confirmar o cadastro. Após confirmar, você poderá fazer login.");
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
