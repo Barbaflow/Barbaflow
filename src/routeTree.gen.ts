@@ -20,6 +20,7 @@ import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConviteRouteImport } from './routes/convite'
+import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as AgendarRouteImport } from './routes/agendar'
 import { Route as AgendaRouteImport } from './routes/agenda'
@@ -81,6 +82,11 @@ const ConviteRoute = ConviteRouteImport.update({
   path: '/convite',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContatoRoute = ContatoRouteImport.update({
+  id: '/contato',
+  path: '/contato',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
   id: '/configuracoes',
   path: '/configuracoes',
@@ -113,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/agendar': typeof AgendarRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/agendar': typeof AgendarRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -150,6 +158,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/agendar': typeof AgendarRoute
   '/configuracoes': typeof ConfiguracoesRoute
+  '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
@@ -170,6 +179,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/agendar'
     | '/configuracoes'
+    | '/contato'
     | '/convite'
     | '/dashboard'
     | '/login'
@@ -188,6 +198,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/agendar'
     | '/configuracoes'
+    | '/contato'
     | '/convite'
     | '/dashboard'
     | '/login'
@@ -206,6 +217,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/agendar'
     | '/configuracoes'
+    | '/contato'
     | '/convite'
     | '/dashboard'
     | '/login'
@@ -225,6 +237,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   AgendarRoute: typeof AgendarRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
+  ContatoRoute: typeof ContatoRoute
   ConviteRoute: typeof ConviteRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
@@ -318,6 +331,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConviteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contato': {
+      id: '/contato'
+      path: '/contato'
+      fullPath: '/contato'
+      preLoaderRoute: typeof ContatoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/configuracoes': {
       id: '/configuracoes'
       path: '/configuracoes'
@@ -361,6 +381,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   AgendarRoute: AgendarRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
+  ContatoRoute: ContatoRoute,
   ConviteRoute: ConviteRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
@@ -377,3 +398,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
