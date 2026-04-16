@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Scissors, LayoutDashboard } from "lucide-react";
+import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +31,6 @@ function AgendarSlugPage() {
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const [isStaff, setIsStaff] = useState(false);
   const roleCheckDone = useRef(false);
 
   useEffect(() => {
@@ -51,21 +50,23 @@ function AgendarSlugPage() {
       });
   }, [slug]);
 
-  // Check if user is admin/barber — show dashboard button instead of auto-redirect
+  // Role-based redirect: admin/barber → dashboard, client → meus-agendamentos
   useEffect(() => {
     if (!user || loading || loadingShop || !barbershop || roleCheckDone.current) return;
     roleCheckDone.current = true;
 
     (async () => {
+      // Check super_admin first
       const { data: isSuperAdmin } = await supabase.rpc("has_role", {
         _user_id: user.id,
         _role: "super_admin",
       });
       if (isSuperAdmin) {
-        setIsStaff(true);
+        navigate({ to: "/dashboard", search: { checkout: undefined } });
         return;
       }
 
+      // Check roles in this barbershop
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
@@ -73,11 +74,13 @@ function AgendarSlugPage() {
         .eq("barbershop_id", barbershop.id);
 
       const roleList = (roles || []).map((r) => r.role);
+
       if (roleList.includes("admin_barbearia") || roleList.includes("barbeiro")) {
-        setIsStaff(true);
+        navigate({ to: "/dashboard", search: { checkout: undefined } });
       }
+      // clients stay on the booking page — no redirect
     })();
-  }, [user, loading, loadingShop, barbershop]);
+  }, [user, loading, loadingShop, barbershop, navigate]);
 
   const name = barbershop?.name || "BarbaFlow";
 
@@ -114,15 +117,7 @@ function AgendarSlugPage() {
           )}
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
-        <div className="flex items-center gap-2">
-          {isStaff && (
-            <Link to="/dashboard" search={{ checkout: undefined }}>
-              <Button variant="gold" size="sm">
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </Button>
-            </Link>
-          )}
+        <div className="flex items-center gap-3">
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
