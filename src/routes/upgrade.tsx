@@ -20,8 +20,14 @@ import {
 export const Route = createFileRoute("/upgrade")({
   head: () => ({
     meta: [
-      { title: "Upgrade — BarbaFlow" },
-      { name: "description", content: "Escolha o plano ideal para sua barbearia." },
+      { title: "Planos e Preços — BarbaFlow" },
+      { name: "description", content: "Escolha o plano ideal para sua barbearia. Grátis, Pro ou Enterprise." },
+      { property: "og:title", content: "Planos e Preços — BarbaFlow" },
+      { property: "og:description", content: "Escolha o plano ideal para sua barbearia. Grátis, Pro ou Enterprise." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Planos e Preços — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: UpgradePage,

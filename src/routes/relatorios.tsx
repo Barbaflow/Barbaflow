@@ -8,7 +8,13 @@ export const Route = createFileRoute("/relatorios")({
   head: () => ({
     meta: [
       { title: "Relatórios — BarbaFlow" },
-      { name: "description", content: "Relatórios e métricas da sua barbearia." },
+      { name: "description", content: "Relatórios e métricas detalhadas da sua barbearia." },
+      { property: "og:title", content: "Relatórios — BarbaFlow" },
+      { property: "og:description", content: "Relatórios e métricas detalhadas da sua barbearia." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Relatórios — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: RelatoriosPage,

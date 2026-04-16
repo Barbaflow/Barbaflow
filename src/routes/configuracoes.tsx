@@ -12,7 +12,13 @@ export const Route = createFileRoute("/configuracoes")({
   head: () => ({
     meta: [
       { title: "Configurações — BarbaFlow" },
-      { name: "description", content: "Configure o branding da sua barbearia: logo, cores e personalização." },
+      { name: "description", content: "Configure o branding da sua barbearia: logo, cores, equipe e personalização." },
+      { property: "og:title", content: "Configurações — BarbaFlow" },
+      { property: "og:description", content: "Personalize sua barbearia no BarbaFlow." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Configurações — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: ConfiguracoesPage,
