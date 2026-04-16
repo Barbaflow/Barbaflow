@@ -8,7 +8,13 @@ export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
       { title: "Login — BarbaFlow" },
-      { name: "description", content: "Acesse sua conta no BarbaFlow." },
+      { name: "description", content: "Acesse sua conta no BarbaFlow para gerenciar sua barbearia ou agendar horários." },
+      { property: "og:title", content: "Login — BarbaFlow" },
+      { property: "og:description", content: "Acesse sua conta no BarbaFlow para gerenciar sua barbearia ou agendar horários." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Login — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: LoginPage,

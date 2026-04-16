@@ -8,8 +8,13 @@ export const Route = createFileRoute("/servicos")({
   head: () => ({
     meta: [
       { title: "Serviços — BarbaFlow" },
-      { name: "description", content: "Confira os serviços disponíveis, preços e duração." },
+      { name: "description", content: "Confira os serviços disponíveis, preços e duração na sua barbearia." },
       { property: "og:title", content: "Serviços — BarbaFlow" },
+      { property: "og:description", content: "Confira os serviços disponíveis, preços e duração." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Serviços — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: ServicosPage,
