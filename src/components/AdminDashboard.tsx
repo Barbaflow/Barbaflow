@@ -53,6 +53,8 @@ type Barbershop = Tables<"barbershops"> & {
   _planName?: string;
 };
 
+import { NotificationBell } from "@/components/NotificationBell";
+
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
 
 const PAGE_SIZE = 10;
