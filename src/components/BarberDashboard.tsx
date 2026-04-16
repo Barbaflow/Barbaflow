@@ -217,7 +217,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
 
 function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const { user } = useAuth();
-  const { barbershopId } = useBarbershop();
+  const { barbershopId, barbershop } = useBarbershop();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
