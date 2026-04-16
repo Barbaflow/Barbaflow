@@ -5,7 +5,7 @@ import { ArrowLeft, Scissors } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 
-export const Route = createFileRoute("/agendar")({
+export const Route = createFileRoute("/agendar/")({
   head: () => ({
     meta: [
       { title: "Agendar Horário — BarbaFlow" },

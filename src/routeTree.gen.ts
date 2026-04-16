@@ -23,9 +23,9 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConviteRouteImport } from './routes/convite'
 import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as AgendarRouteImport } from './routes/agendar'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AgendarIndexRouteImport } from './routes/agendar.index'
 import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
 
@@ -99,11 +99,6 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
   path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgendarRoute = AgendarRouteImport.update({
-  id: '/agendar',
-  path: '/agendar',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -112,6 +107,11 @@ const AgendaRoute = AgendaRouteImport.update({
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgendarIndexRoute = AgendarIndexRouteImport.update({
+  id: '/agendar/',
+  path: '/agendar/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const HooksResetMonthlyAppointmentsRoute =
@@ -129,7 +129,6 @@ const AgendarSlugRoute = AgendarSlugRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -146,11 +145,11 @@ export interface FileRoutesByFullPath {
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
+  '/agendar/': typeof AgendarIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -167,12 +166,12 @@ export interface FileRoutesByTo {
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
+  '/agendar': typeof AgendarIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -189,13 +188,13 @@ export interface FileRoutesById {
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
+  '/agendar/': typeof AgendarIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/agenda'
-    | '/agendar'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -212,11 +211,11 @@ export interface FileRouteTypes {
     | '/upgrade'
     | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
+    | '/agendar/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/agenda'
-    | '/agendar'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -233,11 +232,11 @@ export interface FileRouteTypes {
     | '/upgrade'
     | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
+    | '/agendar'
   id:
     | '__root__'
     | '/'
     | '/agenda'
-    | '/agendar'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -254,12 +253,12 @@ export interface FileRouteTypes {
     | '/upgrade'
     | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
+    | '/agendar/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AgendarRoute: typeof AgendarRouteWithChildren
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContatoRoute: typeof ContatoRoute
   ConviteRoute: typeof ConviteRoute
@@ -275,6 +274,7 @@ export interface RootRouteChildren {
   SobreRoute: typeof SobreRoute
   UpgradeRoute: typeof UpgradeRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
+  AgendarIndexRoute: typeof AgendarIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -377,13 +377,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/agendar': {
-      id: '/agendar'
-      path: '/agendar'
-      fullPath: '/agendar'
-      preLoaderRoute: typeof AgendarRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/agenda': {
       id: '/agenda'
       path: '/agenda'
@@ -396,6 +389,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agendar/': {
+      id: '/agendar/'
+      path: '/agendar'
+      fullPath: '/agendar/'
+      preLoaderRoute: typeof AgendarIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/hooks/reset-monthly-appointments': {
@@ -415,21 +415,9 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface AgendarRouteChildren {
-  AgendarSlugRoute: typeof AgendarSlugRoute
-}
-
-const AgendarRouteChildren: AgendarRouteChildren = {
-  AgendarSlugRoute: AgendarSlugRoute,
-}
-
-const AgendarRouteWithChildren =
-  AgendarRoute._addFileChildren(AgendarRouteChildren)
-
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AgendarRoute: AgendarRouteWithChildren,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContatoRoute: ContatoRoute,
   ConviteRoute: ConviteRoute,
@@ -445,6 +433,7 @@ const rootRouteChildren: RootRouteChildren = {
   SobreRoute: SobreRoute,
   UpgradeRoute: UpgradeRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
+  AgendarIndexRoute: AgendarIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
