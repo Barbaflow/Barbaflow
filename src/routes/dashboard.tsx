@@ -33,6 +33,7 @@ function DashboardPage() {
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const [resolvedBarbershopId, setResolvedBarbershopId] = useState<string | null>(null);
   const toastShown = useRef(false);
 
   useEffect(() => {
