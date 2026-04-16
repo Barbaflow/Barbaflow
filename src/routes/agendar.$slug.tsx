@@ -128,7 +128,7 @@ function AgendarSlugPage() {
             </Button>
           </Link>
           {!user && !loading && (
-            <Link to="/login">
+            <Link to="/login" search={{ redirect: `/agendar/${slug}` }}>
               <Button variant="gold" size="sm">Entrar</Button>
             </Link>
           )}
@@ -145,7 +145,7 @@ function AgendarSlugPage() {
 
         {!user && !loading && (
           <div className="mb-6 p-4 rounded-lg border border-gold/30 bg-gold/5 text-sm text-foreground">
-            <Link to="/login" className="text-gold underline">Faça login</Link>{" "}
+            <Link to="/login" search={{ redirect: `/agendar/${slug}` }} className="text-gold underline">Faça login</Link>{" "}
             para confirmar seu agendamento.
           </div>
         )}
