@@ -209,6 +209,29 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [weekMetrics, setWeekMetrics] = useState({ totalWeek: 0, revenueWeek: 0 });
+  const [selectedBarber, setSelectedBarber] = useState<string>("all");
+  const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
+
+  // Fetch barbers for admin filter
+  useEffect(() => {
+    if (!isAdmin) return;
+    (async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id")
+        .eq("barbershop_id", barbershopId)
+        .in("role", ["barbeiro", "admin_barbearia"]);
+      if (!roles || roles.length === 0) return;
+      const ids = roles.map((r) => r.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, full_name")
+        .in("user_id", ids);
+      if (profiles) {
+        setBarbers(profiles.map((p) => ({ id: p.user_id, name: p.full_name || "Sem nome" })));
+      }
+    })();
+  }, [isAdmin, barbershopId]);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
@@ -222,9 +245,10 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       .eq("date", selectedDate)
       .order("start_time", { ascending: true });
 
-    // Barbers see only their own, admins see all
     if (!isAdmin) {
       query = query.eq("barber_id", user.id);
+    } else if (selectedBarber !== "all") {
+      query = query.eq("barber_id", selectedBarber);
     }
 
     const { data, error: err } = await query;
@@ -257,7 +281,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       );
     }
     setLoading(false);
-  }, [user, barbershopId, selectedDate, isAdmin]);
+  }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
 
   const fetchWeekMetrics = useCallback(async () => {
     if (!user) return;
