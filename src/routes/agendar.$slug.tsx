@@ -132,20 +132,12 @@ function AgendarSlugPage() {
         </div>
         <div className="flex items-center gap-3">
           <InstallAppButton />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-              } else {
-                navigate({ to: "/" });
-              }
-            }}
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Voltar
-          </Button>
+          <Link to="/">
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="w-4 h-4" />
+              Voltar
+            </Button>
+          </Link>
           {user && (
             <Link to="/meus-agendamentos">
               <Button variant="ghost" size="sm">Meus Agendamentos</Button>
