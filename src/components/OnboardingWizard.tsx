@@ -123,7 +123,7 @@ export function OnboardingWizard() {
         role: "admin_barbearia",
       });
 
-      toast.success("Barbearia criada com sucesso! Aguardando aprovação.");
+      toast.success("Barbearia criada com sucesso!");
       navigate({ to: "/dashboard", search: { checkout: undefined } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro inesperado.");
@@ -372,7 +372,7 @@ export function OnboardingWizard() {
           </Card>
 
           <p className="text-xs text-muted-foreground text-center">
-            Após criar, sua barbearia ficará pendente de aprovação por um administrador.
+            Sua barbearia será ativada automaticamente após a criação.
           </p>
         </div>
       )}
