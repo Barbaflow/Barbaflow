@@ -33,7 +33,6 @@ function DashboardPage() {
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
-  const [resolvedBarbershopId, setResolvedBarbershopId] = useState<string | null>(null);
   const toastShown = useRef(false);
 
   useEffect(() => {
@@ -65,38 +64,17 @@ function DashboardPage() {
           return;
         }
 
-        // Check barbershop-specific roles — first try current barbershop
+        // Check barbershop-specific role (barbershopId now resolves from user_roles via provider)
         supabase
           .from("user_roles")
-          .select("role, barbershop_id")
+          .select("role")
           .eq("user_id", user.id)
           .eq("barbershop_id", barbershopId)
           .limit(1)
           .single()
           .then(({ data }) => {
-            if (data?.role) {
-              setRole(data.role);
-              setRoleLoading(false);
-            } else {
-              // No role in current barbershop — check any barbershop (owner scenario)
-              supabase
-                .from("user_roles")
-                .select("role, barbershop_id")
-                .eq("user_id", user.id)
-                .in("role", ["admin_barbearia", "barbeiro"])
-                .limit(1)
-                .single()
-                .then(({ data: anyRole }) => {
-                  if (anyRole?.role) {
-                    setRole(anyRole.role);
-                    // Update barbershop context to match
-                    setResolvedBarbershopId(anyRole.barbershop_id);
-                  } else {
-                    setRole("cliente");
-                  }
-                  setRoleLoading(false);
-                });
-            }
+            setRole(data?.role || "cliente");
+            setRoleLoading(false);
           });
       });
   }, [user, barbershopId]);
