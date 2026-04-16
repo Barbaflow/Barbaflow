@@ -101,6 +101,7 @@ function RootComponent() {
   return (
     <BarbershopProvider>
       <TenantThemeApplier />
+      <AutoClientRole />
       <Outlet />
       <Toaster position="top-right" richColors />
     </BarbershopProvider>
