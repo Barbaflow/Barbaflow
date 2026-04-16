@@ -14,10 +14,10 @@ export const Route = createFileRoute("/dashboard")({
       { name: "description", content: "Painel de controle da sua barbearia. Gerencie agendamentos, equipe e serviços." },
       { property: "og:title", content: "Dashboard — BarbaFlow" },
       { property: "og:description", content: "Painel de controle da sua barbearia no BarbaFlow." },
-      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { property: "og:image", content: "https://barbaflow.pro/og-image.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Dashboard — BarbaFlow" },
-      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
   }),
   validateSearch: (search: Record<string, unknown>) => ({

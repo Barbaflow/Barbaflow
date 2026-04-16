@@ -15,12 +15,12 @@ export const Route = createFileRoute("/contato")({
       { name: "description", content: "Entre em contato com o BarbaFlow. Dúvidas, sugestões ou parcerias — estamos prontos para ajudar sua barbearia a crescer." },
       { property: "og:title", content: "Contato — BarbaFlow" },
       { property: "og:description", content: "Entre em contato com o BarbaFlow. Dúvidas, sugestões ou parcerias — estamos prontos para ajudar." },
-      { property: "og:url", content: "https://barbaflow-pro.lovable.app/contato" },
+      { property: "og:url", content: "https://barbaflow.pro/contato" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:title", content: "Contato — BarbaFlow" },
     ],
     links: [
-      { rel: "canonical", href: "https://barbaflow-pro.lovable.app/contato" },
+      { rel: "canonical", href: "https://barbaflow.pro/contato" },
     ],
     scripts: [
       {
@@ -29,7 +29,7 @@ export const Route = createFileRoute("/contato")({
           "@context": "https://schema.org",
           "@type": "ContactPage",
           name: "Contato — BarbaFlow",
-          url: "https://barbaflow-pro.lovable.app/contato",
+          url: "https://barbaflow.pro/contato",
         }),
       },
     ],

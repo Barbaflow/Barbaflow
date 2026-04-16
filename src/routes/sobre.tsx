@@ -9,14 +9,14 @@ export const Route = createFileRoute("/sobre")({
       { name: "description", content: "Conheça o BarbaFlow: plataforma white-label de agendamento online para barbearias. Gerencie equipe, serviços e horários em um só lugar." },
       { property: "og:title", content: "Sobre o BarbaFlow — Plataforma de Agendamento para Barbearias" },
       { property: "og:description", content: "Conheça o BarbaFlow: plataforma white-label de agendamento online para barbearias. Gerencie equipe, serviços e horários em um só lugar." },
-      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
-      { property: "og:url", content: "https://barbaflow-pro.lovable.app/sobre" },
+      { property: "og:image", content: "https://barbaflow.pro/og-image.jpg" },
+      { property: "og:url", content: "https://barbaflow.pro/sobre" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Sobre o BarbaFlow" },
-      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
     links: [
-      { rel: "canonical", href: "https://barbaflow-pro.lovable.app/sobre" },
+      { rel: "canonical", href: "https://barbaflow.pro/sobre" },
     ],
     scripts: [
       {
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/sobre")({
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "BarbaFlow",
-          url: "https://barbaflow-pro.lovable.app",
+          url: "https://barbaflow.pro",
           description: "Plataforma white-label de agendamento online para barbearias.",
           applicationCategory: "BusinessApplication",
         }),
