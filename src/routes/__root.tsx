@@ -2,6 +2,7 @@ import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/r
 import { Toaster } from "@/components/ui/sonner";
 import { TenantThemeApplier } from "@/components/TenantThemeProvider";
 import { BarbershopProvider } from "@/hooks/use-barbershop";
+import { AutoClientRole } from "@/components/AutoClientRole";
 
 import appCss from "../styles.css?url";
 
@@ -100,6 +101,7 @@ function RootComponent() {
   return (
     <BarbershopProvider>
       <TenantThemeApplier />
+      <AutoClientRole />
       <Outlet />
       <Toaster position="top-right" richColors />
     </BarbershopProvider>

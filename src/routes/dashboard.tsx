@@ -64,16 +64,22 @@ function DashboardPage() {
           return;
         }
 
-        // Check barbershop-specific role (barbershopId now resolves from user_roles via provider)
+        // Check barbershop-specific roles (user may have multiple)
         supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .eq("barbershop_id", barbershopId)
-          .limit(1)
-          .single()
           .then(({ data }) => {
-            setRole(data?.role || "cliente");
+            const roles = (data || []).map((r) => r.role);
+            // Priority: admin_barbearia > barbeiro > cliente
+            if (roles.includes("admin_barbearia")) {
+              setRole("admin_barbearia");
+            } else if (roles.includes("barbeiro")) {
+              setRole("barbeiro");
+            } else {
+              setRole(roles[0] || "cliente");
+            }
             setRoleLoading(false);
           });
       });
