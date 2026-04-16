@@ -107,6 +107,7 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
         .select("barbershop_id")
         .eq("user_id", user.id)
         .in("role", ["admin_barbearia", "barbeiro"])
+        .neq("barbershop_id", "00000000-0000-0000-0000-000000000000")
         .limit(1)
         .maybeSingle();
 
@@ -129,6 +130,7 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
         .from("barbershops")
         .select("*")
         .eq("owner_id", user.id)
+        .neq("subdomain", "_system")
         .limit(1)
         .maybeSingle();
 
