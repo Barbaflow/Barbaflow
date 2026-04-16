@@ -121,9 +121,9 @@ const HooksResetMonthlyAppointmentsRoute =
     getParentRoute: () => rootRouteImport,
   } as any)
 const AgendarSlugRoute = AgendarSlugRouteImport.update({
-  id: '/$slug',
-  path: '/$slug',
-  getParentRoute: () => AgendarRoute,
+  id: '/agendar/$slug',
+  path: '/agendar/$slug',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -273,6 +273,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SobreRoute: typeof SobreRoute
   UpgradeRoute: typeof UpgradeRoute
+  AgendarSlugRoute: typeof AgendarSlugRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
   AgendarIndexRoute: typeof AgendarIndexRoute
 }
@@ -407,10 +408,10 @@ declare module '@tanstack/react-router' {
     }
     '/agendar/$slug': {
       id: '/agendar/$slug'
-      path: '/$slug'
+      path: '/agendar/$slug'
       fullPath: '/agendar/$slug'
       preLoaderRoute: typeof AgendarSlugRouteImport
-      parentRoute: typeof AgendarRoute
+      parentRoute: typeof rootRouteImport
     }
   }
 }
@@ -432,6 +433,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SobreRoute: SobreRoute,
   UpgradeRoute: UpgradeRoute,
+  AgendarSlugRoute: AgendarSlugRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
   AgendarIndexRoute: AgendarIndexRoute,
 }
