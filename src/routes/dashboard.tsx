@@ -28,12 +28,13 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardPage() {
   const { user, loading } = useAuth();
-  const { barbershopId, loading: barbershopLoading } = useBarbershop();
+  const { barbershopId, barbershop, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
   const toastShown = useRef(false);
+  const clientRedirectDone = useRef(false);
 
   useEffect(() => {
     if (checkout === "success" && !toastShown.current) {
@@ -47,7 +48,7 @@ function DashboardPage() {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate({ to: "/login" });
+      navigate({ to: "/login", search: { redirect: undefined } });
     }
   }, [user, loading, navigate]);
 
@@ -85,6 +86,19 @@ function DashboardPage() {
       });
   }, [user, barbershopId, barbershopLoading]);
 
+  // Cliente: redirect to the barbershop's booking page (or history as fallback)
+  useEffect(() => {
+    if (roleLoading || !role || clientRedirectDone.current) return;
+    if (role === "cliente") {
+      clientRedirectDone.current = true;
+      if (barbershop?.subdomain && barbershop.subdomain !== "_system") {
+        navigate({ to: "/agendar/$slug", params: { slug: barbershop.subdomain }, replace: true });
+      } else {
+        navigate({ to: "/meus-agendamentos", replace: true });
+      }
+    }
+  }, [role, roleLoading, barbershop, navigate]);
+
   if (loading || !user || roleLoading || barbershopLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -105,7 +119,11 @@ function DashboardPage() {
     return <BarberDashboard />;
   }
 
-  // Cliente — redirect to history
-  navigate({ to: "/meus-agendamentos" });
-  return null;
+  // Cliente — handled by redirect effect above
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+    </div>
+  );
 }
+

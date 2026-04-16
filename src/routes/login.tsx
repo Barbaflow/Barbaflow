@@ -20,18 +20,27 @@ export const Route = createFileRoute("/login")({
       { rel: "canonical", href: "https://barbaflow.pro/login" },
     ],
   }),
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
+    redirect: typeof search.redirect === "string" ? search.redirect : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const { redirect } = Route.useSearch();
 
   useEffect(() => {
     if (!loading && user) {
-      navigate({ to: "/dashboard", search: { checkout: undefined } });
+      // Only allow internal paths
+      if (redirect && redirect.startsWith("/") && !redirect.startsWith("//")) {
+        window.location.assign(redirect);
+      } else {
+        navigate({ to: "/dashboard", search: { checkout: undefined } });
+      }
     }
-  }, [user, loading, navigate]);
+  }, [user, loading, navigate, redirect]);
 
   if (loading) {
     return (
@@ -43,7 +52,7 @@ function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background px-4">
-      <AuthForm />
+      <AuthForm redirectTo={redirect} />
     </div>
   );
 }
