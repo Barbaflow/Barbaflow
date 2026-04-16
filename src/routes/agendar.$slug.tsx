@@ -149,6 +149,12 @@ function AgendarSlugPage() {
         )}
 
         <PublicBookingWizard preselectedBarbershopId={barbershop?.id} />
+
+        {barbershop?.id && (
+          <div className="mt-12">
+            <ProductsShowcase barbershopId={barbershop.id} />
+          </div>
+        )}
       </main>
     </div>
   );
