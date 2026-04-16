@@ -27,9 +27,11 @@ export const Route = createFileRoute("/agendar/$slug")({
 function AgendarSlugPage() {
   const { slug } = Route.useParams();
   const { user, loading } = useAuth();
+  const navigate = useNavigate();
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const roleCheckDone = useRef(false);
 
   useEffect(() => {
     supabase
@@ -47,6 +49,38 @@ function AgendarSlugPage() {
         setLoadingShop(false);
       });
   }, [slug]);
+
+  // Role-based redirect: admin/barber → dashboard, client → meus-agendamentos
+  useEffect(() => {
+    if (!user || loading || loadingShop || !barbershop || roleCheckDone.current) return;
+    roleCheckDone.current = true;
+
+    (async () => {
+      // Check super_admin first
+      const { data: isSuperAdmin } = await supabase.rpc("has_role", {
+        _user_id: user.id,
+        _role: "super_admin",
+      });
+      if (isSuperAdmin) {
+        navigate({ to: "/dashboard", search: { checkout: undefined } });
+        return;
+      }
+
+      // Check roles in this barbershop
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .eq("barbershop_id", barbershop.id);
+
+      const roleList = (roles || []).map((r) => r.role);
+
+      if (roleList.includes("admin_barbearia") || roleList.includes("barbeiro")) {
+        navigate({ to: "/dashboard", search: { checkout: undefined } });
+      }
+      // clients stay on the booking page — no redirect
+    })();
+  }, [user, loading, loadingShop, barbershop, navigate]);
 
   const name = barbershop?.name || "BarbaFlow";
 
