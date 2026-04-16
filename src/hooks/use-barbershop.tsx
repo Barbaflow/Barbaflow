@@ -129,6 +129,7 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
         .from("barbershops")
         .select("*")
         .eq("owner_id", user.id)
+        .neq("subdomain", "_system")
         .limit(1)
         .maybeSingle();
 
