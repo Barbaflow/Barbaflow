@@ -36,9 +36,9 @@ export function usePlan(): PlanInfo {
 
       setPlanInfo({
         planName: (data?.name as PlanInfo["planName"]) ?? "free",
-        appointmentLimit: data?.appointment_limit ?? 50,
+        appointmentLimit: data?.appointment_limit ?? null,
         appointmentsUsed: (barbershop as any)?.appointments_this_month ?? 0,
-        barberLimit: (data as any)?.barber_limit ?? 1,
+        barberLimit: data?.barber_limit ?? null,
         hasSubscriptions: data?.has_subscriptions ?? false,
         price: Number(data?.price ?? 0),
         loading: false,
