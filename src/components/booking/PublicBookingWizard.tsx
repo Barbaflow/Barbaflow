@@ -89,7 +89,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     setLoadingStep(true);
     supabase
       .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain")
+      .select("id, name, logo_url, primary_color, subdomain, owner_id")
       .eq("status", "approved")
       .neq("subdomain", "_system")
       .order("name")
