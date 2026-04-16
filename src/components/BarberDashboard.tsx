@@ -222,6 +222,7 @@ export function BarberDashboard() {
                 <span className="hidden sm:inline">Config</span>
               </Button>
             </Link>
+            <NotificationBell />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
             </Button>
