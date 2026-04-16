@@ -60,6 +60,7 @@ export const Route = createRootRoute({
       {
         rel: "manifest",
         href: "/manifest.json",
+        crossOrigin: "use-credentials",
       },
       {
         rel: "apple-touch-icon",
