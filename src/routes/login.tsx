@@ -20,7 +20,7 @@ export const Route = createFileRoute("/login")({
       { rel: "canonical", href: "https://barbaflow.pro/login" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): { redirect?: string } => ({
     redirect: typeof search.redirect === "string" ? search.redirect : undefined,
   }),
   component: LoginPage,
