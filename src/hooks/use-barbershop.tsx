@@ -53,7 +53,6 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
     const subdomain = extractSubdomain();
 
     if (subdomain) {
-      // Resolve by subdomain
       supabase
         .from("barbershops")
         .select("*")
@@ -66,21 +65,43 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
             setIsDefault(false);
             setLoading(false);
           } else {
-            // Subdomain not found — try resolving from user's roles
             resolveFromUserRoles();
           }
         });
     } else {
-      // No subdomain — try resolving from user's roles first, then fallback to default
       resolveFromUserRoles();
     }
   }, []);
+
+  // Subscribe to realtime updates on the resolved barbershop
+  useEffect(() => {
+    if (!barbershop?.id) return;
+
+    const channel = supabase
+      .channel(`barbershop-context-${barbershop.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "barbershops",
+          filter: `id=eq.${barbershop.id}`,
+        },
+        (payload) => {
+          setBarbershop((prev) => prev ? { ...prev, ...payload.new } as Barbershop : prev);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [barbershop?.id]);
 
   async function resolveFromUserRoles() {
     const { data: { user } } = await supabase.auth.getUser();
 
     if (user) {
-      // Find user's barbershop from their roles
       const { data: roleData } = await supabase
         .from("user_roles")
         .select("barbershop_id")
@@ -104,7 +125,6 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
         }
       }
 
-      // Check if user owns a barbershop
       const { data: ownedShop } = await supabase
         .from("barbershops")
         .select("*")
@@ -120,7 +140,6 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
-    // Final fallback: default barbershop
     const { data } = await supabase
       .from("barbershops")
       .select("*")
