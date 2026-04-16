@@ -529,6 +529,41 @@ function ServicesTab() {
   const [newPrice, setNewPrice] = useState("");
   const [saving, setSaving] = useState(false);
 
+  // Edit state
+  const [editingService, setEditingService] = useState<Service | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editDuration, setEditDuration] = useState("");
+  const [editPrice, setEditPrice] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const openEdit = (svc: Service) => {
+    setEditingService(svc);
+    setEditName(svc.name);
+    setEditDuration(String(svc.duration_minutes));
+    setEditPrice(String(svc.price));
+  };
+
+  const handleEdit = async () => {
+    if (!editingService || !editName.trim() || !editPrice) return;
+    setEditSaving(true);
+    const { error } = await supabase
+      .from("services")
+      .update({
+        name: editName.trim(),
+        duration_minutes: parseInt(editDuration),
+        price: parseFloat(editPrice),
+      })
+      .eq("id", editingService.id);
+    setEditSaving(false);
+    if (error) {
+      toast.error("Erro ao atualizar serviço.");
+    } else {
+      toast.success("Serviço atualizado!");
+      setEditingService(null);
+      fetchServices();
+    }
+  };
+
   const fetchServices = useCallback(async () => {
     const { data } = await supabase
       .from("services")
@@ -623,6 +658,34 @@ function ServicesTab() {
         </Dialog>
       </div>
 
+      {/* Edit dialog */}
+      <Dialog open={!!editingService} onOpenChange={(open) => !open && setEditingService(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar Serviço</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div>
+              <Label>Nome</Label>
+              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Duração (min)</Label>
+                <Input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} />
+              </div>
+              <div>
+                <Label>Preço (R$)</Label>
+                <Input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
+              </div>
+            </div>
+            <Button onClick={handleEdit} disabled={editSaving || !editName.trim() || !editPrice} className="w-full">
+              {editSaving ? "Salvando..." : "Salvar alterações"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {loading ? (
         <div className="space-y-3">
           {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
@@ -659,6 +722,15 @@ function ServicesTab() {
                     variant="ghost"
                     size="sm"
                     className="text-xs h-8"
+                    onClick={() => openEdit(svc)}
+                  >
+                    <Edit className="w-3.5 h-3.5" />
+                    Editar
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-8"
                     onClick={() => toggleActive(svc.id, svc.active)}
                   >
                     {svc.active ? "Desativar" : "Ativar"}
@@ -680,7 +752,6 @@ function ServicesTab() {
     </div>
   );
 }
-
 // ─── Team Tab ────────────────────────────────────────────
 
 function TeamTab() {
