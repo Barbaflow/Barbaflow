@@ -22,6 +22,7 @@ import {
   Shield,
   Copy,
   AlertCircle,
+  Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -60,6 +61,28 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("barbeiro");
   const [sending, setSending] = useState(false);
+  const [addingSelf, setAddingSelf] = useState(false);
+
+  const adminIsAlsoBarber = members.some(
+    (m) => m.user_id === user?.id && m.role === "barbeiro"
+  );
+
+  const handleAddSelfAsBarber = async () => {
+    if (!user) return;
+    setAddingSelf(true);
+    const { error } = await supabase.from("user_roles").insert({
+      user_id: user.id,
+      barbershop_id: barbershopId,
+      role: "barbeiro" as const,
+    });
+    if (error) {
+      toast.error("Erro ao se adicionar como barbeiro.");
+    } else {
+      toast.success("Você foi adicionado como barbeiro!");
+      fetchTeam();
+    }
+    setAddingSelf(false);
+  };
 
   const teamCount = members.length;
   const hasReachedBarberLimit = barberLimit !== null && teamCount >= barberLimit;
@@ -132,12 +155,6 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       toast.error("Já existe um convite pendente para este email.");
       return;
     }
-
-    // Check if already a member
-    const { data: existingUser } = await supabase
-      .from("profiles")
-      .select("user_id")
-      .limit(1);
 
     setSending(true);
 
@@ -212,6 +229,32 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* Admin self-add as barber */}
+      {!adminIsAlsoBarber && (
+        <Card className="bg-card border-primary/30">
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
+                <Scissors className="w-4 h-4 text-primary" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-foreground">Também atende como barbeiro?</p>
+                <p className="text-xs text-muted-foreground">Adicione-se como barbeiro para receber agendamentos.</p>
+              </div>
+            </div>
+            <Button
+              onClick={handleAddSelfAsBarber}
+              disabled={addingSelf}
+              size="sm"
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Scissors className="w-4 h-4" />
+              {addingSelf ? "Adicionando..." : "Me adicionar como barbeiro"}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Invite form */}
       <Card className="bg-card border-border">
         <CardHeader className="pb-3">
