@@ -11,7 +11,13 @@ export const Route = createFileRoute("/reset-password")({
   head: () => ({
     meta: [
       { title: "Redefinir Senha — BarbaFlow" },
-      { name: "description", content: "Defina sua nova senha no BarbaFlow." },
+      { name: "description", content: "Defina sua nova senha de acesso ao BarbaFlow." },
+      { property: "og:title", content: "Redefinir Senha — BarbaFlow" },
+      { property: "og:description", content: "Defina sua nova senha de acesso ao BarbaFlow." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Redefinir Senha — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: ResetPasswordPage,
