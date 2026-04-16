@@ -28,7 +28,7 @@ export const Route = createFileRoute("/dashboard")({
 
 function DashboardPage() {
   const { user, loading } = useAuth();
-  const { barbershopId } = useBarbershop();
+  const { barbershopId, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
