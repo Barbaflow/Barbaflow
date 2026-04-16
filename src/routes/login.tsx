@@ -16,6 +16,9 @@ export const Route = createFileRoute("/login")({
       { name: "twitter:title", content: "Login — BarbaFlow" },
       { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
+    links: [
+      { rel: "canonical", href: "https://barbaflow.pro/login" },
+    ],
   }),
   component: LoginPage,
 });
