@@ -27,6 +27,7 @@ import { Route as AgendarRouteImport } from './routes/agendar'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
+import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
 
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
@@ -119,11 +120,16 @@ const HooksResetMonthlyAppointmentsRoute =
     path: '/hooks/reset-monthly-appointments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const AgendarSlugRoute = AgendarSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => AgendarRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRoute
+  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -138,12 +144,13 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRoute
+  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -158,13 +165,14 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/agendar': typeof AgendarRoute
+  '/agendar': typeof AgendarRouteWithChildren
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -179,6 +187,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
 }
 export interface FileRouteTypes {
@@ -201,6 +210,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -221,6 +231,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
   id:
     | '__root__'
@@ -241,13 +252,14 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/agendar/$slug'
     | '/hooks/reset-monthly-appointments'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AgendarRoute: typeof AgendarRoute
+  AgendarRoute: typeof AgendarRouteWithChildren
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContatoRoute: typeof ContatoRoute
   ConviteRoute: typeof ConviteRoute
@@ -393,13 +405,31 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HooksResetMonthlyAppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/agendar/$slug': {
+      id: '/agendar/$slug'
+      path: '/$slug'
+      fullPath: '/agendar/$slug'
+      preLoaderRoute: typeof AgendarSlugRouteImport
+      parentRoute: typeof AgendarRoute
+    }
   }
 }
+
+interface AgendarRouteChildren {
+  AgendarSlugRoute: typeof AgendarSlugRoute
+}
+
+const AgendarRouteChildren: AgendarRouteChildren = {
+  AgendarSlugRoute: AgendarSlugRoute,
+}
+
+const AgendarRouteWithChildren =
+  AgendarRoute._addFileChildren(AgendarRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AgendarRoute: AgendarRoute,
+  AgendarRoute: AgendarRouteWithChildren,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContatoRoute: ContatoRoute,
   ConviteRoute: ConviteRoute,
@@ -419,3 +449,12 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
