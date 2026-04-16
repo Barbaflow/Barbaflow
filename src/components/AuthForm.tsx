@@ -23,7 +23,13 @@ export function AuthForm() {
     setSuccess("");
     setSubmitting(true);
     try {
-      if (mode === "login") {
+      if (mode === "forgot") {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
+        });
+        if (error) throw error;
+        setSuccess("Enviamos um link de recuperação para seu email.");
+      } else if (mode === "login") {
         await signIn(email, password);
       } else {
         await signUp(email, password, fullName);

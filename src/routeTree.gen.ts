@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UpgradeRouteImport } from './routes/upgrade'
 import { Route as ServicosRouteImport } from './routes/servicos'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos'
@@ -31,6 +32,11 @@ const UpgradeRoute = UpgradeRouteImport.update({
 const ServicosRoute = ServicosRouteImport.update({
   id: '/servicos',
   path: '/servicos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RelatoriosRoute = RelatoriosRouteImport.update({
@@ -101,6 +107,7 @@ export interface FileRoutesByFullPath {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -116,6 +123,7 @@ export interface FileRoutesByTo {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -132,6 +140,7 @@ export interface FileRoutesById {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/upgrade': typeof UpgradeRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -149,6 +158,7 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
+    | '/reset-password'
     | '/servicos'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
@@ -164,6 +174,7 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
+    | '/reset-password'
     | '/servicos'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
@@ -179,6 +190,7 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
+    | '/reset-password'
     | '/servicos'
     | '/upgrade'
     | '/hooks/reset-monthly-appointments'
@@ -195,6 +207,7 @@ export interface RootRouteChildren {
   MeusAgendamentosRoute: typeof MeusAgendamentosRoute
   OnboardingRoute: typeof OnboardingRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ServicosRoute: typeof ServicosRoute
   UpgradeRoute: typeof UpgradeRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
@@ -214,6 +227,13 @@ declare module '@tanstack/react-router' {
       path: '/servicos'
       fullPath: '/servicos'
       preLoaderRoute: typeof ServicosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/relatorios': {
@@ -307,6 +327,7 @@ const rootRouteChildren: RootRouteChildren = {
   MeusAgendamentosRoute: MeusAgendamentosRoute,
   OnboardingRoute: OnboardingRoute,
   RelatoriosRoute: RelatoriosRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ServicosRoute: ServicosRoute,
   UpgradeRoute: UpgradeRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
