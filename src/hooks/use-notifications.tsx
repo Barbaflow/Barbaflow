@@ -93,5 +93,7 @@ export function useNotifications() {
     setUnreadCount(0);
   }, [user]);
 
-  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refetch: fetchNotifications };
+  const notificationsEnabled = useSyncExternalStore(subscribeToStorage, getNotifEnabled);
+
+  return { notifications, unreadCount, loading, markAsRead, markAllAsRead, refetch: fetchNotifications, notificationsEnabled };
 }
