@@ -7,7 +7,7 @@ export interface AuthState {
   session: Session | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  signUp: (email: string, password: string, fullName: string) => Promise<void>;
+  signUp: (email: string, password: string, fullName: string, emailRedirectTo?: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -47,13 +47,14 @@ export function useAuth(): AuthState {
     if (error) throw error;
   }, []);
 
-  const signUp = useCallback(async (email: string, password: string, fullName: string) => {
+  const signUp = useCallback(async (email: string, password: string, fullName: string, emailRedirectTo?: string) => {
+    const defaultRedirect = typeof window !== "undefined" ? `${window.location.origin}/login` : undefined;
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: typeof window !== "undefined" ? window.location.origin : undefined,
+        emailRedirectTo: emailRedirectTo ?? defaultRedirect,
       },
     });
     if (error) throw error;
