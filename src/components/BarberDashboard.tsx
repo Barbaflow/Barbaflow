@@ -417,8 +417,8 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         </div>
       )}
 
-      {/* Subdomain link for admin */}
-      {isAdmin && barbershop?.subdomain && (
+      {/* Subdomain link for admin/barber */}
+      {barbershop?.subdomain && (
         <Card className="bg-card border-primary/20">
           <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -426,7 +426,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 <Globe className="w-4 h-4 text-primary" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Link de agendamento</p>
+                <p className="text-sm font-medium text-foreground">Página de agendamento</p>
                 <p className="text-xs text-muted-foreground truncate">
                   barbaflow.pro/agendar/{barbershop.subdomain}
                 </p>
@@ -443,17 +443,14 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 }}
               >
                 <Copy className="w-4 h-4" />
-                Copiar link
+                Copiar
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                asChild
-              >
-                <a href={`https://barbaflow.pro/agendar/${barbershop.subdomain}`} target="_blank" rel="noopener noreferrer">
-                  Abrir
-                </a>
-              </Button>
+              <Link to="/agendar/$slug" params={{ slug: barbershop.subdomain }}>
+                <Button variant="gold" size="sm">
+                  <Globe className="w-4 h-4" />
+                  Acessar
+                </Button>
+              </Link>
             </div>
           </CardContent>
         </Card>
