@@ -116,12 +116,19 @@ export function OnboardingWizard() {
         }
       }
 
-      // 4. Assign admin role
-      await supabase.from("user_roles").insert({
-        user_id: user.id,
-        barbershop_id: shop.id,
-        role: "admin_barbearia",
-      });
+      // 4. Assign admin + barber roles
+      await supabase.from("user_roles").insert([
+        {
+          user_id: user.id,
+          barbershop_id: shop.id,
+          role: "admin_barbearia" as const,
+        },
+        {
+          user_id: user.id,
+          barbershop_id: shop.id,
+          role: "barbeiro" as const,
+        },
+      ]);
 
       toast.success("Barbearia criada com sucesso!");
       navigate({ to: "/dashboard", search: { checkout: undefined } });
