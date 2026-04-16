@@ -208,6 +208,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
         {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} />}
         {activeTab === "services" && <ServicesTab />}
+        {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
         {activeTab === "schedule" && <ScheduleTab />}
         {activeTab === "settings" && <SettingsTab />}
