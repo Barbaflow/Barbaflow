@@ -75,7 +75,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (!preselectedBarbershopId) return;
     supabase
       .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain")
+      .select("id, name, logo_url, primary_color, subdomain, owner_id")
       .eq("id", preselectedBarbershopId)
       .maybeSingle()
       .then(({ data }) => {
