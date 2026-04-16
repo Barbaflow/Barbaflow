@@ -28,6 +28,10 @@ export const Route = createFileRoute("/upgrade")({
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Planos e Preços — BarbaFlow" },
       { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
+      { property: "og:url", content: "https://barbaflow.pro/upgrade" },
+    ],
+    links: [
+      { rel: "canonical", href: "https://barbaflow.pro/upgrade" },
     ],
   }),
   component: UpgradePage,

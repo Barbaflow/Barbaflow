@@ -19,6 +19,9 @@ export const Route = createFileRoute("/agendar")({
       { name: "twitter:description", content: "Agende seu horário na barbearia de forma rápida e fácil." },
       { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
     ],
+    links: [
+      { rel: "canonical", href: "https://barbaflow.pro/agendar" },
+    ],
   }),
   component: AgendarPage,
 });
