@@ -90,6 +90,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       .from("barbershops")
       .select("id, name, logo_url, primary_color, subdomain")
       .eq("status", "approved")
+      .neq("subdomain", "_system")
       .order("name")
       .then(({ data }) => {
         if (data) setBarbershops(data);
