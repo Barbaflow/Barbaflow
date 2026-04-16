@@ -64,17 +64,38 @@ function DashboardPage() {
           return;
         }
 
-        // Check barbershop-specific roles
+        // Check barbershop-specific roles — first try current barbershop
         supabase
           .from("user_roles")
-          .select("role")
+          .select("role, barbershop_id")
           .eq("user_id", user.id)
           .eq("barbershop_id", barbershopId)
           .limit(1)
           .single()
           .then(({ data }) => {
-            setRole(data?.role || "cliente");
-            setRoleLoading(false);
+            if (data?.role) {
+              setRole(data.role);
+              setRoleLoading(false);
+            } else {
+              // No role in current barbershop — check any barbershop (owner scenario)
+              supabase
+                .from("user_roles")
+                .select("role, barbershop_id")
+                .eq("user_id", user.id)
+                .in("role", ["admin_barbearia", "barbeiro"])
+                .limit(1)
+                .single()
+                .then(({ data: anyRole }) => {
+                  if (anyRole?.role) {
+                    setRole(anyRole.role);
+                    // Update barbershop context to match
+                    setResolvedBarbershopId(anyRole.barbershop_id);
+                  } else {
+                    setRole("cliente");
+                  }
+                  setRoleLoading(false);
+                });
+            }
           });
       });
   }, [user, barbershopId]);
