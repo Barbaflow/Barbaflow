@@ -49,12 +49,14 @@ export function AuthForm() {
           <Scissors className="w-8 h-8 text-primary-foreground" />
         </div>
         <h1 className="text-3xl font-display text-foreground">
-          {mode === "login" ? "Entrar" : "Criar conta"}
+          {mode === "login" ? "Entrar" : mode === "register" ? "Criar conta" : "Recuperar senha"}
         </h1>
         <p className="text-muted-foreground mt-2 text-sm">
           {mode === "login"
             ? "Acesse sua barbearia"
-            : "Crie sua conta para começar"}
+            : mode === "register"
+              ? "Crie sua conta para começar"
+              : "Enviaremos um link para redefinir sua senha"}
         </p>
       </div>
 
