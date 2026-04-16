@@ -41,6 +41,8 @@ import {
   Globe,
   Copy,
   Package,
+  ImagePlus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -893,11 +895,15 @@ function ProductsTab() {
   const [newDescription, setNewDescription] = useState("");
   const [newPrice, setNewPrice] = useState("");
   const [newStock, setNewStock] = useState("0");
+  const [newImageFile, setNewImageFile] = useState<File | null>(null);
+  const [newImagePreview, setNewImagePreview] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPrice, setEditPrice] = useState("");
   const [editStock, setEditStock] = useState("");
+  const [editImageFile, setEditImageFile] = useState<File | null>(null);
+  const [editImagePreview, setEditImagePreview] = useState<string | null>(null);
   const [editSaving, setEditSaving] = useState(false);
 
   const fetchProducts = useCallback(async () => {
@@ -913,25 +919,54 @@ function ProductsTab() {
 
   useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
+  const uploadImage = async (file: File, productId: string): Promise<string | null> => {
+    const ext = file.name.split(".").pop() || "jpg";
+    const path = `${barbershopId}/${productId}.${ext}`;
+    const { error } = await supabase.storage.from("product-images").upload(path, file, { upsert: true });
+    if (error) {
+      toast.error("Erro ao enviar imagem.");
+      return null;
+    }
+    const { data: urlData } = supabase.storage.from("product-images").getPublicUrl(path);
+    return urlData.publicUrl + "?t=" + Date.now();
+  };
+
+  const handleImageSelect = (file: File | null, setFile: (f: File | null) => void, setPreview: (s: string | null) => void) => {
+    if (!file) { setFile(null); setPreview(null); return; }
+    if (file.size > 5 * 1024 * 1024) { toast.error("Imagem deve ter no máximo 5MB."); return; }
+    setFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => setPreview(e.target?.result as string);
+    reader.readAsDataURL(file);
+  };
+
   const handleAdd = async () => {
     if (!newName.trim() || !newPrice || !user) return;
     setSaving(true);
-    const { error } = await supabase.from("products").insert({
+    const { data: inserted, error } = await supabase.from("products").insert({
       barbershop_id: barbershopId,
       name: newName.trim(),
       description: newDescription.trim() || null,
       price: parseFloat(newPrice),
       stock_quantity: parseInt(newStock) || 0,
-    });
-    setSaving(false);
+    }).select("id").single();
     if (error) {
+      setSaving(false);
       toast.error("Erro ao adicionar produto.");
-    } else {
-      toast.success("Produto adicionado!");
-      setNewName(""); setNewDescription(""); setNewPrice(""); setNewStock("0");
-      setShowAdd(false);
-      fetchProducts();
+      return;
     }
+    if (newImageFile && inserted) {
+      const imageUrl = await uploadImage(newImageFile, inserted.id);
+      if (imageUrl) {
+        await supabase.from("products").update({ image_url: imageUrl }).eq("id", inserted.id);
+      }
+    }
+    setSaving(false);
+    toast.success("Produto adicionado!");
+    setNewName(""); setNewDescription(""); setNewPrice(""); setNewStock("0");
+    setNewImageFile(null); setNewImagePreview(null);
+    setShowAdd(false);
+    fetchProducts();
   };
 
   const openEdit = (p: typeof products[0]) => {
@@ -940,20 +975,40 @@ function ProductsTab() {
     setEditDescription(p.description || "");
     setEditPrice(String(p.price));
     setEditStock(String(p.stock_quantity));
+    setEditImageFile(null);
+    setEditImagePreview(p.image_url || null);
   };
 
   const handleEdit = async () => {
     if (!editingProduct || !editName.trim() || !editPrice) return;
     setEditSaving(true);
-    await supabase.from("products").update({
+    const updateData: {
+      name: string;
+      description: string | null;
+      price: number;
+      stock_quantity: number;
+      image_url?: string;
+    } = {
       name: editName.trim(),
       description: editDescription.trim() || null,
       price: parseFloat(editPrice),
       stock_quantity: parseInt(editStock) || 0,
-    }).eq("id", editingProduct);
+    };
+    if (editImageFile) {
+      const imageUrl = await uploadImage(editImageFile, editingProduct);
+      if (imageUrl) updateData.image_url = imageUrl;
+    }
+    await supabase.from("products").update(updateData).eq("id", editingProduct);
     setEditSaving(false);
     setEditingProduct(null);
+    setEditImageFile(null); setEditImagePreview(null);
     toast.success("Produto atualizado!");
+    fetchProducts();
+  };
+
+  const removeImage = async (productId: string) => {
+    await supabase.from("products").update({ image_url: null }).eq("id", productId);
+    toast.success("Imagem removida.");
     fetchProducts();
   };
 
@@ -973,6 +1028,39 @@ function ProductsTab() {
     }
   };
 
+  const ImageUploadField = ({ preview, onSelect, onClear }: { preview: string | null; onSelect: (f: File) => void; onClear: () => void }) => (
+    <div>
+      <Label>Imagem do produto</Label>
+      {preview ? (
+        <div className="relative mt-1 w-24 h-24">
+          <img src={preview} alt="Preview" className="w-24 h-24 rounded-lg object-cover border border-border" />
+          <button
+            type="button"
+            onClick={onClear}
+            className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+          >
+            <X className="w-3 h-3" />
+          </button>
+        </div>
+      ) : (
+        <label className="mt-1 flex items-center gap-2 px-3 py-2 rounded-lg border border-dashed border-border cursor-pointer hover:border-primary/50 transition-colors">
+          <ImagePlus className="w-4 h-4 text-muted-foreground" />
+          <span className="text-sm text-muted-foreground">Selecionar imagem</span>
+          <input
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onSelect(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -980,7 +1068,7 @@ function ProductsTab() {
           <h2 className="text-xl font-display font-bold text-foreground">Produtos</h2>
           <p className="text-sm text-muted-foreground">Gerencie os produtos vendidos na barbearia.</p>
         </div>
-        <Dialog open={showAdd} onOpenChange={setShowAdd}>
+        <Dialog open={showAdd} onOpenChange={(open) => { setShowAdd(open); if (!open) { setNewImageFile(null); setNewImagePreview(null); } }}>
           <DialogTrigger asChild>
             <Button size="sm">
               <Plus className="w-4 h-4" />
@@ -992,6 +1080,11 @@ function ProductsTab() {
               <DialogTitle>Adicionar Produto</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 pt-2">
+              <ImageUploadField
+                preview={newImagePreview}
+                onSelect={(f) => handleImageSelect(f, setNewImageFile, setNewImagePreview)}
+                onClear={() => { setNewImageFile(null); setNewImagePreview(null); }}
+              />
               <div>
                 <Label>Nome</Label>
                 <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Pomada modeladora" />
@@ -1019,12 +1112,17 @@ function ProductsTab() {
       </div>
 
       {/* Edit dialog */}
-      <Dialog open={!!editingProduct} onOpenChange={(open) => !open && setEditingProduct(null)}>
+      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) { setEditingProduct(null); setEditImageFile(null); setEditImagePreview(null); } }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Editar Produto</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
+            <ImageUploadField
+              preview={editImagePreview}
+              onSelect={(f) => handleImageSelect(f, setEditImageFile, setEditImagePreview)}
+              onClear={() => { setEditImageFile(null); setEditImagePreview(null); }}
+            />
             <div>
               <Label>Nome</Label>
               <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
@@ -1070,27 +1168,36 @@ function ProductsTab() {
           {products.map((prod) => (
             <Card key={prod.id} className={`bg-card border-border ${!prod.active ? "opacity-50" : ""}`}>
               <CardContent className="p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground truncate">{prod.name}</p>
-                    {!prod.active && (
-                      <Badge variant="secondary" className="text-[10px]">Inativo</Badge>
+                <div className="flex items-center gap-3 min-w-0">
+                  {prod.image_url ? (
+                    <img src={prod.image_url} alt={prod.name} className="w-12 h-12 rounded-lg object-cover border border-border shrink-0" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                      <Package className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-foreground truncate">{prod.name}</p>
+                      {!prod.active && (
+                        <Badge variant="secondary" className="text-[10px]">Inativo</Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      R$ {Number(prod.price).toFixed(2)} · Estoque: {prod.stock_quantity}
+                    </p>
+                    {prod.description && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{prod.description}</p>
                     )}
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    R$ {Number(prod.price).toFixed(2)} · Estoque: {prod.stock_quantity}
-                  </p>
-                  {prod.description && (
-                    <p className="text-xs text-muted-foreground truncate mt-0.5">{prod.description}</p>
-                  )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => openEdit(prod)}>
                     <Edit className="w-3.5 h-3.5" />
-                    Editar
+                    <span className="hidden sm:inline">Editar</span>
                   </Button>
                   <Button variant="ghost" size="sm" className="text-xs h-8" onClick={() => toggleActive(prod.id, prod.active)}>
-                    {prod.active ? "Desativar" : "Ativar"}
+                    <span className="hidden sm:inline">{prod.active ? "Desativar" : "Ativar"}</span>
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
