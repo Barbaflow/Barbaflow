@@ -174,18 +174,30 @@ export function AuthForm() {
       </div>
 
       <p className="text-center text-sm text-muted-foreground mt-6">
-        {mode === "login" ? "Não tem conta?" : "Já tem conta?"}{" "}
-        <button
-          type="button"
-          className="text-primary hover:underline font-medium"
-          onClick={() => {
-            setMode(mode === "login" ? "register" : "login");
-            setError("");
-            setSuccess("");
-          }}
-        >
-          {mode === "login" ? "Criar conta" : "Entrar"}
-        </button>
+        {mode === "forgot" ? (
+          <button
+            type="button"
+            className="text-primary hover:underline font-medium"
+            onClick={() => { setMode("login"); setError(""); setSuccess(""); }}
+          >
+            Voltar ao login
+          </button>
+        ) : (
+          <>
+            {mode === "login" ? "Não tem conta?" : "Já tem conta?"}{" "}
+            <button
+              type="button"
+              className="text-primary hover:underline font-medium"
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setError("");
+                setSuccess("");
+              }}
+            >
+              {mode === "login" ? "Criar conta" : "Entrar"}
+            </button>
+          </>
+        )}
       </p>
     </div>
   );
