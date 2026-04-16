@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://barbaflow-pro.lovable.app/sitemap.xml
