@@ -64,7 +64,7 @@ function DashboardPage() {
           return;
         }
 
-        // Check barbershop-specific roles
+        // Check barbershop-specific role (barbershopId now resolves from user_roles via provider)
         supabase
           .from("user_roles")
           .select("role")

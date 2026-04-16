@@ -21,34 +21,24 @@ const BarbershopContext = createContext<BarbershopContextValue>({
 
 /**
  * Extracts subdomain from hostname.
- * Patterns:
- *   - {subdomain}.app.lovable.dev → subdomain
- *   - {subdomain}.barbaflow.com  → subdomain
- *   - {subdomain}.lovableproject.com → subdomain
- *   - localhost / plain domains   → null (use default)
  */
 function extractSubdomain(): string | null {
   if (typeof window === "undefined") return null;
 
   const hostname = window.location.hostname;
 
-  // Skip localhost and IP addresses
   if (hostname === "localhost" || /^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
     return null;
   }
 
-  // Match patterns like: {sub}.app.lovable.dev, {sub}.barbaflow.com, {sub}.lovableproject.com
   const parts = hostname.split(".");
 
-  // Need at least 3 parts for a subdomain (sub.domain.tld)
   if (parts.length < 3) return null;
 
   const subdomain = parts[0];
 
-  // Skip common non-tenant prefixes
   if (["www", "app", "api", "admin"].includes(subdomain)) return null;
 
-  // Skip preview IDs (Lovable preview URLs like id-preview--xxx)
   if (subdomain.includes("preview--")) return null;
 
   return subdomain;
@@ -74,25 +64,74 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
           if (data && !error) {
             setBarbershop(data);
             setIsDefault(false);
+            setLoading(false);
+          } else {
+            // Subdomain not found — try resolving from user's roles
+            resolveFromUserRoles();
           }
-          // If subdomain not found, fall through to default
-          setLoading(false);
         });
     } else {
-      // No subdomain — try loading default barbershop
-      supabase
-        .from("barbershops")
-        .select("*")
-        .eq("id", DEFAULT_BARBERSHOP_ID)
-        .single()
-        .then(({ data, error }) => {
-          if (data && !error) {
-            setBarbershop(data);
-          }
-          setLoading(false);
-        });
+      // No subdomain — try resolving from user's roles first, then fallback to default
+      resolveFromUserRoles();
     }
   }, []);
+
+  async function resolveFromUserRoles() {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (user) {
+      // Find user's barbershop from their roles
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("barbershop_id")
+        .eq("user_id", user.id)
+        .in("role", ["admin_barbearia", "barbeiro"])
+        .limit(1)
+        .maybeSingle();
+
+      if (roleData?.barbershop_id) {
+        const { data: shop } = await supabase
+          .from("barbershops")
+          .select("*")
+          .eq("id", roleData.barbershop_id)
+          .single();
+
+        if (shop) {
+          setBarbershop(shop);
+          setIsDefault(false);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Check if user owns a barbershop
+      const { data: ownedShop } = await supabase
+        .from("barbershops")
+        .select("*")
+        .eq("owner_id", user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (ownedShop) {
+        setBarbershop(ownedShop);
+        setIsDefault(false);
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Final fallback: default barbershop
+    const { data } = await supabase
+      .from("barbershops")
+      .select("*")
+      .eq("id", DEFAULT_BARBERSHOP_ID)
+      .single();
+
+    if (data) {
+      setBarbershop(data);
+    }
+    setLoading(false);
+  }
 
   const barbershopId = barbershop?.id ?? DEFAULT_BARBERSHOP_ID;
 
