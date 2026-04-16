@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -63,6 +63,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { QRCodeSVG } from "qrcode.react";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -924,35 +925,79 @@ function SettingsTab() {
       </div>
 
       {/* Booking link */}
-      {barbershop?.subdomain && (
-        <Card className="bg-card border-primary/20">
-          <CardContent className="space-y-3 py-5">
-            <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5 text-primary" />
-              <h3 className="text-sm font-display font-semibold text-foreground">Link de Agendamento</h3>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Compartilhe este link com seus clientes para que agendem online.
-            </p>
-            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-background border border-border">
-              <span className="text-sm text-foreground truncate flex-1">
-                https://{barbershop.subdomain}.barbaflow.pro
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  navigator.clipboard.writeText(`https://${barbershop.subdomain}.barbaflow.pro`);
-                  toast.success("Link copiado!");
-                }}
-              >
-                <Copy className="w-3.5 h-3.5" />
-                Copiar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {barbershop?.subdomain && (() => {
+        const bookingUrl = `https://${barbershop.subdomain}.barbaflow.pro`;
+        const handlePrintQR = () => {
+          const printWindow = window.open("", "_blank");
+          if (!printWindow) return;
+          const qrEl = document.getElementById("qr-code-settings");
+          if (!qrEl) return;
+          const svgData = qrEl.outerHTML;
+          printWindow.document.write(`
+            <html><head><title>QR Code - ${barbershop.name}</title>
+            <style>
+              body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; margin: 0; font-family: Arial, sans-serif; }
+              h1 { font-size: 24px; margin-bottom: 4px; }
+              p { font-size: 14px; color: #666; margin-bottom: 24px; }
+              .url { font-size: 12px; color: #999; margin-top: 16px; }
+            </style></head><body>
+            <h1>${barbershop.name}</h1>
+            <p>Escaneie para agendar</p>
+            ${svgData}
+            <p class="url">${bookingUrl}</p>
+            <script>window.onload=function(){window.print();}<\/script>
+            </body></html>
+          `);
+          printWindow.document.close();
+        };
+
+        return (
+          <Card className="bg-card border-primary/20">
+            <CardContent className="space-y-4 py-5">
+              <div className="flex items-center gap-2">
+                <Globe className="w-5 h-5 text-primary" />
+                <h3 className="text-sm font-display font-semibold text-foreground">Link de Agendamento</h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Compartilhe este link ou imprima o QR Code para seus clientes agendarem online.
+              </p>
+              <div className="flex items-center gap-2 p-2.5 rounded-lg bg-background border border-border">
+                <span className="text-sm text-foreground truncate flex-1">
+                  {bookingUrl}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(bookingUrl);
+                    toast.success("Link copiado!");
+                  }}
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  Copiar
+                </Button>
+              </div>
+
+              {/* QR Code */}
+              <div className="flex flex-col items-center gap-4 pt-2">
+                <div className="bg-white p-4 rounded-xl">
+                  <QRCodeSVG
+                    id="qr-code-settings"
+                    value={bookingUrl}
+                    size={180}
+                    level="H"
+                    includeMargin={false}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Escaneie para agendar</p>
+                <Button variant="outline" size="sm" onClick={handlePrintQR}>
+                  Imprimir QR Code
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        );
+      })()}
 
       <ProfilePhotoUpload />
       <BarbershopSettings barbershopId={barbershopId} />
