@@ -1,0 +1,1 @@
+ALTER TABLE public.barbershops ALTER COLUMN status SET DEFAULT 'approved'::approval_status;
