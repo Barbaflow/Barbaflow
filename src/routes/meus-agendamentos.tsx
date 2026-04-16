@@ -43,7 +43,7 @@ function MeusAgendamentosPage() {
           <span className="font-display text-lg text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-2">
-          <Link to="/">
+          <Link to={user ? "/dashboard" : "/"}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
               <span className="hidden sm:inline">Voltar</span>
