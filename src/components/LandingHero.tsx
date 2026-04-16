@@ -32,6 +32,9 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
             <span className="font-display text-xl text-foreground">BarbaFlow</span>
           </div>
           <div className="flex items-center gap-3">
+            <Link to="/sobre">
+              <Button variant="ghost" size="sm">Sobre</Button>
+            </Link>
             <Link to="/login">
               <Button variant="ghost" size="sm">Entrar</Button>
             </Link>
