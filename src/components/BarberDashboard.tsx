@@ -914,7 +914,7 @@ function ScheduleTab() {
 // ─── Settings Tab ────────────────────────────────────────
 
 function SettingsTab() {
-  const { barbershopId } = useBarbershop();
+  const { barbershopId, barbershop } = useBarbershop();
 
   return (
     <div className="space-y-8">
@@ -922,6 +922,38 @@ function SettingsTab() {
         <h2 className="text-xl font-display font-bold text-foreground">Configurações</h2>
         <p className="text-sm text-muted-foreground">Personalize seu perfil e a identidade visual da barbearia.</p>
       </div>
+
+      {/* Booking link */}
+      {barbershop?.subdomain && (
+        <Card className="bg-card border-primary/20">
+          <CardContent className="space-y-3 py-5">
+            <div className="flex items-center gap-2">
+              <Globe className="w-5 h-5 text-primary" />
+              <h3 className="text-sm font-display font-semibold text-foreground">Link de Agendamento</h3>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Compartilhe este link com seus clientes para que agendem online.
+            </p>
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-background border border-border">
+              <span className="text-sm text-foreground truncate flex-1">
+                https://{barbershop.subdomain}.barbaflow.pro
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(`https://${barbershop.subdomain}.barbaflow.pro`);
+                  toast.success("Link copiado!");
+                }}
+              >
+                <Copy className="w-3.5 h-3.5" />
+                Copiar
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <ProfilePhotoUpload />
       <BarbershopSettings barbershopId={barbershopId} />
     </div>
