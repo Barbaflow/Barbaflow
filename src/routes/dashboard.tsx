@@ -52,7 +52,7 @@ function DashboardPage() {
   }, [user, loading, navigate]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || barbershopLoading) return;
 
     // Check if super_admin first
     supabase
