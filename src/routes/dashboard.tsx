@@ -91,7 +91,11 @@ function DashboardPage() {
     return <AdminDashboard />;
   }
 
-  if (role === "barbeiro" || role === "admin_barbearia") {
+  if (role === "admin_barbearia") {
+    return <BarberDashboard isAdmin />;
+  }
+
+  if (role === "barbeiro") {
     return <BarberDashboard />;
   }
 

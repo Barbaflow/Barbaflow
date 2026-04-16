@@ -4,13 +4,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PlanCard } from "@/components/PlanCard";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { EnableNotificationsButton } from "@/components/EnableNotificationsButton";
+import { TeamManager } from "@/components/TeamManager";
+import { BarbershopSettings } from "@/components/BarbershopSettings";
+import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
+import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
+import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import {
   Scissors,
   LogOut,
@@ -25,7 +30,27 @@ import {
   ChevronRight,
   Settings,
   TrendingUp,
+  LayoutDashboard,
+  Wrench,
+  UserCog,
+  CalendarCog,
+  BarChart3,
+  Plus,
+  Trash2,
+  Edit,
 } from "lucide-react";
+import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+// ─── Types ───────────────────────────────────────────────
 
 interface Appointment {
   id: string;
@@ -35,8 +60,19 @@ interface Appointment {
   status: "scheduled" | "completed" | "cancelled" | "no_show";
   notes: string | null;
   client_id: string;
+  barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
   client_profile: { full_name: string | null } | null;
+  barber_profile: { full_name: string | null } | null;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  duration_minutes: number;
+  price: number;
+  active: boolean;
+  barber_id: string;
 }
 
 interface DayMetrics {
@@ -66,46 +102,146 @@ function formatDateFull(dateStr: string) {
   return `${weekdays[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
 }
 
-export function BarberDashboard() {
+type AdminTab = "overview" | "services" | "team" | "schedule" | "settings";
+
+const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
+  { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
+  { id: "services", label: "Serviços", icon: Wrench },
+  { id: "team", label: "Equipe", icon: UserCog },
+  { id: "schedule", label: "Horários", icon: CalendarCog },
+  { id: "settings", label: "Configurações", icon: Settings },
+];
+
+// ─── Main Component ──────────────────────────────────────
+
+interface BarberDashboardProps {
+  isAdmin?: boolean;
+}
+
+export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+
+  const name = barbershop?.name || "BarbaFlow";
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b border-border px-4 py-4 md:px-8">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {barbershop?.logo_url ? (
+              <img src={barbershop.logo_url} alt={name} className="h-9 w-9 rounded-full object-cover" />
+            ) : (
+              <div className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center">
+                <Scissors className="w-4 h-4 text-primary-foreground" />
+              </div>
+            )}
+            <div className="hidden sm:block">
+              <h1 className="font-display text-lg text-foreground">{name}</h1>
+              <p className="text-xs text-muted-foreground">
+                {isAdmin ? "Administrador" : "Barbeiro"} · {user?.email}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/relatorios">
+              <Button variant="ghost" size="sm">
+                <BarChart3 className="w-4 h-4" />
+                <span className="hidden sm:inline">Relatórios</span>
+              </Button>
+            </Link>
+            <InstallAppButton />
+            <EnableNotificationsButton />
+            <NotificationBell />
+            <Button variant="ghost" size="sm" onClick={() => signOut()}>
+              <LogOut className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Tab navigation — only for admins */}
+      {isAdmin && (
+        <nav className="border-b border-border bg-card/50 overflow-x-auto">
+          <div className="max-w-6xl mx-auto flex px-4 md:px-8">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              const active = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                    active
+                      ? "border-primary text-primary"
+                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </nav>
+      )}
+
+      <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
+        {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} />}
+        {activeTab === "services" && <ServicesTab />}
+        {activeTab === "team" && <TeamTab />}
+        {activeTab === "schedule" && <ScheduleTab />}
+        {activeTab === "settings" && <SettingsTab />}
+      </main>
+    </div>
+  );
+}
+
+// ─── Overview Tab ────────────────────────────────────────
+
+function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
+  const { user } = useAuth();
+  const { barbershopId } = useBarbershop();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
-  const [weekMetrics, setWeekMetrics] = useState<{ totalWeek: number; revenueWeek: number }>({
-    totalWeek: 0,
-    revenueWeek: 0,
-  });
-
-  const name = barbershop?.name || "BarbaFlow";
+  const [weekMetrics, setWeekMetrics] = useState({ totalWeek: 0, revenueWeek: 0 });
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
     setLoading(true);
     setError(null);
 
-    const { data, error: err } = await supabase
+    let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, client_id, service:services(name, price, duration_minutes)")
+      .select("id, date, start_time, end_time, status, notes, client_id, barber_id, service:services(name, price, duration_minutes)")
       .eq("barbershop_id", barbershopId)
-      .eq("barber_id", user.id)
       .eq("date", selectedDate)
       .order("start_time", { ascending: true });
+
+    // Barbers see only their own, admins see all
+    if (!isAdmin) {
+      query = query.eq("barber_id", user.id);
+    }
+
+    const { data, error: err } = await query;
 
     if (err) {
       setError("Erro ao carregar agendamentos.");
     } else {
-      // Fetch client profiles separately
       const clientIds = [...new Set((data || []).map((a) => a.client_id))];
-      let profilesMap: Record<string, { full_name: string | null }> = {};
+      const barberIds = [...new Set((data || []).map((a) => a.barber_id))];
+      const allUserIds = [...new Set([...clientIds, ...barberIds])];
 
-      if (clientIds.length > 0) {
+      let profilesMap: Record<string, { full_name: string | null }> = {};
+      if (allUserIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", clientIds);
-
+          .in("user_id", allUserIds);
         if (profiles) {
           profilesMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name }]));
         }
@@ -116,16 +252,15 @@ export function BarberDashboard() {
           ...a,
           service: Array.isArray(a.service) ? a.service[0] || null : a.service,
           client_profile: profilesMap[a.client_id] || null,
+          barber_profile: profilesMap[a.barber_id] || null,
         })) as Appointment[]
       );
     }
     setLoading(false);
-  }, [user, barbershopId, selectedDate]);
+  }, [user, barbershopId, selectedDate, isAdmin]);
 
-  // Fetch week metrics
   const fetchWeekMetrics = useCallback(async () => {
     if (!user) return;
-
     const today = new Date(selectedDate + "T12:00:00");
     const dayOfWeek = today.getDay();
     const weekStart = new Date(today);
@@ -133,14 +268,18 @@ export function BarberDashboard() {
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
 
-    const { data } = await supabase
+    let query = supabase
       .from("appointments")
       .select("status, service:services(price)")
       .eq("barbershop_id", barbershopId)
-      .eq("barber_id", user.id)
       .gte("date", weekStart.toISOString().split("T")[0])
       .lte("date", weekEnd.toISOString().split("T")[0]);
 
+    if (!isAdmin) {
+      query = query.eq("barber_id", user.id);
+    }
+
+    const { data } = await query;
     if (data) {
       const totalWeek = data.length;
       const revenueWeek = data
@@ -151,7 +290,7 @@ export function BarberDashboard() {
         }, 0);
       setWeekMetrics({ totalWeek, revenueWeek });
     }
-  }, [user, barbershopId, selectedDate]);
+  }, [user, barbershopId, selectedDate, isAdmin]);
 
   useEffect(() => {
     fetchAppointments();
@@ -166,7 +305,6 @@ export function BarberDashboard() {
 
   const isToday = selectedDate === new Date().toISOString().split("T")[0];
 
-  // Day metrics
   const metrics: DayMetrics = appointments.reduce(
     (acc, a) => {
       acc.total++;
@@ -189,245 +327,408 @@ export function BarberDashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b border-border px-4 py-4 md:px-8">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {barbershop?.logo_url ? (
-              <img src={barbershop.logo_url} alt={name} className="h-9 w-9 rounded-full object-cover" />
-            ) : (
-              <div className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center">
-                <Scissors className="w-4 h-4 text-primary-foreground" />
-              </div>
-            )}
-            <div className="hidden sm:block">
-              <h1 className="font-display text-lg text-foreground">{name}</h1>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link to="/agenda">
-              <Button variant="ghost" size="sm">
-                <Calendar className="w-4 h-4" />
-                <span className="hidden sm:inline">Agenda</span>
-              </Button>
-            </Link>
-            <Link to="/relatorios">
-              <Button variant="ghost" size="sm">
-                <TrendingUp className="w-4 h-4" />
-                <span className="hidden sm:inline">Relatórios</span>
-              </Button>
-            </Link>
-            <Link to="/configuracoes">
-              <Button variant="ghost" size="sm">
-                <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Config</span>
-              </Button>
-            </Link>
-            <InstallAppButton />
-            <EnableNotificationsButton />
-            <NotificationBell />
-            <Button variant="ghost" size="sm" onClick={() => signOut()}>
-              <LogOut className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
-        {/* Date navigation */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl md:text-2xl font-display font-bold text-foreground">
-              {isToday ? "Hoje" : formatDateFull(selectedDate)}
-            </h2>
-            {isToday && (
-              <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
-            )}
-          </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
-              <ChevronLeft className="w-4 h-4" />
-            </Button>
-            {!isToday && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs"
-                onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
-              >
-                Hoje
-              </Button>
-            )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Metrics cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Calendar className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">Hoje</span>
-              </div>
-              <p className="text-2xl font-display font-bold text-foreground">{metrics.total}</p>
-              <p className="text-[10px] text-muted-foreground">{metrics.scheduled} pendente{metrics.scheduled !== 1 ? "s" : ""}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-green-500" />
-                <span className="text-xs text-muted-foreground">Receita dia</span>
-              </div>
-              <p className="text-2xl font-display font-bold text-foreground">
-                R$ {metrics.revenue.toFixed(0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground">{metrics.completed} concluído{metrics.completed !== 1 ? "s" : ""}</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">Semana</span>
-              </div>
-              <p className="text-2xl font-display font-bold text-foreground">{weekMetrics.totalWeek}</p>
-              <p className="text-[10px] text-muted-foreground">agendamentos</p>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-card border-border">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <DollarSign className="w-4 h-4 text-primary" />
-                <span className="text-xs text-muted-foreground">Receita semana</span>
-              </div>
-              <p className="text-2xl font-display font-bold text-foreground">
-                R$ {weekMetrics.revenueWeek.toFixed(0)}
-              </p>
-              <p className="text-[10px] text-muted-foreground">concluídos</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Plan usage card */}
-        <PlanCard />
-
-        {/* Error */}
-        {error && (
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {error}
-          </div>
-        )}
-
-        {/* Appointments list */}
+    <div className="space-y-6">
+      {/* Date navigation */}
+      <div className="flex items-center justify-between">
         <div>
-          <h3 className="font-display text-lg font-semibold text-foreground mb-3">
-            Agendamentos do dia
-          </h3>
+          <h2 className="text-xl md:text-2xl font-display font-bold text-foreground">
+            {isToday ? "Hoje" : formatDateFull(selectedDate)}
+          </h2>
+          {isToday && (
+            <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
+          )}
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          {!isToday && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+            >
+              Hoje
+            </Button>
+          )}
+          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
+            <ChevronRight className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
 
-          {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-20 rounded-xl" />
-              ))}
+      {/* Metrics */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <Calendar className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground">Hoje</span>
             </div>
-          ) : appointments.length === 0 ? (
-            <Card className="bg-card border-border">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
-                <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                  <Calendar className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <p className="text-sm text-muted-foreground font-medium">
-                  Nenhum agendamento para este dia.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-2">
-              {appointments.map((apt) => {
-                const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
-                const StatusIcon = statusCfg.icon;
-                const isScheduled = apt.status === "scheduled";
+            <p className="text-2xl font-display font-bold text-foreground">{metrics.total}</p>
+            <p className="text-[10px] text-muted-foreground">{metrics.scheduled} pendente{metrics.scheduled !== 1 ? "s" : ""}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-green-500" />
+              <span className="text-xs text-muted-foreground">Receita dia</span>
+            </div>
+            <p className="text-2xl font-display font-bold text-foreground">R$ {metrics.revenue.toFixed(0)}</p>
+            <p className="text-[10px] text-muted-foreground">{metrics.completed} concluído{metrics.completed !== 1 ? "s" : ""}</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <TrendingUp className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground">Semana</span>
+            </div>
+            <p className="text-2xl font-display font-bold text-foreground">{weekMetrics.totalWeek}</p>
+            <p className="text-[10px] text-muted-foreground">agendamentos</p>
+          </CardContent>
+        </Card>
+        <Card className="bg-card border-border">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-2 mb-1">
+              <DollarSign className="w-4 h-4 text-primary" />
+              <span className="text-xs text-muted-foreground">Receita semana</span>
+            </div>
+            <p className="text-2xl font-display font-bold text-foreground">R$ {weekMetrics.revenueWeek.toFixed(0)}</p>
+            <p className="text-[10px] text-muted-foreground">concluídos</p>
+          </CardContent>
+        </Card>
+      </div>
 
-                return (
-                  <Card key={apt.id} className="bg-card border-border overflow-hidden">
-                    <CardContent className="p-0">
-                      <div className="flex">
-                        {/* Time column */}
-                        <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
-                          <span className="text-lg font-display font-bold text-foreground">
-                            {apt.start_time.slice(0, 5)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {apt.end_time.slice(0, 5)}
-                          </span>
-                        </div>
+      <PlanCard />
 
-                        {/* Details */}
-                        <div className="flex-1 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                          <div className="flex-1 min-w-0 space-y-0.5">
+      {error && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      {/* Appointments list */}
+      <div>
+        <h3 className="font-display text-lg font-semibold text-foreground mb-3">
+          {isAdmin ? "Agendamentos da barbearia" : "Agendamentos do dia"}
+        </h3>
+
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-20 rounded-xl" />
+            ))}
+          </div>
+        ) : appointments.length === 0 ? (
+          <Card className="bg-card border-border">
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
+                <Calendar className="w-6 h-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm text-muted-foreground font-medium">
+                Nenhum agendamento para este dia.
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {appointments.map((apt) => {
+              const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
+              const StatusIcon = statusCfg.icon;
+              const isScheduled = apt.status === "scheduled";
+
+              return (
+                <Card key={apt.id} className="bg-card border-border overflow-hidden">
+                  <CardContent className="p-0">
+                    <div className="flex">
+                      <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
+                        <span className="text-lg font-display font-bold text-foreground">
+                          {apt.start_time.slice(0, 5)}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground">
+                          {apt.end_time.slice(0, 5)}
+                        </span>
+                      </div>
+                      <div className="flex-1 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <Users className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                            <span className="text-sm font-medium text-foreground truncate">
+                              {apt.client_profile?.full_name || "Cliente"}
+                            </span>
+                          </div>
+                          {apt.service && (
                             <div className="flex items-center gap-2">
-                              <Users className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                              <span className="text-sm font-medium text-foreground truncate">
-                                {apt.client_profile?.full_name || "Cliente"}
+                              <Scissors className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-xs text-muted-foreground truncate">
+                                {apt.service.name} — R$ {Number(apt.service.price).toFixed(2)}
                               </span>
                             </div>
-                            {apt.service && (
-                              <div className="flex items-center gap-2">
-                                <Scissors className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                                <span className="text-xs text-muted-foreground truncate">
-                                  {apt.service.name} — R$ {Number(apt.service.price).toFixed(2)}
-                                </span>
-                              </div>
-                            )}
+                          )}
+                          <div className="flex items-center gap-3">
                             <div className="flex items-center gap-1.5">
                               <StatusIcon className={`w-3 h-3 ${statusCfg.color}`} />
                               <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
                             </div>
+                            {isAdmin && apt.barber_profile && (
+                              <span className="text-[10px] text-muted-foreground">
+                                Barbeiro: {apt.barber_profile.full_name}
+                              </span>
+                            )}
                           </div>
-
-                          {/* Actions for scheduled appointments */}
-                          {isScheduled && (
-                            <div className="flex gap-1.5 flex-shrink-0">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
-                                onClick={() => handleStatusChange(apt.id, "completed")}
-                              >
-                                <CheckCircle className="w-3.5 h-3.5" />
-                                Concluir
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="text-destructive hover:bg-destructive/10 text-xs h-8"
-                                onClick={() => handleStatusChange(apt.id, "no_show")}
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Faltou
-                              </Button>
-                            </div>
-                          )}
                         </div>
+                        {isScheduled && (
+                          <div className="flex gap-1.5 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
+                              onClick={() => handleStatusChange(apt.id, "completed")}
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              Concluir
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-destructive hover:bg-destructive/10 text-xs h-8"
+                              onClick={() => handleStatusChange(apt.id, "no_show")}
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              Faltou
+                            </Button>
+                          </div>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Services Tab ────────────────────────────────────────
+
+function ServicesTab() {
+  const { user } = useAuth();
+  const { barbershopId } = useBarbershop();
+  const [services, setServices] = useState<Service[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDuration, setNewDuration] = useState("30");
+  const [newPrice, setNewPrice] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const fetchServices = useCallback(async () => {
+    const { data } = await supabase
+      .from("services")
+      .select("id, name, duration_minutes, price, active, barber_id")
+      .eq("barbershop_id", barbershopId)
+      .order("name");
+    setServices(data || []);
+    setLoading(false);
+  }, [barbershopId]);
+
+  useEffect(() => {
+    fetchServices();
+  }, [fetchServices]);
+
+  const handleAdd = async () => {
+    if (!newName.trim() || !newPrice || !user) return;
+    setSaving(true);
+    const { error } = await supabase.from("services").insert({
+      name: newName.trim(),
+      duration_minutes: parseInt(newDuration),
+      price: parseFloat(newPrice),
+      barbershop_id: barbershopId,
+      barber_id: user.id,
+      active: true,
+    });
+    setSaving(false);
+    if (error) {
+      toast.error("Erro ao adicionar serviço.");
+    } else {
+      toast.success("Serviço adicionado!");
+      setNewName("");
+      setNewPrice("");
+      setShowAdd(false);
+      fetchServices();
+    }
+  };
+
+  const toggleActive = async (id: string, currentActive: boolean) => {
+    await supabase.from("services").update({ active: !currentActive }).eq("id", id);
+    fetchServices();
+    toast.success(currentActive ? "Serviço desativado." : "Serviço ativado!");
+  };
+
+  const deleteService = async (id: string) => {
+    const { error } = await supabase.from("services").delete().eq("id", id);
+    if (error) {
+      toast.error("Erro ao excluir serviço.");
+    } else {
+      toast.success("Serviço excluído!");
+      fetchServices();
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-display font-bold text-foreground">Serviços</h2>
+          <p className="text-sm text-muted-foreground">Gerencie os serviços oferecidos pela barbearia.</p>
         </div>
-      </main>
+        <Dialog open={showAdd} onOpenChange={setShowAdd}>
+          <DialogTrigger asChild>
+            <Button size="sm">
+              <Plus className="w-4 h-4" />
+              Novo Serviço
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adicionar Serviço</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-2">
+              <div>
+                <Label>Nome</Label>
+                <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Corte masculino" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Duração (min)</Label>
+                  <Input type="number" value={newDuration} onChange={(e) => setNewDuration(e.target.value)} />
+                </div>
+                <div>
+                  <Label>Preço (R$)</Label>
+                  <Input type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="0.00" />
+                </div>
+              </div>
+              <Button onClick={handleAdd} disabled={saving || !newName.trim() || !newPrice} className="w-full">
+                {saving ? "Salvando..." : "Adicionar"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {loading ? (
+        <div className="space-y-3">
+          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
+        </div>
+      ) : services.length === 0 ? (
+        <Card className="bg-card border-border">
+          <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+            <Wrench className="w-8 h-8 text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">Nenhum serviço cadastrado ainda.</p>
+            <Button size="sm" onClick={() => setShowAdd(true)}>
+              <Plus className="w-4 h-4" />
+              Adicionar primeiro serviço
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {services.map((svc) => (
+            <Card key={svc.id} className={`bg-card border-border ${!svc.active ? "opacity-50" : ""}`}>
+              <CardContent className="p-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-foreground truncate">{svc.name}</p>
+                    {!svc.active && (
+                      <Badge variant="secondary" className="text-[10px]">Inativo</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {svc.duration_minutes} min · R$ {Number(svc.price).toFixed(2)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-8"
+                    onClick={() => toggleActive(svc.id, svc.active)}
+                  >
+                    {svc.active ? "Desativar" : "Ativar"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 h-8"
+                    onClick={() => deleteService(svc.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Team Tab ────────────────────────────────────────────
+
+function TeamTab() {
+  const { barbershopId } = useBarbershop();
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-xl font-display font-bold text-foreground">Equipe</h2>
+        <p className="text-sm text-muted-foreground">Gerencie barbeiros e administradores da sua barbearia.</p>
+      </div>
+      <TeamManager barbershopId={barbershopId} />
+    </div>
+  );
+}
+
+// ─── Schedule Tab ────────────────────────────────────────
+
+function ScheduleTab() {
+  const { barbershopId } = useBarbershop();
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl font-display font-bold text-foreground">Horários de Funcionamento</h2>
+        <p className="text-sm text-muted-foreground">Configure a agenda semanal e bloqueios de datas.</p>
+      </div>
+      <div className="space-y-6">
+        <WeeklyScheduleEditor barbershopId={barbershopId} />
+        <ScheduleBlocks barbershopId={barbershopId} />
+      </div>
+    </div>
+  );
+}
+
+// ─── Settings Tab ────────────────────────────────────────
+
+function SettingsTab() {
+  const { barbershopId } = useBarbershop();
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-xl font-display font-bold text-foreground">Configurações</h2>
+        <p className="text-sm text-muted-foreground">Personalize seu perfil e a identidade visual da barbearia.</p>
+      </div>
+      <ProfilePhotoUpload />
+      <BarbershopSettings barbershopId={barbershopId} />
     </div>
   );
 }
