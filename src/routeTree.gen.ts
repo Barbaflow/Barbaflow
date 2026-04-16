@@ -17,6 +17,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos'
+import { Route as ManifestDotjsonRouteImport } from './routes/manifest[.]json'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConviteRouteImport } from './routes/convite'
@@ -65,6 +66,11 @@ const OnboardingRoute = OnboardingRouteImport.update({
 const MeusAgendamentosRoute = MeusAgendamentosRouteImport.update({
   id: '/meus-agendamentos',
   path: '/meus-agendamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ManifestDotjsonRoute = ManifestDotjsonRouteImport.update({
+  id: '/manifest.json',
+  path: '/manifest.json',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -123,6 +129,7 @@ export interface FileRoutesByFullPath {
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/convite': typeof ConviteRoute
   '/dashboard': typeof DashboardRoute
   '/login': typeof LoginRoute
+  '/manifest.json': typeof ManifestDotjsonRoute
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/relatorios': typeof RelatoriosRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/convite'
     | '/dashboard'
     | '/login'
+    | '/manifest.json'
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
@@ -202,6 +212,7 @@ export interface FileRouteTypes {
     | '/convite'
     | '/dashboard'
     | '/login'
+    | '/manifest.json'
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
@@ -221,6 +232,7 @@ export interface FileRouteTypes {
     | '/convite'
     | '/dashboard'
     | '/login'
+    | '/manifest.json'
     | '/meus-agendamentos'
     | '/onboarding'
     | '/relatorios'
@@ -241,6 +253,7 @@ export interface RootRouteChildren {
   ConviteRoute: typeof ConviteRoute
   DashboardRoute: typeof DashboardRoute
   LoginRoute: typeof LoginRoute
+  ManifestDotjsonRoute: typeof ManifestDotjsonRoute
   MeusAgendamentosRoute: typeof MeusAgendamentosRoute
   OnboardingRoute: typeof OnboardingRoute
   RelatoriosRoute: typeof RelatoriosRoute
@@ -308,6 +321,13 @@ declare module '@tanstack/react-router' {
       path: '/meus-agendamentos'
       fullPath: '/meus-agendamentos'
       preLoaderRoute: typeof MeusAgendamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/manifest.json': {
+      id: '/manifest.json'
+      path: '/manifest.json'
+      fullPath: '/manifest.json'
+      preLoaderRoute: typeof ManifestDotjsonRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -385,6 +405,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConviteRoute: ConviteRoute,
   DashboardRoute: DashboardRoute,
   LoginRoute: LoginRoute,
+  ManifestDotjsonRoute: ManifestDotjsonRoute,
   MeusAgendamentosRoute: MeusAgendamentosRoute,
   OnboardingRoute: OnboardingRoute,
   RelatoriosRoute: RelatoriosRoute,

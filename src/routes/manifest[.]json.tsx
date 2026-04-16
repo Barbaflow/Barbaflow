@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { json } from "@tanstack/react-start";
-import { createServerFn } from "@tanstack/react-start/server";
-import { getRequestURL } from "@tanstack/react-start/server";
+import { createServerFn } from "@tanstack/react-start";
+import { getRequestUrl } from "@tanstack/react-start/server";
 import { createClient } from "@supabase/supabase-js";
 
 const getManifest = createServerFn({ method: "GET" }).handler(async () => {
@@ -61,6 +61,6 @@ const getManifest = createServerFn({ method: "GET" }).handler(async () => {
   );
 });
 
-export const Route = createFileRoute("/manifest")({
+export const Route = createFileRoute("/manifest.json")({
   loader: () => getManifest(),
 });
