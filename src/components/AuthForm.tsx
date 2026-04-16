@@ -151,8 +151,9 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
               size="lg"
               className="w-full"
               onClick={async () => {
+                const target = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/";
                 const result = await lovable.auth.signInWithOAuth("google", {
-                  redirect_uri: window.location.origin,
+                  redirect_uri: `${window.location.origin}${target}`,
                 });
                 if (result.error) setError("Erro ao entrar com Google");
               }}
@@ -172,8 +173,9 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
               size="lg"
               className="w-full"
               onClick={async () => {
+                const target = redirectTo && redirectTo.startsWith("/") ? redirectTo : "/";
                 const result = await lovable.auth.signInWithOAuth("apple", {
-                  redirect_uri: window.location.origin,
+                  redirect_uri: `${window.location.origin}${target}`,
                 });
                 if (result.error) setError("Erro ao entrar com Apple");
               }}
