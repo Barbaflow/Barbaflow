@@ -11,7 +11,13 @@ export const Route = createFileRoute("/convite")({
   head: () => ({
     meta: [
       { title: "Aceitar Convite — BarbaFlow" },
-      { name: "description", content: "Aceite um convite para fazer parte de uma barbearia." },
+      { name: "description", content: "Aceite um convite para fazer parte da equipe de uma barbearia no BarbaFlow." },
+      { property: "og:title", content: "Você foi convidado — BarbaFlow" },
+      { property: "og:description", content: "Aceite o convite e entre para a equipe da barbearia." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Você foi convidado — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: ConvitePage,

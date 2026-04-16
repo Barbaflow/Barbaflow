@@ -9,6 +9,12 @@ export const Route = createFileRoute("/onboarding")({
     meta: [
       { title: "Criar Barbearia — BarbaFlow" },
       { name: "description", content: "Configure sua barbearia em poucos passos: nome, subdomínio, logo e cores." },
+      { property: "og:title", content: "Crie sua Barbearia — BarbaFlow" },
+      { property: "og:description", content: "Configure sua barbearia em poucos passos no BarbaFlow." },
+      { property: "og:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Crie sua Barbearia — BarbaFlow" },
+      { name: "twitter:image", content: "https://barbaflow-pro.lovable.app/og-image.jpg" },
     ],
   }),
   component: OnboardingPage,
