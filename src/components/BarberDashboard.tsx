@@ -375,15 +375,24 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
+              const className = `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              }`;
+              if (tab.href) {
+                return (
+                  <Link key={tab.id} to={tab.href} className={className}>
+                    <Icon className="w-4 h-4" />
+                    {tab.label}
+                  </Link>
+                );
+              }
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    active
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                  }`}
+                  className={className}
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
