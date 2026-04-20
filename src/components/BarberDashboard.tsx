@@ -84,6 +84,7 @@ interface Appointment {
   notes: string | null;
   client_id: string;
   barber_id: string;
+  service_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
   client_profile: { full_name: string | null; phone: string | null } | null;
   barber_profile: { full_name: string | null; avatar_url: string | null } | null;
@@ -269,6 +270,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [selectedBarber, setSelectedBarber] = useState<string>("all");
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
   const [showNewAppt, setShowNewAppt] = useState(false);
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
@@ -304,7 +306,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, client_id, barber_id, service:services(name, price, duration_minutes)")
+      .select("id, date, start_time, end_time, status, notes, client_id, barber_id, service_id, service:services(name, price, duration_minutes)")
       .eq("barbershop_id", barbershopId)
       .eq("date", selectedDate)
       .order("start_time", { ascending: true });
@@ -479,11 +481,34 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
       {barbershopId && (
         <ManualAppointmentDialog
-          open={showNewAppt}
-          onOpenChange={setShowNewAppt}
+          open={showNewAppt || !!editingAppt}
+          onOpenChange={(o) => {
+            if (!o) {
+              setShowNewAppt(false);
+              setEditingAppt(null);
+            } else {
+              setShowNewAppt(true);
+            }
+          }}
           barbershopId={barbershopId}
           barbers={barbers}
           defaultDate={selectedDate}
+          editAppointment={
+            editingAppt
+              ? {
+                  id: editingAppt.id,
+                  date: editingAppt.date,
+                  start_time: editingAppt.start_time,
+                  barber_id: editingAppt.barber_id,
+                  service_id: editingAppt.service_id,
+                  client_id: editingAppt.client_id,
+                  client_full_name: editingAppt.client_profile?.full_name ?? null,
+                  client_phone: editingAppt.client_profile?.phone ?? null,
+                  client_avatar_url: null,
+                  notes: editingAppt.notes,
+                }
+              : null
+          }
           onCreated={() => {
             fetchAppointments();
             fetchWeekMetrics();
@@ -639,7 +664,24 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               const isScheduled = apt.status === "scheduled";
 
               return (
-                <Card key={apt.id} className="bg-card border-border overflow-hidden">
+                <Card
+                  key={apt.id}
+                  className={`bg-card border-border overflow-hidden ${
+                    isScheduled ? "cursor-pointer hover:border-primary/40 transition-colors" : ""
+                  }`}
+                  onClick={() => {
+                    if (isScheduled) setEditingAppt(apt);
+                  }}
+                  role={isScheduled ? "button" : undefined}
+                  tabIndex={isScheduled ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (isScheduled && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      setEditingAppt(apt);
+                    }
+                  }}
+                  title={isScheduled ? "Clique para editar este agendamento" : undefined}
+                >
                   <CardContent className="p-0">
                     <div className="flex">
                       <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
@@ -703,12 +745,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                           </div>
                         </div>
                         {isScheduled && (
-                          <div className="flex gap-1.5 flex-shrink-0">
+                          <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
-                              onClick={() => handleStatusChange(apt.id, "completed")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(apt.id, "completed");
+                              }}
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                               Concluir
@@ -717,7 +762,10 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 text-xs h-8"
-                              onClick={() => handleStatusChange(apt.id, "no_show")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(apt.id, "no_show");
+                              }}
                             >
                               <XCircle className="w-3.5 h-3.5" />
                               Faltou

@@ -72,6 +72,19 @@ interface Slot {
   reason?: "ocupado" | "passado";
 }
 
+export interface EditAppointmentInput {
+  id: string;
+  date: string; // YYYY-MM-DD
+  start_time: string; // HH:MM:SS or HH:MM
+  barber_id: string;
+  service_id: string;
+  client_id: string;
+  client_full_name: string | null;
+  client_phone: string | null;
+  client_avatar_url: string | null;
+  notes: string | null;
+}
+
 interface ManualAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,6 +92,7 @@ interface ManualAppointmentDialogProps {
   barbers: Barber[];
   defaultDate: string;
   onCreated: () => void;
+  editAppointment?: EditAppointmentInput | null;
 }
 
 const toMin = (t: string) => {
@@ -101,7 +115,9 @@ export function ManualAppointmentDialog({
   barbers,
   defaultDate,
   onCreated,
+  editAppointment = null,
 }: ManualAppointmentDialogProps) {
+  const isEditing = !!editAppointment;
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [search, setSearch] = useState("");
@@ -119,9 +135,24 @@ export function ManualAppointmentDialog({
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // Reset on open
+  // Reset on open — populate from editAppointment when editing
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (editAppointment) {
+      setSearch("");
+      setSelectedClient({
+        user_id: editAppointment.client_id,
+        full_name: editAppointment.client_full_name,
+        phone: editAppointment.client_phone,
+        avatar_url: editAppointment.client_avatar_url,
+      });
+      setSelectedBarber(editAppointment.barber_id);
+      setSelectedService(editAppointment.service_id);
+      setDate(editAppointment.date);
+      setSelectedTime(editAppointment.start_time.slice(0, 5));
+      setNotes(editAppointment.notes ?? "");
+      setSlots([]);
+    } else {
       setSearch("");
       setSelectedClient(null);
       setSelectedBarber(barbers[0]?.id ?? "");
@@ -131,7 +162,7 @@ export function ManualAppointmentDialog({
       setNotes("");
       setSlots([]);
     }
-  }, [open, defaultDate, barbers]);
+  }, [open, defaultDate, barbers, editAppointment]);
 
   // Load clients with prior appointments at this barbershop
   useEffect(() => {
@@ -224,9 +255,9 @@ export function ManualAppointmentDialog({
 
   const service = services.find((s) => s.id === selectedService) ?? null;
 
-  // Generate slots from weekly_schedule, then mark conflicts with existing appointments + blocks
+  // Generate slots from weekly_schedule, then mark conflicts with existing appointments + blocks.
+  // Preserve the currently selected slot if it's still valid (esp. relevant when editing).
   useEffect(() => {
-    setSelectedTime("");
     setSlots([]);
     if (!selectedBarber || !service || !date) return;
     setLoadingSlots(true);
@@ -246,7 +277,7 @@ export function ManualAppointmentDialog({
           .eq("is_active", true),
         supabase
           .from("appointments")
-          .select("start_time, end_time, status")
+          .select("id, start_time, end_time, status")
           .eq("barbershop_id", barbershopId)
           .eq("barber_id", selectedBarber)
           .eq("date", date)
@@ -266,10 +297,13 @@ export function ManualAppointmentDialog({
         s: toMin(w.start_time),
         e: toMin(w.end_time),
       }));
-      const busy = (apptRes.data ?? []).map((a) => ({
-        s: toMin(a.start_time),
-        e: toMin(a.end_time),
-      }));
+      // Exclude the appointment being edited from "busy" so its own slot stays free
+      const busy = (apptRes.data ?? [])
+        .filter((a) => !editAppointment || a.id !== editAppointment.id)
+        .map((a) => ({
+          s: toMin(a.start_time),
+          e: toMin(a.end_time),
+        }));
 
       const today = new Date();
       const isToday =
@@ -296,11 +330,17 @@ export function ManualAppointmentDialog({
       }
 
       setSlots(generated);
+      // If current selection no longer exists/available, clear it
+      setSelectedTime((prev) => {
+        if (!prev) return prev;
+        const match = generated.find((s) => s.time === prev);
+        return match && match.available ? prev : "";
+      });
       setLoadingSlots(false);
     })();
 
     return () => ctrl.abort();
-  }, [selectedBarber, service, date, barbershopId]);
+  }, [selectedBarber, service, date, barbershopId, editAppointment]);
 
   const handleSubmit = async () => {
     if (!selectedClient || !selectedBarber || !service || !selectedTime) {
@@ -311,7 +351,7 @@ export function ManualAppointmentDialog({
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
-    const { error } = await supabase.from("appointments").insert({
+    const payload = {
       barbershop_id: barbershopId,
       client_id: selectedClient.user_id,
       barber_id: selectedBarber,
@@ -320,12 +360,16 @@ export function ManualAppointmentDialog({
       start_time: `${selectedTime}:00`,
       end_time: endTime,
       notes: notes.trim() || null,
-    });
+    };
+
+    const { error } = isEditing
+      ? await supabase.from("appointments").update(payload).eq("id", editAppointment!.id)
+      : await supabase.from("appointments").insert(payload);
 
     if (error) {
-      toast.error(error.message || "Erro ao criar agendamento.");
+      toast.error(error.message || (isEditing ? "Erro ao atualizar." : "Erro ao criar agendamento."));
     } else {
-      toast.success("Agendamento criado!");
+      toast.success(isEditing ? "Agendamento atualizado!" : "Agendamento criado!");
       onCreated();
       onOpenChange(false);
     }
@@ -339,9 +383,13 @@ export function ManualAppointmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Novo agendamento</DialogTitle>
+          <DialogTitle className="font-display">
+            {isEditing ? "Editar agendamento" : "Novo agendamento"}
+          </DialogTitle>
           <DialogDescription>
-            Selecione um cliente cadastrado e preencha os detalhes do agendamento.
+            {isEditing
+              ? "Altere data, hora, barbeiro ou serviço deste agendamento."
+              : "Selecione um cliente cadastrado e preencha os detalhes do agendamento."}
           </DialogDescription>
         </DialogHeader>
 
@@ -369,9 +417,11 @@ export function ManualAppointmentDialog({
                     )}
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
-                  Trocar
-                </Button>
+                {!isEditing && (
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
+                    Trocar
+                  </Button>
+                )}
               </div>
             ) : (
               <>
@@ -629,7 +679,7 @@ export function ManualAppointmentDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            Criar agendamento
+            {isEditing ? "Salvar alterações" : "Criar agendamento"}
           </Button>
         </DialogFooter>
       </DialogContent>
