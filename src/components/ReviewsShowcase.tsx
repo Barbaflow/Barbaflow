@@ -38,6 +38,7 @@ interface ReviewsShowcaseProps {
 export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseProps) {
   const { user } = useAuth();
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
+  const [myReview, setMyReview] = useState<ReviewItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
