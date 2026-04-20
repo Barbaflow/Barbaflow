@@ -186,6 +186,21 @@ function ClientesPage() {
     }
   };
 
+  const filtersActive =
+    search.trim() !== "" || statusFilter !== "all" || sortKey !== "last" || sortDir !== "desc";
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setSortKey("last");
+    setSortDir("desc");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("clientes:statusFilter");
+      window.localStorage.removeItem("clientes:sortKey");
+      window.localStorage.removeItem("clientes:sortDir");
+    }
+  };
+
   // Block dialog state
   const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
   const [blockDays, setBlockDays] = useState(15);
