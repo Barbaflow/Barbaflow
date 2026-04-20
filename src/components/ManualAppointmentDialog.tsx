@@ -417,9 +417,11 @@ export function ManualAppointmentDialog({
                     )}
                   </div>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
-                  Trocar
-                </Button>
+                {!isEditing && (
+                  <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
+                    Trocar
+                  </Button>
+                )}
               </div>
             ) : (
               <>
