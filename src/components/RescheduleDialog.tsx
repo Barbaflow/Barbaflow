@@ -116,6 +116,10 @@ export function RescheduleDialog({
           .toString()
           .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
       const nowMin = today.getHours() * 60 + today.getMinutes();
+      // Only mark a slot as "atual" when reviewing the SAME day as the
+      // original appointment — on cross-day reschedules the same time on
+      // another day is a perfectly valid target.
+      const sameDay = appointment.date === appointment.date; // placeholder, see below
       const currentMin = toMin(currentTime);
       const dur = appointment.duration_minutes;
 
