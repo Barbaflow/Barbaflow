@@ -50,6 +50,10 @@ interface RescheduleDialogProps {
   onOpenChange: (open: boolean) => void;
   appointment: RescheduleTarget | null;
   onRescheduled: () => void;
+  // Optional: when the user picks a different date inside the dialog (via the
+  // "all full" warning calendar), the parent should re-issue the appointment
+  // prop with the new date so slots/counts re-fetch for the new day.
+  onDateChange?: (newDate: string) => void;
 }
 
 const toMin = (t: string) => {
