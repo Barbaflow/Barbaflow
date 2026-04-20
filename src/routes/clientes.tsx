@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Search,
   Users,
+  Calendar,
   Download,
   Ban,
   Unlock,
@@ -1220,14 +1221,36 @@ function StatCard({
   value,
   icon: Icon,
   color,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: typeof Users;
   color: string;
+  onClick?: () => void;
 }) {
+  const interactive = typeof onClick === "function";
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={
+        interactive
+          ? "cursor-pointer hover:border-primary/50 transition-colors"
+          : undefined
+      }
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+    >
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-1">
           <Icon className={`w-4 h-4 ${color}`} />
