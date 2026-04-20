@@ -21,8 +21,9 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Loader2, Check, AlertCircle } from "lucide-react";
+import { Search, User, Loader2, Check, AlertCircle, Clock } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { displayBRPhone } from "@/lib/phone";
 
 interface Client {
@@ -45,6 +46,12 @@ interface Service {
   barber_id: string;
 }
 
+interface Slot {
+  time: string; // HH:MM
+  available: boolean;
+  reason?: "ocupado" | "passado";
+}
+
 interface ManualAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -62,6 +69,10 @@ const fmt = (mins: number) =>
   `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60)
     .toString()
     .padStart(2, "0")}:00`;
+const fmtShort = (mins: number) =>
+  `${Math.floor(mins / 60).toString().padStart(2, "0")}:${(mins % 60)
+    .toString()
+    .padStart(2, "0")}`;
 
 export function ManualAppointmentDialog({
   open,
@@ -79,9 +90,10 @@ export function ManualAppointmentDialog({
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<string>("");
   const [date, setDate] = useState(defaultDate);
-  const [startTime, setStartTime] = useState("09:00");
+  const [selectedTime, setSelectedTime] = useState<string>("");
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [loadingSlots, setLoadingSlots] = useState(false);
   const [notes, setNotes] = useState("");
-  const [conflictMsg, setConflictMsg] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   // Reset on open
@@ -92,9 +104,9 @@ export function ManualAppointmentDialog({
       setSelectedBarber(barbers[0]?.id ?? "");
       setSelectedService("");
       setDate(defaultDate);
-      setStartTime("09:00");
+      setSelectedTime("");
       setNotes("");
-      setConflictMsg(null);
+      setSlots([]);
     }
   }, [open, defaultDate, barbers]);
 
@@ -156,45 +168,91 @@ export function ManualAppointmentDialog({
 
   const service = services.find((s) => s.id === selectedService) ?? null;
 
-  // Live conflict check when barber/date/time/service changes
+  // Generate slots from weekly_schedule, then mark conflicts with existing appointments + blocks
   useEffect(() => {
-    setConflictMsg(null);
-    if (!selectedBarber || !service || !date || !startTime) return;
-    const start = toMin(startTime);
-    const end = start + service.duration_minutes;
+    setSelectedTime("");
+    setSlots([]);
+    if (!selectedBarber || !service || !date) return;
+    setLoadingSlots(true);
     const ctrl = new AbortController();
+
     (async () => {
-      const { data } = await supabase
-        .from("appointments")
-        .select("start_time, end_time, status")
-        .eq("barbershop_id", barbershopId)
-        .eq("barber_id", selectedBarber)
-        .eq("date", date)
-        .neq("status", "cancelled");
+      // day_of_week in JS: 0 Sun ... 6 Sat — assume same convention used elsewhere
+      const dow = new Date(`${date}T12:00:00`).getDay();
+
+      const [weeklyRes, apptRes, blockRes] = await Promise.all([
+        supabase
+          .from("weekly_schedule")
+          .select("start_time, end_time, is_active")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .eq("day_of_week", dow)
+          .eq("is_active", true),
+        supabase
+          .from("appointments")
+          .select("start_time, end_time, status")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .eq("date", date)
+          .neq("status", "cancelled"),
+        supabase
+          .from("schedule_blocks")
+          .select("id")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .eq("block_date", date),
+      ]);
+
       if (ctrl.signal.aborted) return;
-      const conflict = (data ?? []).some(
-        (b) => start < toMin(b.end_time) && end > toMin(b.start_time)
-      );
-      if (conflict) {
-        setConflictMsg(
-          "Já existe um agendamento neste horário para este barbeiro."
-        );
+
+      const isBlocked = (blockRes.data ?? []).length > 0;
+      const windows = (weeklyRes.data ?? []).map((w) => ({
+        s: toMin(w.start_time),
+        e: toMin(w.end_time),
+      }));
+      const busy = (apptRes.data ?? []).map((a) => ({
+        s: toMin(a.start_time),
+        e: toMin(a.end_time),
+      }));
+
+      const today = new Date();
+      const isToday =
+        date ===
+        `${today.getFullYear()}-${(today.getMonth() + 1)
+          .toString()
+          .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+      const nowMin = today.getHours() * 60 + today.getMinutes();
+
+      const generated: Slot[] = [];
+      if (!isBlocked) {
+        for (const w of windows) {
+          for (let t = w.s; t + service.duration_minutes <= w.e; t += service.duration_minutes) {
+            const slotEnd = t + service.duration_minutes;
+            const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
+            const isPast = isToday && t <= nowMin;
+            generated.push({
+              time: fmtShort(t),
+              available: !conflicts && !isPast,
+              reason: conflicts ? "ocupado" : isPast ? "passado" : undefined,
+            });
+          }
+        }
       }
+
+      setSlots(generated);
+      setLoadingSlots(false);
     })();
+
     return () => ctrl.abort();
-  }, [selectedBarber, service, date, startTime, barbershopId]);
+  }, [selectedBarber, service, date, barbershopId]);
 
   const handleSubmit = async () => {
-    if (!selectedClient || !selectedBarber || !service) {
+    if (!selectedClient || !selectedBarber || !service || !selectedTime) {
       toast.error("Preencha todos os campos.");
       return;
     }
-    if (conflictMsg) {
-      toast.error(conflictMsg);
-      return;
-    }
     setSubmitting(true);
-    const startMin = toMin(startTime);
+    const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
     const { error } = await supabase.from("appointments").insert({
@@ -203,7 +261,7 @@ export function ManualAppointmentDialog({
       barber_id: selectedBarber,
       service_id: service.id,
       date,
-      start_time: `${startTime}:00`,
+      start_time: `${selectedTime}:00`,
       end_time: endTime,
       notes: notes.trim() || null,
     });
@@ -218,7 +276,8 @@ export function ManualAppointmentDialog({
     setSubmitting(false);
   };
 
-  const canSubmit = !!selectedClient && !!selectedBarber && !!service && !!date && !!startTime && !conflictMsg && !submitting;
+  const canSubmit =
+    !!selectedClient && !!selectedBarber && !!service && !!date && !!selectedTime && !submitting;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -333,9 +392,19 @@ export function ManualAppointmentDialog({
           {/* Service */}
           <div className="space-y-2">
             <Label>Serviço</Label>
-            <Select value={selectedService} onValueChange={setSelectedService} disabled={services.length === 0}>
+            <Select
+              value={selectedService}
+              onValueChange={setSelectedService}
+              disabled={services.length === 0}
+            >
               <SelectTrigger>
-                <SelectValue placeholder={services.length === 0 ? "Sem serviços para este barbeiro" : "Selecione o serviço"} />
+                <SelectValue
+                  placeholder={
+                    services.length === 0
+                      ? "Sem serviços para este barbeiro"
+                      : "Selecione o serviço"
+                  }
+                />
               </SelectTrigger>
               <SelectContent>
                 {services.map((s) => (
@@ -347,43 +416,83 @@ export function ManualAppointmentDialog({
             </Select>
           </div>
 
-          {/* Date + time */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-2">
-              <Label htmlFor="ma-date">Data</Label>
-              <Input
-                id="ma-date"
-                type="date"
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="ma-time">Início</Label>
-              <Input
-                id="ma-time"
-                type="time"
-                step={300}
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-              />
-            </div>
+          {/* Date */}
+          <div className="space-y-2">
+            <Label htmlFor="ma-date">Data</Label>
+            <Input
+              id="ma-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
           </div>
 
-          {service && (
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline">
-                Termina às {fmt(toMin(startTime) + service.duration_minutes).slice(0, 5)}
-              </Badge>
+          {/* Time slots grid */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="flex items-center gap-2">
+                <Clock className="w-4 h-4" />
+                Horário disponível
+              </Label>
+              {service && selectedTime && (
+                <Badge variant="outline" className="text-xs">
+                  Termina às {fmtShort(toMin(selectedTime) + service.duration_minutes)}
+                </Badge>
+              )}
             </div>
-          )}
 
-          {conflictMsg && (
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/10 text-destructive text-sm">
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-              <p>{conflictMsg}</p>
-            </div>
-          )}
+            {!service ? (
+              <div className="p-4 rounded-lg border border-dashed border-border text-center text-sm text-muted-foreground">
+                Selecione o serviço para ver os horários.
+              </div>
+            ) : loadingSlots ? (
+              <div className="p-4 rounded-lg border border-border flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Calculando horários...
+              </div>
+            ) : slots.length === 0 ? (
+              <div className="flex items-start gap-2 p-3 rounded-lg bg-muted/40 text-sm text-muted-foreground">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <p>
+                  Sem horários disponíveis nesta data. Verifique o horário semanal e bloqueios do
+                  barbeiro.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {slots.map((slot) => {
+                  const isSelected = selectedTime === slot.time;
+                  return (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      disabled={!slot.available}
+                      onClick={() => setSelectedTime(slot.time)}
+                      className={cn(
+                        "px-2 py-2 rounded-md text-sm font-medium border transition-colors",
+                        isSelected &&
+                          "bg-primary text-primary-foreground border-primary shadow-sm",
+                        !isSelected &&
+                          slot.available &&
+                          "bg-background border-border hover:bg-secondary text-foreground",
+                        !slot.available &&
+                          "bg-muted/40 border-transparent text-muted-foreground line-through cursor-not-allowed"
+                      )}
+                      title={
+                        slot.available
+                          ? "Disponível"
+                          : slot.reason === "ocupado"
+                            ? "Já agendado"
+                            : "Horário passado"
+                      }
+                    >
+                      {slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Notes */}
           <div className="space-y-2">
