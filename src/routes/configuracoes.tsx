@@ -27,8 +27,9 @@ export const Route = createFileRoute("/configuracoes")({
 function ConfiguracoesPage() {
   const { user, loading, signOut } = useAuth();
   const navigate = useNavigate();
-  const { barbershopId, barbershop } = useBarbershop();
+  const { barbershopId, barbershop, isDefault } = useBarbershop();
   const name = barbershop?.name || "BarbaFlow";
+  const isClient = isDefault || barbershop?.owner_id !== user?.id;
 
   useEffect(() => {
     if (!loading && !user) {
