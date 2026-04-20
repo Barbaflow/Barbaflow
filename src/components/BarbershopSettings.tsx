@@ -101,7 +101,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setTextColor(40, 40, 40);
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
-      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrSize + 28, {
+      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrMm + 28, {
         align: "center",
       });
 
@@ -111,7 +111,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.text(
         "Aponte a câmera para o código acima e toque no link que aparecer",
         pageWidth / 2,
-        qrY + qrSize + 38,
+        qrY + qrMm + 38,
         { align: "center" }
       );
 
@@ -119,7 +119,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setFont("helvetica", "italic");
       pdf.setFontSize(10);
       pdf.setTextColor(120, 120, 120);
-      pdf.text(publicUrl, pageWidth / 2, qrY + qrSize + 50, { align: "center" });
+      pdf.text(publicUrl, pageWidth / 2, qrY + qrMm + 50, { align: "center" });
 
       // Bottom accent bar
       pdf.setFillColor(200, 169, 110);
