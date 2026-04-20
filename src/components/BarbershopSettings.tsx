@@ -37,6 +37,13 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
+  const sizeMap = {
+    small: { canvas: 320, preview: 120, logo: 28, pdfMm: 80, label: "Pequeno" },
+    medium: { canvas: 480, preview: 160, logo: 36, pdfMm: 110, label: "Médio" },
+    large: { canvas: 720, preview: 200, logo: 44, pdfMm: 150, label: "Grande" },
+  } as const;
+  const currentSize = sizeMap[qrSize];
+
   const publicUrl =
     typeof window !== "undefined" && data
       ? `${window.location.origin}/agendar/${data.subdomain}`
