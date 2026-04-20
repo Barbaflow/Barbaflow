@@ -389,6 +389,24 @@ export function ManualAppointmentDialog({
     setSubmitting(false);
   };
 
+  const handleCancelAppointment = async () => {
+    if (!editAppointment) return;
+    setCancelling(true);
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", editAppointment.id);
+    if (error) {
+      toast.error(error.message || "Erro ao cancelar agendamento.");
+    } else {
+      toast.success("Agendamento cancelado. O cliente será notificado.");
+      onCreated();
+      setCancelOpen(false);
+      onOpenChange(false);
+    }
+    setCancelling(false);
+  };
+
   const canSubmit =
     !!selectedClient && !!selectedBarber && !!service && !!date && !!selectedTime && !submitting;
 
