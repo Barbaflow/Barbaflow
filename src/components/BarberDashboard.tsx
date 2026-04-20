@@ -36,7 +36,7 @@ import {
 import {
   Scissors,
   LogOut,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Users,
   DollarSign,
@@ -85,6 +85,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
@@ -259,6 +261,28 @@ function DateNavDroppable({
   );
 }
 
+// Wraps the date title so it accepts a hovering drag — when active, the
+// parent opens its calendar popover so the user can pick a target day.
+function DateTitleDroppable({
+  isDragging,
+  children,
+}: {
+  isDragging: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "date-title" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`inline-block rounded-md -mx-2 px-2 transition-all ${
+        isDragging ? "ring-1 ring-primary/30 cursor-pointer" : ""
+      } ${isOver ? "ring-2 ring-primary bg-primary/10" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
@@ -415,6 +439,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     setPendingDateNav(null);
   }, []);
   useEffect(() => () => clearDateNavTimer(), [clearDateNavTimer]);
+
+  // Calendar popover for picking a target date during a drag (or by clicking
+  // the date title normally). When a card is dragged over the title, the
+  // popover opens immediately and the dragged appointment id is stashed so
+  // the chosen date can be wired into the Reschedule dialog.
+  const [dateCalendarOpen, setDateCalendarOpen] = useState(false);
+  const dragForCalendarRef = useRef<string | null>(null);
 
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
@@ -601,6 +632,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       }}
       onDragOver={(e: DragOverEvent) => {
         const overId = e.over?.id;
+        if (overId === "date-title") {
+          // Instantly open the calendar picker and stash the dragged appt.
+          dragForCalendarRef.current = String(e.active.id);
+          if (!dateCalendarOpen) setDateCalendarOpen(true);
+          clearDateNavTimer();
+          return;
+        }
         if (overId === "date-prev" || overId === "date-next") {
           if (pendingDateNav === overId) return;
           // Switched zones (or first hover): restart the timer.
@@ -665,14 +703,71 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     <div className="space-y-6">
       {/* Date navigation */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl md:text-2xl font-display font-bold text-foreground">
-            {isToday ? "Hoje" : formatDateFull(selectedDate)}
-          </h2>
-          {isToday && (
-            <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
-          )}
-        </div>
+        <Popover
+          open={dateCalendarOpen}
+          onOpenChange={(o) => {
+            setDateCalendarOpen(o);
+            if (!o) dragForCalendarRef.current = null;
+          }}
+        >
+          <DateTitleDroppable isDragging={!!draggingId}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-left rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Escolher data"
+              >
+                <h2 className="text-xl md:text-2xl font-display font-bold text-foreground inline-flex items-center gap-2">
+                  {isToday ? "Hoje" : formatDateFull(selectedDate)}
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                </h2>
+                {isToday && (
+                  <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
+                )}
+              </button>
+            </PopoverTrigger>
+          </DateTitleDroppable>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={new Date(selectedDate + "T12:00:00")}
+              onSelect={(d) => {
+                if (!d) return;
+                const y = d.getFullYear();
+                const m = (d.getMonth() + 1).toString().padStart(2, "0");
+                const day = d.getDate().toString().padStart(2, "0");
+                const newDate = `${y}-${m}-${day}`;
+                // If a card was being dragged when this opened, route the
+                // chosen day into the Reschedule dialog. Otherwise just
+                // navigate to the picked day.
+                const draggedId = dragForCalendarRef.current;
+                dragForCalendarRef.current = null;
+                setDateCalendarOpen(false);
+                if (draggedId) {
+                  const apt = appointments.find((a) => a.id === draggedId);
+                  setSelectedDate(newDate);
+                  if (apt && barbershopId && apt.service) {
+                    setReschedTarget({
+                      id: apt.id,
+                      date: newDate,
+                      start_time: apt.start_time,
+                      barber_id: apt.barber_id,
+                      barbershop_id: barbershopId,
+                      duration_minutes: apt.service.duration_minutes,
+                      client_name: apt.client_profile?.full_name ?? null,
+                      service_name: apt.service.name,
+                      original_date: apt.date,
+                    });
+                  }
+                } else {
+                  setSelectedDate(newDate);
+                }
+              }}
+              initialFocus
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
         <div className="flex items-center gap-1">
           <DateNavDroppable
             id="date-prev"
@@ -828,7 +923,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Calendar className="w-4 h-4 text-primary" />
+              <CalendarIcon className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground">Hoje</span>
             </div>
             <p className="text-2xl font-display font-bold text-foreground">{metrics.total}</p>
@@ -896,7 +991,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           <Card className="bg-card border-border">
             <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
               <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-muted-foreground" />
+                <CalendarIcon className="w-6 h-6 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground font-medium">
                 Nenhum agendamento para este dia.
