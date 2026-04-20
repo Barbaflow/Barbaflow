@@ -179,6 +179,39 @@ export function ManualAppointmentDialog({
       });
   }, [selectedBarber, barbershopId]);
 
+  // Load active weekdays + blocked dates whenever barber changes (powers the calendar)
+  useEffect(() => {
+    if (!selectedBarber) {
+      setActiveWeekdays(new Set());
+      setBlockedDates(new Set());
+      return;
+    }
+    (async () => {
+      const today = new Date();
+      const horizon = new Date();
+      horizon.setMonth(horizon.getMonth() + 6);
+
+      const [wkRes, blkRes] = await Promise.all([
+        supabase
+          .from("weekly_schedule")
+          .select("day_of_week, is_active")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .eq("is_active", true),
+        supabase
+          .from("schedule_blocks")
+          .select("block_date")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .gte("block_date", dateToISO(today))
+          .lte("block_date", dateToISO(horizon)),
+      ]);
+
+      setActiveWeekdays(new Set((wkRes.data ?? []).map((w) => w.day_of_week as number)));
+      setBlockedDates(new Set((blkRes.data ?? []).map((b) => b.block_date as string)));
+    })();
+  }, [selectedBarber, barbershopId]);
+
   const filteredClients = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return clients;
