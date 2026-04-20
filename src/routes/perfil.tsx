@@ -1,11 +1,25 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Scissors, User as UserIcon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { NotificationBell } from "@/components/NotificationBell";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/perfil")({
