@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Loader2, Trash2, User, Check, Phone } from "lucide-react";
 import { toast } from "sonner";
-import { displayBRPhone, isValidBRPhone, maskBRPhone, toStorageBRPhone, digitsOnly } from "@/lib/phone";
+import { displayBRPhone, isValidBRPhone, maskBRPhone, toStorageBRPhone } from "@/lib/phone";
 
 export function ProfilePhotoUpload() {
   const { user } = useAuth();
