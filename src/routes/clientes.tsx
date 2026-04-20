@@ -1247,6 +1247,10 @@ function ClientRowCard({
     row.total_appointments > 0
       ? Math.round((Number(row.noshow_count) / Number(row.total_appointments)) * 100)
       : 0;
+  const inactiveDays = row.last_appointment_at
+    ? Math.floor((Date.now() - new Date(row.last_appointment_at).getTime()) / (24 * 60 * 60 * 1000))
+    : null;
+  const showInactive = inactiveDays !== null && inactiveDays > 60;
 
   return (
     <Card className="overflow-hidden">
@@ -1270,6 +1274,15 @@ function ClientRowCard({
                 {row.noshow_count > 0 && !blocked && (
                   <Badge variant="outline" className="text-[10px] border-yellow-500/40 bg-yellow-500/10 text-yellow-500">
                     {row.noshow_count} falta{row.noshow_count > 1 ? "s" : ""}
+                  </Badge>
+                )}
+                {showInactive && !blocked && (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] border-orange-500/40 bg-orange-500/10 text-orange-500"
+                    title={`Último agendamento há ${inactiveDays} dias`}
+                  >
+                    Inativo há {inactiveDays} dias
                   </Badge>
                 )}
               </div>
