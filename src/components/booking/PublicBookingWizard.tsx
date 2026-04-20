@@ -24,6 +24,7 @@ import {
   Search,
   Crown,
   Star,
+  ShieldAlert,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -75,6 +76,13 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   const [booking, setBooking] = useState(false);
   const [loadingStep, setLoadingStep] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [noshowBlock, setNoshowBlock] = useState<{
+    blocked: boolean;
+    noshow_count?: number;
+    max_count?: number;
+    block_days?: number;
+    unblock_at?: string | null;
+  } | null>(null);
 
   // Load preselected barbershop by ID (from route param)
   useEffect(() => {
@@ -271,6 +279,27 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   useEffect(() => {
     setSelectedSlot(null);
   }, [selectedDate]);
+
+  // Check no-show block when client + barbershop are known
+  useEffect(() => {
+    if (!user || !selectedBarbershop) {
+      setNoshowBlock(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .rpc("check_client_noshow_block", {
+        _client_id: user.id,
+        _barbershop_id: selectedBarbershop.id,
+      })
+      .then(({ data, error: err }) => {
+        if (cancelled || err || !data) return;
+        setNoshowBlock(data as typeof noshowBlock);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, selectedBarbershop]);
 
   const handleSelectBarbershop = (bs: Barbershop) => {
     setSelectedBarbershop(bs);
@@ -625,6 +654,27 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             )}
           </div>
 
+          {noshowBlock?.blocked && (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <p className="font-semibold text-destructive">
+                  Agendamento online temporariamente bloqueado
+                </p>
+                <p className="text-foreground/80 leading-relaxed">
+                  Você acumulou {noshowBlock.noshow_count} {noshowBlock.noshow_count === 1 ? "falta" : "faltas"} nos últimos 30 dias
+                  nesta barbearia. Por isso, novos agendamentos por aqui estão pausados
+                  {noshowBlock.unblock_at && (
+                    <> até <strong>{new Date(noshowBlock.unblock_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</strong></>
+                  )}.
+                </p>
+                <p className="text-muted-foreground text-xs pt-1">
+                  Entre em contato direto com a barbearia se quiser remarcar — eles podem encaixar você manualmente.
+                </p>
+              </div>
+            </div>
+          )}
+
           <DateSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
           <TimeSlotGrid
@@ -635,7 +685,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             error={null}
           />
 
-          {selectedSlot && selectedService && (
+          {selectedSlot && selectedService && !noshowBlock?.blocked && (
             <BookingConfirmation
               slot={selectedSlot}
               service={selectedService}
@@ -648,7 +698,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             />
           )}
 
-          {selectedSlot && selectedService && (
+          {selectedSlot && selectedService && !noshowBlock?.blocked && (
             <div className="h-36 md:hidden" />
           )}
         </div>

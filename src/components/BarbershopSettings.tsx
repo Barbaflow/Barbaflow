@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle, CalendarClock } from "lucide-react";
+import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle, CalendarClock, ShieldAlert } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -27,6 +27,9 @@ interface BarbershopData {
   qr_size: string | null;
   reschedule_min_hours: number | null;
   cancel_min_hours: number | null;
+  noshow_policy_enabled: boolean | null;
+  noshow_max_count: number | null;
+  noshow_block_days: number | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
@@ -53,6 +56,10 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [savingReschedule, setSavingReschedule] = useState(false);
   const [cancelMinHours, setCancelMinHours] = useState<number>(2);
   const [savingCancel, setSavingCancel] = useState(false);
+  const [noshowEnabled, setNoshowEnabled] = useState(false);
+  const [noshowMaxCount, setNoshowMaxCount] = useState<number>(3);
+  const [noshowBlockDays, setNoshowBlockDays] = useState<number>(15);
+  const [savingNoshow, setSavingNoshow] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -292,6 +299,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.cancel_min_hours === "number") {
             setCancelMinHours(s.cancel_min_hours);
           }
+          if (typeof s.noshow_policy_enabled === "boolean") {
+            setNoshowEnabled(s.noshow_policy_enabled);
+          }
+          if (typeof s.noshow_max_count === "number" && s.noshow_max_count > 0) {
+            setNoshowMaxCount(s.noshow_max_count);
+          }
+          if (typeof s.noshow_block_days === "number" && s.noshow_block_days > 0) {
+            setNoshowBlockDays(s.noshow_block_days);
+          }
         }
       });
   }, [barbershopId]);
@@ -363,6 +379,25 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Limite de cancelamento salvo!");
     }
     setSavingCancel(false);
+  };
+
+  const handleSaveNoshow = async () => {
+    setSavingNoshow(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({
+        noshow_policy_enabled: noshowEnabled,
+        noshow_max_count: noshowMaxCount,
+        noshow_block_days: noshowBlockDays,
+      } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar política de no-show.");
+    } else {
+      toast.success("Política de no-show salva!");
+    }
+    setSavingNoshow(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -854,7 +889,98 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
-      {/* Color Picker */}
+      {/* No-show policy */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-gold" />
+            Política de no-show
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            Bloqueia automaticamente novos agendamentos do cliente que faltar várias vezes
+            seguidas (sem comparecer ao horário marcado). Você ou seus barbeiros precisam
+            marcar o agendamento como <strong>"Não compareceu"</strong> no painel para que conte.
+            Agendamentos manuais feitos por você ou pelo barbeiro <strong>ignoram</strong> o bloqueio.
+          </p>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="font-medium text-foreground text-sm">Ativar política</p>
+              <p className="text-xs text-muted-foreground">
+                Quando desativada, ninguém é bloqueado automaticamente.
+              </p>
+            </div>
+            <Switch checked={noshowEnabled} onCheckedChange={setNoshowEnabled} />
+          </div>
+
+          <div className={noshowEnabled ? "space-y-5" : "space-y-5 opacity-50 pointer-events-none"}>
+            <div>
+              <Label className="mb-2 block">Faltas em 30 dias para bloquear</Label>
+              <div className="flex flex-wrap gap-2">
+                {[2, 3, 4, 5].map((v) => (
+                  <Button
+                    key={v}
+                    type="button"
+                    size="sm"
+                    variant={noshowMaxCount === v ? "gold" : "outline"}
+                    onClick={() => setNoshowMaxCount(v)}
+                  >
+                    {v} faltas
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Tempo de bloqueio</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { v: 7, label: "7 dias" },
+                  { v: 15, label: "15 dias" },
+                  { v: 30, label: "30 dias" },
+                  { v: 60, label: "60 dias" },
+                ].map((opt) => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    size="sm"
+                    variant={noshowBlockDays === opt.v ? "gold" : "outline"}
+                    onClick={() => setNoshowBlockDays(opt.v)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Resumo da regra:</p>
+              <p className="text-sm text-foreground">
+                Se um cliente faltar <strong>{noshowMaxCount} vezes</strong> nos últimos 30 dias,
+                ele fica bloqueado de agendar sozinho por <strong>{noshowBlockDays} dias</strong>{" "}
+                após a última falta. Você ainda pode encaixar manualmente para ele.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSaveNoshow}
+            disabled={savingNoshow}
+            variant="gold"
+            className="w-full sm:w-auto"
+          >
+            {savingNoshow ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {savingNoshow ? "Salvando..." : "Salvar política"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="font-display text-lg flex items-center gap-2">
