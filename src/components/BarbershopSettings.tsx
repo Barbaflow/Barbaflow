@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink } from "lucide-react";
+import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 
@@ -316,6 +316,20 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                 Ver minha página pública
               </Button>
             </a>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                const url = `${window.location.origin}/agendar/${data.subdomain}`;
+                navigator.clipboard
+                  .writeText(url)
+                  .then(() => toast.success("Link copiado!"))
+                  .catch(() => toast.error("Não foi possível copiar o link."));
+              }}
+            >
+              <Copy className="w-4 h-4" />
+              Copiar link
+            </Button>
           </div>
         </CardContent>
       </Card>
