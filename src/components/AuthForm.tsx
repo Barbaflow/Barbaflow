@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { Scissors } from "lucide-react";
+import { maskBRPhone, isValidBRPhone, toStorageBRPhone } from "@/lib/phone";
 
 interface AuthFormProps {
   /** Path to redirect to after a successful login or after the email confirmation flow. */
@@ -17,6 +18,7 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +45,10 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
       } else if (mode === "login") {
         await signIn(email, password);
       } else {
-        await signUp(email, password, fullName, buildLoginRedirect());
+        if (!isValidBRPhone(phone)) {
+          throw new Error("Informe um telefone válido com DDD, ex: (11) 98765-4321");
+        }
+        await signUp(email, password, fullName, toStorageBRPhone(phone), buildLoginRedirect());
         setSuccess("Verifique seu email para confirmar o cadastro. Após confirmar, você poderá fazer login.");
       }
     } catch (err: unknown) {
@@ -73,16 +78,35 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {mode === "register" && (
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Nome completo</Label>
-            <Input
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Seu nome"
-              required
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="fullName">Nome completo</Label>
+              <Input
+                id="fullName"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Seu nome"
+                required
+                maxLength={100}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone (WhatsApp)</Label>
+              <Input
+                id="phone"
+                type="tel"
+                inputMode="numeric"
+                value={phone}
+                onChange={(e) => setPhone(maskBRPhone(e.target.value))}
+                placeholder="(11) 98765-4321"
+                required
+                maxLength={16}
+              />
+              <p className="text-xs text-muted-foreground">
+                Seu barbeiro poderá entrar em contato pelo WhatsApp.
+              </p>
+            </div>
+          </>
         )}
         <div className="space-y-2">
           <Label htmlFor="email">Email</Label>
