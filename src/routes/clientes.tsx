@@ -114,6 +114,9 @@ const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls:
 type StatusFilter = "all" | "blocked" | "active" | "noshow";
 type SortKey = "name" | "total" | "noshow" | "last";
 type SortDir = "asc" | "desc";
+type LastFilter = "all" | "30" | "90" | "inactive60" | "never";
+
+const LAST_FILTER_VALUES: LastFilter[] = ["all", "30", "90", "inactive60", "never"];
 
 const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "name", label: "Nome", defaultDir: "asc" },
