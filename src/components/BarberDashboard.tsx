@@ -927,6 +927,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           if (!o) setReschedTarget(null);
         }}
         appointment={reschedTarget}
+        onDateChange={(newDate) => {
+          // User picked another day from the "all full" warning calendar.
+          // Update both the dialog target and the dashboard's selected day
+          // so the underlying agenda follows along.
+          setReschedTarget((prev) =>
+            prev ? { ...prev, date: newDate } : prev
+          );
+          setSelectedDate(newDate);
+        }}
         onRescheduled={() => {
           fetchAppointments();
           fetchWeekMetrics();
