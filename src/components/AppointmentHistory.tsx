@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star } from "lucide-react";
+import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star, Phone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
@@ -17,6 +17,8 @@ import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
+import { displayBRPhone } from "@/lib/phone";
+import { Link } from "@tanstack/react-router";
 
 interface Appointment {
   id: string;
@@ -66,6 +68,17 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
+  const [clientPhone, setClientPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("phone")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setClientPhone((data as any)?.phone || null));
+  }, [user]);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
@@ -181,6 +194,32 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
   return (
     <div className="space-y-5">
+      {/* Contact info banner */}
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border">
+        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <Phone className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Telefone para contato
+          </p>
+          {clientPhone ? (
+            <p className="text-sm font-medium text-foreground truncate">
+              {displayBRPhone(clientPhone)}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nenhum telefone cadastrado
+            </p>
+          )}
+        </div>
+        <Link to="/configuracoes">
+          <Button variant="outline" size="sm">
+            {clientPhone ? "Alterar" : "Adicionar"}
+          </Button>
+        </Link>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
