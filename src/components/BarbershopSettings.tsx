@@ -329,6 +329,21 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     setSavingPrint(false);
   };
 
+  const handleSaveReschedule = async () => {
+    setSavingReschedule(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ reschedule_min_hours: rescheduleMinHours } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar limite de reagendamento.");
+    } else {
+      toast.success("Limite de reagendamento salvo!");
+    }
+    setSavingReschedule(false);
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
