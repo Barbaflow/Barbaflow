@@ -3,6 +3,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +29,17 @@ import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const DELETION_REASONS: { value: string; label: string }[] = [
+  { value: "no_use", label: "Não estou mais usando o app" },
+  { value: "found_alternative", label: "Encontrei uma alternativa melhor" },
+  { value: "too_expensive", label: "Achei o preço alto" },
+  { value: "missing_features", label: "Faltam funcionalidades que preciso" },
+  { value: "bad_experience", label: "Tive uma experiência ruim" },
+  { value: "privacy", label: "Preocupações com privacidade" },
+  { value: "temporary", label: "Pausa temporária — devo voltar" },
+  { value: "other", label: "Outro motivo" },
+];
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({
@@ -44,6 +63,8 @@ function PerfilPage() {
   const [deleting, setDeleting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [deletedEmail, setDeletedEmail] = useState<string | null>(null);
+  const [reason, setReason] = useState<string>("");
+  const [details, setDetails] = useState<string>("");
   const requiredText = "EXCLUIR";
   const [sendingReset, setSendingReset] = useState(false);
 
