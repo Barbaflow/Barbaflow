@@ -1191,6 +1191,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               <span className="text-sm font-medium text-foreground truncate">
                                 {apt.client_profile?.full_name || "Cliente"}
                               </span>
+                              {clientBlockMap[apt.client_id]?.blocked && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+                                  title={`Cliente bloqueado por no-show — ${clientBlockMap[apt.client_id].noshow_count} faltas nos últimos 30 dias${clientBlockMap[apt.client_id].unblock_at ? ` · desbloqueia em ${new Date(clientBlockMap[apt.client_id].unblock_at!).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}`}
+                                >
+                                  <ShieldAlert className="w-3 h-3" />
+                                  Bloqueado
+                                </span>
+                              )}
                               {apt.client_profile?.phone && (
                                 <a
                                   href={whatsappUrl(apt.client_profile.phone) || "#"}
