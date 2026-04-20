@@ -206,7 +206,7 @@ export function RescheduleDialog({
   }, [open, appointment, currentTime, selectedBarberId, originalBarberId]);
 
   const handleConfirm = async () => {
-    if (!appointment || !selectedTime) return;
+    if (!appointment || !selectedTime || !selectedBarberId) return;
     setSubmitting(true);
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + appointment.duration_minutes);
@@ -218,6 +218,7 @@ export function RescheduleDialog({
         date: appointment.date,
         start_time: `${selectedTime}:00`,
         end_time: endTime,
+        barber_id: selectedBarberId,
       })
       .eq("id", appointment.id);
 
@@ -226,11 +227,13 @@ export function RescheduleDialog({
     } else {
       const crossDay =
         appointment.original_date && appointment.original_date !== appointment.date;
-      toast.success(
-        crossDay
-          ? `Reagendado para ${appointment.date} às ${selectedTime}!`
-          : `Reagendado para ${selectedTime}!`,
-      );
+      const changedBarber = selectedBarberId !== originalBarberId;
+      const newBarberName = barbers.find((b) => b.user_id === selectedBarberId)?.display.display_name;
+      const parts: string[] = [];
+      if (crossDay) parts.push(appointment.date);
+      parts.push(`às ${selectedTime}`);
+      if (changedBarber && newBarberName) parts.push(`com ${newBarberName}`);
+      toast.success(`Reagendado ${parts.join(" ")}!`);
       onRescheduled();
       onOpenChange(false);
     }
