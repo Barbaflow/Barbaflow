@@ -18,6 +18,7 @@ import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
+import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
 import {
   Scissors,
   LogOut,
@@ -271,6 +272,8 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
+  const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
@@ -516,6 +519,18 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
 
+      <RescheduleDialog
+        open={!!reschedTarget}
+        onOpenChange={(o) => {
+          if (!o) setReschedTarget(null);
+        }}
+        appointment={reschedTarget}
+        onRescheduled={() => {
+          fetchAppointments();
+          fetchWeekMetrics();
+        }}
+      />
+
       {/* Barber filter (admin only) */}
       {isAdmin && barbers.length > 0 && (
         <div className="flex items-center gap-3">
@@ -657,20 +672,64 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-2">
+          <div
+            className={`space-y-2 rounded-xl transition-colors ${
+              draggingId
+                ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-background bg-primary/5 p-2"
+                : ""
+            }`}
+            onDragOver={(e) => {
+              if (draggingId) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (!draggingId) return;
+              e.preventDefault();
+              const apt = appointments.find((a) => a.id === draggingId);
+              setDraggingId(null);
+              if (!apt || !barbershopId || !apt.service) return;
+              setReschedTarget({
+                id: apt.id,
+                date: apt.date,
+                start_time: apt.start_time,
+                barber_id: apt.barber_id,
+                barbershop_id: barbershopId,
+                duration_minutes: apt.service.duration_minutes,
+                client_name: apt.client_profile?.full_name ?? null,
+                service_name: apt.service.name,
+              });
+            }}
+          >
+            {draggingId && (
+              <div className="text-xs text-center text-primary font-medium py-1">
+                Solte para escolher o novo horário
+              </div>
+            )}
             {appointments.map((apt) => {
               const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
               const StatusIcon = statusCfg.icon;
               const isScheduled = apt.status === "scheduled";
+              const isDragging = draggingId === apt.id;
 
               return (
                 <Card
                   key={apt.id}
-                  className={`bg-card border-border overflow-hidden ${
-                    isScheduled ? "cursor-pointer hover:border-primary/40 transition-colors" : ""
-                  }`}
+                  draggable={isScheduled}
+                  onDragStart={(e) => {
+                    if (!isScheduled) return;
+                    setDraggingId(apt.id);
+                    e.dataTransfer.effectAllowed = "move";
+                    try {
+                      e.dataTransfer.setData("text/plain", apt.id);
+                    } catch {
+                      // some browsers throw on setData under certain CSPs
+                    }
+                  }}
+                  onDragEnd={() => setDraggingId(null)}
+                  className={`bg-card border-border overflow-hidden transition-all ${
+                    isScheduled ? "cursor-grab active:cursor-grabbing hover:border-primary/40" : ""
+                  } ${isDragging ? "opacity-40 scale-[0.98]" : ""}`}
                   onClick={() => {
-                    if (isScheduled) setEditingAppt(apt);
+                    if (isScheduled && !draggingId) setEditingAppt(apt);
                   }}
                   role={isScheduled ? "button" : undefined}
                   tabIndex={isScheduled ? 0 : undefined}
@@ -680,7 +739,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                       setEditingAppt(apt);
                     }
                   }}
-                  title={isScheduled ? "Clique para editar este agendamento" : undefined}
+                  title={isScheduled ? "Arraste para reagendar · Clique para editar" : undefined}
                 >
                   <CardContent className="p-0">
                     <div className="flex">
