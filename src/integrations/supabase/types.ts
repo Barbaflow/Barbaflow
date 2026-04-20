@@ -850,6 +850,14 @@ export type Database = {
         }
         Returns: number
       }
+      get_barber_display_names: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          user_id: string
+        }[]
+      }
       get_public_barbers: {
         Args: { _barbershop_id: string }
         Returns: {

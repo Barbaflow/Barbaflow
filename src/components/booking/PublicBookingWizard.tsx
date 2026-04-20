@@ -117,10 +117,9 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           setLoadingStep(false);
           return;
         }
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, avatar_url")
-          .in("user_id", userIds);
+        // Use SECURITY DEFINER RPC to fetch real names (falls back to auth email local-part)
+        const { data: names } = await supabase
+          .rpc("get_barber_display_names", { _user_ids: userIds });
 
         // Fetch reviews joined with appointments to compute per-barber ratings
         const { data: reviewRows } = await supabase
@@ -139,13 +138,18 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           ratingMap.set(bid, cur);
         });
 
-        // Ensure every user_id has an entry, even if profile is missing
-        const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
+        // Map names from RPC, with safe fallback per id
+        const nameMap = new Map(
+          (names as Array<{ user_id: string; display_name: string; avatar_url: string | null }> | null ?? [])
+            .map((n) => [n.user_id, n])
+        );
         const barberList: BarberWithProfile[] = userIds.map((id) => {
-          const base = profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null };
+          const n = nameMap.get(id);
           const r = ratingMap.get(id);
           return {
-            ...base,
+            user_id: id,
+            full_name: n?.display_name ?? null,
+            avatar_url: n?.avatar_url ?? null,
             rating_avg: r ? Math.round((r.sum / r.count) * 10) / 10 : 0,
             rating_count: r?.count ?? 0,
           };
