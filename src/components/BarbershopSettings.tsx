@@ -34,6 +34,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [uploading, setUploading] = useState(false);
   const [qrWithLogo, setQrWithLogo] = useState(true);
   const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
+  const [pdfSlogan, setPdfSlogan] = useState("Agende seu horário online");
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -82,7 +83,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setTextColor(60, 60, 60);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(14);
-      pdf.text("Agende seu horário online", pageWidth / 2, 62, { align: "center" });
+      const slogan = (pdfSlogan || "").trim() || "Agende seu horário online";
+      pdf.text(slogan, pageWidth / 2, 62, { align: "center", maxWidth: pageWidth - 30 });
 
       // QR Code (centered)
       const qrDataUrl = canvas.toDataURL("image/png");
@@ -373,6 +375,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                     </Button>
                   ))}
                 </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pdf-slogan" className="text-xs text-muted-foreground">
+                  Slogan no PDF de impressão
+                </Label>
+                <Input
+                  id="pdf-slogan"
+                  value={pdfSlogan}
+                  onChange={(e) => setPdfSlogan(e.target.value)}
+                  placeholder="Ex: Agende já o seu corte!"
+                  maxLength={80}
+                  className="text-sm"
+                />
               </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
