@@ -412,7 +412,7 @@ export function RescheduleDialog({
                           className={cn(
                             "ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
                             knownCount && free === 0 && "bg-muted/40 text-muted-foreground border-transparent",
-                            knownCount && free > 0 && free <= 2 && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                            knownCount && free > 0 && free <= 2 && "bg-secondary text-foreground border-border",
                             knownCount && free > 2 && "bg-primary/10 text-primary border-primary/30",
                             !knownCount && "bg-muted/40 text-muted-foreground border-transparent"
                           )}
