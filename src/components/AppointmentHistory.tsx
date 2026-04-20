@@ -194,6 +194,32 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
   return (
     <div className="space-y-5">
+      {/* Contact info banner */}
+      <div className="flex items-center gap-3 p-3 rounded-lg bg-card border border-border">
+        <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+          <Phone className="w-4 h-4 text-primary" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+            Telefone para contato
+          </p>
+          {clientPhone ? (
+            <p className="text-sm font-medium text-foreground truncate">
+              {displayBRPhone(clientPhone)}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              Nenhum telefone cadastrado
+            </p>
+          )}
+        </div>
+        <Link to="/configuracoes">
+          <Button variant="outline" size="sm">
+            {clientPhone ? "Alterar" : "Adicionar"}
+          </Button>
+        </Link>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
