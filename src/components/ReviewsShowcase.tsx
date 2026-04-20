@@ -353,7 +353,40 @@ function ReviewCard({
     onDeleted(review.id);
   };
 
+  const saveReview = async () => {
+    if (editRating < 1 || editRating > 5) {
+      toast.error("Selecione de 1 a 5 estrelas.");
+      return;
+    }
+    const trimmed = editComment.trim();
+    if (trimmed.length > 500) {
+      toast.error("Comentário deve ter no máximo 500 caracteres.");
+      return;
+    }
+    setSavingReview(true);
+    const { error } = await supabase
+      .from("reviews")
+      .update({
+        rating: editRating,
+        comment: trimmed || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", review.id);
+    setSavingReview(false);
+    if (error) {
+      toast.error("Não foi possível salvar a avaliação.");
+      return;
+    }
+    toast.success("Avaliação atualizada.");
+    onReviewUpdated(review.id, {
+      rating: editRating,
+      comment: trimmed || null,
+    });
+    setEditingReview(false);
+  };
+
   const canDelete = canModerate || isAuthor;
+  const editDisplay = editHover || editRating;
 
   const [highlight, setHighlight] = useState(false);
   useEffect(() => {
