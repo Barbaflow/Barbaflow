@@ -8,13 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User } from "lucide-react";
+import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
+import { ReviewDialog } from "./ReviewDialog";
 
 interface Appointment {
   id: string;
@@ -62,6 +63,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [reviewing, setReviewing] = useState<Appointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
@@ -106,12 +109,26 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }]));
         }
       }
-      setAppointments(
-        rawAppointments.map((a) => ({
-          ...a,
-          barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
-        }))
-      );
+      const finalAppointments = rawAppointments.map((a) => ({
+        ...a,
+        barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
+      }));
+      setAppointments(finalAppointments);
+
+      // Fetch reviews already made by this user for these appointments
+      const completedIds = finalAppointments
+        .filter((a) => a.status === "completed")
+        .map((a) => a.id);
+      if (completedIds.length > 0) {
+        const { data: reviews } = await supabase
+          .from("reviews")
+          .select("appointment_id")
+          .eq("client_id", user.id)
+          .in("appointment_id", completedIds);
+        setReviewedIds(new Set((reviews || []).map((r) => r.appointment_id).filter((x): x is string => !!x)));
+      } else {
+        setReviewedIds(new Set());
+      }
     }
 
     setLoading(false);
@@ -338,22 +355,55 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                     </div>
 
                     {/* Actions */}
-                    {canCancel && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 self-end sm:self-center"
-                        onClick={() => handleCancel(apt.id)}
-                      >
-                        Cancelar
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {apt.status === "completed" && (
+                        reviewedIds.has(apt.id) ? (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Star className="w-3 h-3 fill-primary text-primary" />
+                            Avaliado
+                          </Badge>
+                        ) : (
+                          <Button
+                            variant="gold"
+                            size="sm"
+                            onClick={() => setReviewing(apt)}
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                            Avaliar
+                          </Button>
+                        )
+                      )}
+                      {canCancel && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleCancel(apt.id)}
+                        >
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {reviewing && (
+        <ReviewDialog
+          open={!!reviewing}
+          onOpenChange={(o) => !o && setReviewing(null)}
+          appointmentId={reviewing.id}
+          barbershopId={barbershopId}
+          barberName={reviewing.barber_profile?.full_name}
+          onSubmitted={() => {
+            setReviewedIds((prev) => new Set(prev).add(reviewing.id));
+            setReviewing(null);
+          }}
+        />
       )}
     </div>
   );
