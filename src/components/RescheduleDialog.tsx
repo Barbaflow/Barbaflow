@@ -80,6 +80,7 @@ export function RescheduleDialog({
   const [barbersLoading, setBarbersLoading] = useState(false);
   const [freeCounts, setFreeCounts] = useState<Record<string, number>>({});
   const [freeCountsLoading, setFreeCountsLoading] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
   const originalBarberId = appointment?.barber_id ?? "";
