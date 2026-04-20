@@ -10,9 +10,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Clock, AlertCircle, Check, ArrowRight } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Clock, AlertCircle, Check, ArrowRight, User } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { fetchBarberDisplayNames, type BarberDisplay } from "@/lib/barber-names";
 
 interface Slot {
   time: string; // HH:MM
@@ -64,11 +73,47 @@ export function RescheduleDialog({
   const [loading, setLoading] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedBarberId, setSelectedBarberId] = useState<string>("");
+  const [barbers, setBarbers] = useState<Array<{ user_id: string; display: BarberDisplay }>>([]);
+  const [barbersLoading, setBarbersLoading] = useState(false);
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
+  const originalBarberId = appointment?.barber_id ?? "";
 
+  // Load barbers list when dialog opens
   useEffect(() => {
     if (!open || !appointment) {
+      setBarbers([]);
+      setSelectedBarberId("");
+      return;
+    }
+    setSelectedBarberId(appointment.barber_id);
+    setBarbersLoading(true);
+    (async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("barbershop_id", appointment.barbershop_id)
+        .in("role", ["barbeiro", "admin_barbearia"]);
+      const ids = [...new Set((roles ?? []).map((r) => r.user_id))];
+      if (ids.length === 0) {
+        setBarbers([]);
+        setBarbersLoading(false);
+        return;
+      }
+      const map = await fetchBarberDisplayNames(ids);
+      const list = ids.map((id) => ({
+        user_id: id,
+        display: map[id] ?? { display_name: "Barbeiro", avatar_url: null },
+      }));
+      list.sort((a, b) => a.display.display_name.localeCompare(b.display.display_name));
+      setBarbers(list);
+      setBarbersLoading(false);
+    })();
+  }, [open, appointment]);
+
+  useEffect(() => {
+    if (!open || !appointment || !selectedBarberId) {
       setSlots([]);
       setSelectedTime("");
       return;
@@ -83,21 +128,21 @@ export function RescheduleDialog({
           .from("weekly_schedule")
           .select("start_time, end_time, is_active")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("day_of_week", dow)
           .eq("is_active", true),
         supabase
           .from("appointments")
           .select("id, start_time, end_time, status")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("date", appointment.date)
           .neq("status", "cancelled"),
         supabase
           .from("schedule_blocks")
           .select("id")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("block_date", appointment.date),
       ]);
 
@@ -108,8 +153,9 @@ export function RescheduleDialog({
         s: toMin(w.start_time),
         e: toMin(w.end_time),
       }));
+      const sameBarber = selectedBarberId === originalBarberId;
       const busy = (apptRes.data ?? [])
-        .filter((a) => a.id !== appointment.id)
+        .filter((a) => !(sameBarber && a.id === appointment.id))
         .map((a) => ({ s: toMin(a.start_time), e: toMin(a.end_time) }));
 
       const today = new Date();
@@ -124,6 +170,7 @@ export function RescheduleDialog({
       // on another day is a perfectly valid target.
       const isSameDay =
         !appointment.original_date || appointment.original_date === appointment.date;
+      const isSameContext = isSameDay && sameBarber;
       const currentMin = toMin(currentTime);
       const dur = appointment.duration_minutes;
 
@@ -134,7 +181,7 @@ export function RescheduleDialog({
             const slotEnd = t + dur;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
             const isPast = isToday && t <= nowMin;
-            const isCurrent = isSameDay && t === currentMin;
+            const isCurrent = isSameContext && t === currentMin;
             generated.push({
               time: fmtShort(t),
               available: !conflicts && !isPast && !isCurrent,
@@ -156,10 +203,10 @@ export function RescheduleDialog({
     })();
 
     return () => ctrl.abort();
-  }, [open, appointment, currentTime]);
+  }, [open, appointment, currentTime, selectedBarberId, originalBarberId]);
 
   const handleConfirm = async () => {
-    if (!appointment || !selectedTime) return;
+    if (!appointment || !selectedTime || !selectedBarberId) return;
     setSubmitting(true);
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + appointment.duration_minutes);
@@ -171,6 +218,7 @@ export function RescheduleDialog({
         date: appointment.date,
         start_time: `${selectedTime}:00`,
         end_time: endTime,
+        barber_id: selectedBarberId,
       })
       .eq("id", appointment.id);
 
@@ -179,11 +227,13 @@ export function RescheduleDialog({
     } else {
       const crossDay =
         appointment.original_date && appointment.original_date !== appointment.date;
-      toast.success(
-        crossDay
-          ? `Reagendado para ${appointment.date} às ${selectedTime}!`
-          : `Reagendado para ${selectedTime}!`,
-      );
+      const changedBarber = selectedBarberId !== originalBarberId;
+      const newBarberName = barbers.find((b) => b.user_id === selectedBarberId)?.display.display_name;
+      const parts: string[] = [];
+      if (crossDay) parts.push(appointment.date);
+      parts.push(`às ${selectedTime}`);
+      if (changedBarber && newBarberName) parts.push(`com ${newBarberName}`);
+      toast.success(`Reagendado ${parts.join(" ")}!`);
       onRescheduled();
       onOpenChange(false);
     }
@@ -231,6 +281,42 @@ export function RescheduleDialog({
                 {selectedTime || "—"}
               </p>
             </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              Profissional
+            </label>
+            <Select
+              value={selectedBarberId}
+              onValueChange={setSelectedBarberId}
+              disabled={barbersLoading || submitting}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
+              </SelectTrigger>
+              <SelectContent>
+                {barbers.map((b) => (
+                  <SelectItem key={b.user_id} value={b.user_id}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-5 h-5">
+                        {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
+                        <AvatarFallback className="text-[9px]">
+                          {b.display.display_name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm">
+                        {b.display.display_name}
+                        {b.user_id === originalBarberId && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
+                        )}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {loading ? (
