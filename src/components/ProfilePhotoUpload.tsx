@@ -32,8 +32,10 @@ export function ProfilePhotoUpload() {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
         setFullName(data?.full_name || "");
         setOriginalName(data?.full_name || "");
-        setPhone((data as any)?.phone || "");
-        setOriginalPhone((data as any)?.phone || "");
+        const storedPhone = (data as any)?.phone || "";
+        const masked = storedPhone ? displayBRPhone(storedPhone) : "";
+        setPhone(masked);
+        setOriginalPhone(masked);
         setLoading(false);
       });
   }, [user]);
@@ -42,16 +44,22 @@ export function ProfilePhotoUpload() {
 
   const handleSaveProfile = async () => {
     if (!user || !profileChanged) return;
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone && !isValidBRPhone(trimmedPhone)) {
+      toast.error("Telefone inválido. Use o formato (11) 99999-9999.");
+      return;
+    }
     setSavingProfile(true);
+    const phoneToStore = trimmedPhone ? toStorageBRPhone(trimmedPhone) : null;
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim(), phone: phone.trim() || null } as any)
+      .update({ full_name: fullName.trim(), phone: phoneToStore } as any)
       .eq("user_id", user.id);
     if (error) {
       toast.error("Erro ao salvar perfil.");
     } else {
       setOriginalName(fullName.trim());
-      setOriginalPhone(phone.trim());
+      setOriginalPhone(trimmedPhone);
       toast.success("Perfil atualizado!");
     }
     setSavingProfile(false);
