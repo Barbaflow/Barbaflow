@@ -115,6 +115,9 @@ export function ManualAppointmentDialog({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Reset on open
   useEffect(() => {
