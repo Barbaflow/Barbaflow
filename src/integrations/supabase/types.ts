@@ -62,6 +62,13 @@ export type Database = {
             foreignKeyName: "appointments_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -113,6 +120,13 @@ export type Database = {
             foreignKeyName: "availability_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "availability_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -128,6 +142,8 @@ export type Database = {
           owner_id: string | null
           plan_id: string | null
           primary_color: string
+          rating_avg: number
+          rating_count: number
           secondary_color: string
           status: Database["public"]["Enums"]["approval_status"]
           subdomain: string
@@ -142,6 +158,8 @@ export type Database = {
           owner_id?: string | null
           plan_id?: string | null
           primary_color?: string
+          rating_avg?: number
+          rating_count?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain: string
@@ -156,6 +174,8 @@ export type Database = {
           owner_id?: string | null
           plan_id?: string | null
           primary_color?: string
+          rating_avg?: number
+          rating_count?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain?: string
@@ -244,6 +264,13 @@ export type Database = {
             foreignKeyName: "notifications_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -275,6 +302,13 @@ export type Database = {
           old_plan_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "plan_change_logs_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plan_change_logs_barbershop_id_fkey"
             columns: ["barbershop_id"]
@@ -373,6 +407,13 @@ export type Database = {
             foreignKeyName: "products_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -408,6 +449,61 @@ export type Database = {
         }
         Relationships: []
       }
+      reviews: {
+        Row: {
+          appointment_id: string | null
+          barbershop_id: string
+          client_id: string
+          comment: string | null
+          created_at: string
+          id: string
+          rating: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id?: string | null
+          barbershop_id: string
+          client_id: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string | null
+          barbershop_id?: string
+          client_id?: string
+          comment?: string | null
+          created_at?: string
+          id?: string
+          rating?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reviews_appointment_id_fkey"
+            columns: ["appointment_id"]
+            isOneToOne: false
+            referencedRelation: "appointments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "reviews_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schedule_blocks: {
         Row: {
           barber_id: string
@@ -440,6 +536,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "schedule_blocks_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "schedule_blocks_barbershop_id_fkey"
             columns: ["barbershop_id"]
@@ -484,6 +587,13 @@ export type Database = {
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "services_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "services_barbershop_id_fkey"
             columns: ["barbershop_id"]
@@ -583,6 +693,13 @@ export type Database = {
             foreignKeyName: "team_invitations_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_invitations_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -611,6 +728,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "user_roles_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "user_roles_barbershop_id_fkey"
             columns: ["barbershop_id"]
@@ -659,6 +783,13 @@ export type Database = {
             foreignKeyName: "weekly_schedule_barbershop_id_fkey"
             columns: ["barbershop_id"]
             isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "weekly_schedule_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
             referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
@@ -666,7 +797,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      barbearias_publicas: {
+        Row: {
+          created_at: string | null
+          id: string | null
+          logo_url: string | null
+          name: string | null
+          primary_color: string | null
+          rating_avg: number | null
+          rating_count: number | null
+          secondary_color: string | null
+          subdomain: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string | null
+          logo_url?: string | null
+          name?: string | null
+          primary_color?: string | null
+          rating_avg?: number | null
+          rating_count?: number | null
+          secondary_color?: string | null
+          subdomain?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string | null
+          logo_url?: string | null
+          name?: string | null
+          primary_color?: string | null
+          rating_avg?: number | null
+          rating_count?: number | null
+          secondary_color?: string | null
+          subdomain?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
