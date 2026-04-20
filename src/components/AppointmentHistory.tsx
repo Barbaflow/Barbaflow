@@ -109,12 +109,26 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }]));
         }
       }
-      setAppointments(
-        rawAppointments.map((a) => ({
-          ...a,
-          barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
-        }))
-      );
+      const finalAppointments = rawAppointments.map((a) => ({
+        ...a,
+        barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
+      }));
+      setAppointments(finalAppointments);
+
+      // Fetch reviews already made by this user for these appointments
+      const completedIds = finalAppointments
+        .filter((a) => a.status === "completed")
+        .map((a) => a.id);
+      if (completedIds.length > 0) {
+        const { data: reviews } = await supabase
+          .from("reviews")
+          .select("appointment_id")
+          .eq("client_id", user.id)
+          .in("appointment_id", completedIds);
+        setReviewedIds(new Set((reviews || []).map((r) => r.appointment_id).filter((x): x is string => !!x)));
+      } else {
+        setReviewedIds(new Set());
+      }
     }
 
     setLoading(false);
