@@ -31,6 +31,7 @@ import { Route as AgendarIndexRouteImport } from './routes/agendar.index'
 import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
 import { Route as HooksProcessAccountDeletionsRouteImport } from './routes/hooks/process-account-deletions'
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
+import { Route as AdminChurnRouteImport } from './routes/admin.churn'
 
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
@@ -144,6 +145,11 @@ const AgendarSlugRoute = AgendarSlugRouteImport.update({
   path: '/agendar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminChurnRoute = AdminChurnRouteImport.update({
+  id: '/admin/churn',
+  path: '/admin/churn',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -164,6 +170,7 @@ export interface FileRoutesByFullPath {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -188,6 +195,7 @@ export interface FileRoutesByTo {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -213,6 +221,7 @@ export interface FileRoutesById {
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
+  '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -239,6 +248,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/admin/churn'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/admin/churn'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -287,6 +298,7 @@ export interface FileRouteTypes {
     | '/sitemap.xml'
     | '/sobre'
     | '/upgrade'
+    | '/admin/churn'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -312,6 +324,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SobreRoute: typeof SobreRoute
   UpgradeRoute: typeof UpgradeRoute
+  AdminChurnRoute: typeof AdminChurnRoute
   AgendarSlugRoute: typeof AgendarSlugRoute
   HooksProcessAccountDeletionsRoute: typeof HooksProcessAccountDeletionsRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
@@ -474,6 +487,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgendarSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/churn': {
+      id: '/admin/churn'
+      path: '/admin/churn'
+      fullPath: '/admin/churn'
+      preLoaderRoute: typeof AdminChurnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -496,6 +516,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SobreRoute: SobreRoute,
   UpgradeRoute: UpgradeRoute,
+  AdminChurnRoute: AdminChurnRoute,
   AgendarSlugRoute: AgendarSlugRoute,
   HooksProcessAccountDeletionsRoute: HooksProcessAccountDeletionsRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
