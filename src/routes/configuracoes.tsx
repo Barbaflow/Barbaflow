@@ -84,19 +84,21 @@ function ConfiguracoesPage() {
 
           <div className="space-y-6">
             <ProfilePhotoUpload />
-            <BarbershopSettings barbershopId={barbershopId} />
+            {!isClientOnly && <BarbershopSettings barbershopId={barbershopId} />}
           </div>
         </div>
 
-        <div>
-          <h2 className="text-2xl font-display font-bold text-foreground mb-2">
-            <span className="text-gradient-gold">Equipe</span>
-          </h2>
-          <p className="text-muted-foreground mb-6">
-            Gerencie barbeiros e administradores da sua barbearia.
-          </p>
-          <TeamManager barbershopId={barbershopId} />
-        </div>
+        {!isClientOnly && (
+          <div>
+            <h2 className="text-2xl font-display font-bold text-foreground mb-2">
+              <span className="text-gradient-gold">Equipe</span>
+            </h2>
+            <p className="text-muted-foreground mb-6">
+              Gerencie barbeiros e administradores da sua barbearia.
+            </p>
+            <TeamManager barbershopId={barbershopId} />
+          </div>
+        )}
       </main>
     </div>
   );
