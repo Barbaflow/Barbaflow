@@ -44,11 +44,14 @@ function AgendarPage() {
           )}
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          <Link to="/barbearias">
+            <Button variant="ghost" size="sm">Barbearias</Button>
+          </Link>
           <Link to="/">
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
-              Voltar
+              <span className="hidden sm:inline">Voltar</span>
             </Button>
           </Link>
           {!user && !loading && (
