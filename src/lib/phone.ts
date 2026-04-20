@@ -32,6 +32,11 @@ export function isValidBRPhone(value: string): boolean {
 export function toStorageBRPhone(value: string): string {
   const d = digitsOnly(value);
   if (!d) return "";
+  // 10 or 11 digits = local BR number, prefix with country code
+  if (d.length === 10 || d.length === 11) return `55${d}`;
+  // 12 or 13 digits already include country code
+  if ((d.length === 12 || d.length === 13) && d.startsWith("55")) return d;
+  // Fallback: ensure 55 prefix exists
   return d.startsWith("55") ? d : `55${d}`;
 }
 
@@ -39,14 +44,15 @@ export function toStorageBRPhone(value: string): string {
 export function displayBRPhone(stored: string | null | undefined): string {
   if (!stored) return "";
   let d = digitsOnly(stored);
-  if (d.startsWith("55") && d.length > 11) d = d.slice(2);
+  // Strip 55 country code only if remaining digits form a valid BR number (10 or 11)
+  if (d.startsWith("55") && (d.length === 12 || d.length === 13)) d = d.slice(2);
   return maskBRPhone(d);
 }
 
-/** Builds a wa.me URL from any stored or formatted phone. */
+/** Builds a wa.me URL from any stored or formatted phone. Always ensures 55 prefix. */
 export function whatsappUrl(stored: string | null | undefined): string | null {
   if (!stored) return null;
-  const d = toStorageBRPhone(stored);
-  if (!d || d.length < 12) return null;
-  return `https://wa.me/${d}`;
+  const normalized = toStorageBRPhone(stored);
+  if (!normalized || normalized.length < 12 || normalized.length > 13) return null;
+  return `https://wa.me/${normalized}`;
 }
