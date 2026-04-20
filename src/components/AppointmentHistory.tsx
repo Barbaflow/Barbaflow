@@ -424,14 +424,36 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         )
                       )}
                       {canCancel && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleCancel(apt.id)}
-                        >
-                          Cancelar
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setRescheduling({
+                                id: apt.id,
+                                date: apt.date,
+                                start_time: apt.start_time,
+                                barber_id: apt.barber_id,
+                                barbershop_id: apt.barbershop_id,
+                                duration_minutes: apt.service?.duration_minutes ?? 30,
+                                client_name: null,
+                                service_name: apt.service?.name ?? null,
+                                original_date: apt.date,
+                              })
+                            }
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            Reagendar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleCancel(apt.id)}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
