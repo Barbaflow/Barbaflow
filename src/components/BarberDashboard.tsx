@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlanCard } from "@/components/PlanCard";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallAppButton } from "@/components/InstallAppButton";
@@ -82,7 +83,7 @@ interface Appointment {
   barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
   client_profile: { full_name: string | null } | null;
-  barber_profile: { full_name: string | null } | null;
+  barber_profile: { full_name: string | null; avatar_url: string | null } | null;
 }
 
 interface Service {
@@ -301,7 +302,10 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           service: Array.isArray(a.service) ? a.service[0] || null : a.service,
           client_profile: clientMap[a.client_id] || null,
           barber_profile: barberMap[a.barber_id]
-            ? { full_name: barberMap[a.barber_id].display_name }
+            ? {
+                full_name: barberMap[a.barber_id].display_name,
+                avatar_url: barberMap[a.barber_id].avatar_url,
+              }
             : null,
         })) as Appointment[]
       );
@@ -591,9 +595,20 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
                             </div>
                             {isAdmin && apt.barber_profile && (
-                              <span className="text-[10px] text-muted-foreground">
-                                Barbeiro: {apt.barber_profile.full_name}
-                              </span>
+                              <div className="flex items-center gap-1.5">
+                                <Avatar className="w-4 h-4">
+                                  <AvatarImage
+                                    src={apt.barber_profile.avatar_url || undefined}
+                                    alt={apt.barber_profile.full_name || "Barbeiro"}
+                                  />
+                                  <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                                    {(apt.barber_profile.full_name || "B").charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  {apt.barber_profile.full_name}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </div>
