@@ -24,6 +24,7 @@ import {
   Search,
   Crown,
   Star,
+  ShieldAlert,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -75,6 +76,13 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   const [booking, setBooking] = useState(false);
   const [loadingStep, setLoadingStep] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [noshowBlock, setNoshowBlock] = useState<{
+    blocked: boolean;
+    noshow_count?: number;
+    max_count?: number;
+    block_days?: number;
+    unblock_at?: string | null;
+  } | null>(null);
 
   // Load preselected barbershop by ID (from route param)
   useEffect(() => {
