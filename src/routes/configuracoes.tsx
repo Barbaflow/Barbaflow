@@ -79,7 +79,7 @@ function ConfiguracoesPage() {
             <span className="text-gradient-gold">Configurações</span>
           </h1>
           <p className="text-muted-foreground mb-8">
-            Personalize seu perfil e a sua barbearia.
+            {isClientOnly ? "Atualize seu nome, foto e telefone." : "Personalize seu perfil e a sua barbearia."}
           </p>
 
           <div className="space-y-6">
