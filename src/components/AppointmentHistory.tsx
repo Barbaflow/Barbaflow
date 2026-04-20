@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star, Phone } from "lucide-react";
+import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star, Phone, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
+import { RescheduleDialog, type RescheduleTarget } from "./RescheduleDialog";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone } from "@/lib/phone";
 import { Link } from "@tanstack/react-router";
@@ -71,6 +72,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
+  const [rescheduling, setRescheduling] = useState<RescheduleTarget | null>(null);
   const [clientPhone, setClientPhone] = useState<string | null>(null);
 
   useEffect(() => {
@@ -422,14 +424,36 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         )
                       )}
                       {canCancel && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => handleCancel(apt.id)}
-                        >
-                          Cancelar
-                        </Button>
+                        <>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setRescheduling({
+                                id: apt.id,
+                                date: apt.date,
+                                start_time: apt.start_time,
+                                barber_id: apt.barber_id,
+                                barbershop_id: apt.barbershop_id,
+                                duration_minutes: apt.service?.duration_minutes ?? 30,
+                                client_name: null,
+                                service_name: apt.service?.name ?? null,
+                                original_date: apt.date,
+                              })
+                            }
+                          >
+                            <CalendarClock className="w-3.5 h-3.5" />
+                            Reagendar
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            onClick={() => handleCancel(apt.id)}
+                          >
+                            Cancelar
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
@@ -453,6 +477,19 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           }}
         />
       )}
+
+      <RescheduleDialog
+        open={!!rescheduling}
+        onOpenChange={(o) => !o && setRescheduling(null)}
+        appointment={rescheduling}
+        onRescheduled={() => {
+          setRescheduling(null);
+          fetchAppointments();
+        }}
+        onDateChange={(newDate) =>
+          setRescheduling((prev) => (prev ? { ...prev, date: newDate } : prev))
+        }
+      />
     </div>
   );
 }
