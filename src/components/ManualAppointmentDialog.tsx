@@ -26,6 +26,16 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
   User,
   Loader2,
@@ -33,6 +43,7 @@ import {
   AlertCircle,
   Clock,
   CalendarIcon,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
