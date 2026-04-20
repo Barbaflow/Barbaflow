@@ -477,6 +477,19 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           }}
         />
       )}
+
+      <RescheduleDialog
+        open={!!rescheduling}
+        onOpenChange={(o) => !o && setRescheduling(null)}
+        appointment={rescheduling}
+        onRescheduled={() => {
+          setRescheduling(null);
+          fetchAppointments();
+        }}
+        onDateChange={(newDate) =>
+          setRescheduling((prev) => (prev ? { ...prev, date: newDate } : prev))
+        }
+      />
     </div>
   );
 }
