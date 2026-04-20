@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, KeyRound, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
+import { ArrowLeft, CheckCircle2, KeyRound, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
@@ -42,6 +42,8 @@ function PerfilPage() {
   const [confirmText, setConfirmText] = useState("");
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [successOpen, setSuccessOpen] = useState(false);
+  const [deletedEmail, setDeletedEmail] = useState<string | null>(null);
   const requiredText = "EXCLUIR";
   const [sendingReset, setSendingReset] = useState(false);
 
@@ -83,6 +85,7 @@ function PerfilPage() {
   const handleDeleteAccount = async () => {
     setDeleting(true);
     try {
+      const emailSnapshot = user?.email ?? null;
       const { data, error } = await supabase.functions.invoke("delete-account");
       if (error || (data && (data as any).error)) {
         const message = (data as any)?.message || error?.message || "Não foi possível excluir a conta.";
@@ -90,14 +93,20 @@ function PerfilPage() {
         setDeleting(false);
         return;
       }
-      toast.success("Sua conta foi excluída.");
       await supabase.auth.signOut();
+      setDeletedEmail(emailSnapshot);
       setDeleteOpen(false);
-      navigate({ to: "/" });
+      setDeleting(false);
+      setSuccessOpen(true);
     } catch (e) {
       toast.error("Erro ao excluir conta. Tente novamente.");
       setDeleting(false);
     }
+  };
+
+  const handleSuccessClose = () => {
+    setSuccessOpen(false);
+    navigate({ to: "/" });
   };
 
   if (loading || !user) {
