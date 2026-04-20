@@ -114,6 +114,9 @@ const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls:
 type StatusFilter = "all" | "blocked" | "active" | "noshow";
 type SortKey = "name" | "total" | "noshow" | "last";
 type SortDir = "asc" | "desc";
+type LastFilter = "all" | "30" | "90" | "inactive60" | "never";
+
+const LAST_FILTER_VALUES: LastFilter[] = ["all", "30", "90", "inactive60", "never"];
 
 const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
   { key: "name", label: "Nome", defaultDir: "asc" },
@@ -155,6 +158,17 @@ function ClientesPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("clientes:statusFilter", statusFilter);
   }, [statusFilter]);
+  const [lastFilter, setLastFilter] = useState<LastFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem("clientes:lastFilter");
+    return LAST_FILTER_VALUES.includes(stored as LastFilter)
+      ? (stored as LastFilter)
+      : "all";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:lastFilter", lastFilter);
+  }, [lastFilter]);
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     if (typeof window === "undefined") return "last";
     const stored = window.localStorage.getItem("clientes:sortKey");
@@ -187,15 +201,21 @@ function ClientesPage() {
   };
 
   const filtersActive =
-    search.trim() !== "" || statusFilter !== "all" || sortKey !== "last" || sortDir !== "desc";
+    search.trim() !== "" ||
+    statusFilter !== "all" ||
+    lastFilter !== "all" ||
+    sortKey !== "last" ||
+    sortDir !== "desc";
 
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
+    setLastFilter("all");
     setSortKey("last");
     setSortDir("desc");
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("clientes:statusFilter");
+      window.localStorage.removeItem("clientes:lastFilter");
       window.localStorage.removeItem("clientes:sortKey");
       window.localStorage.removeItem("clientes:sortDir");
     }
@@ -295,6 +315,21 @@ function ClientesPage() {
     if (statusFilter === "active") list = list.filter((r) => !r.manual_blocked_until);
     if (statusFilter === "noshow") list = list.filter((r) => r.noshow_count > 0);
 
+    if (lastFilter !== "all") {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      list = list.filter((r) => {
+        const ts = r.last_appointment_at ? new Date(r.last_appointment_at).getTime() : null;
+        if (lastFilter === "never") return ts === null;
+        if (ts === null) return false;
+        const diffDays = (now - ts) / day;
+        if (lastFilter === "30") return diffDays <= 30;
+        if (lastFilter === "90") return diffDays <= 90;
+        if (lastFilter === "inactive60") return diffDays > 60;
+        return true;
+      });
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter(
@@ -304,12 +339,12 @@ function ClientesPage() {
       );
     }
     return list;
-  }, [rows, statusFilter, search]);
+  }, [rows, statusFilter, lastFilter, search]);
 
   // Reset to page 1 when filters/search/page-size/sort change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize, sortKey, sortDir]);
+  }, [search, statusFilter, lastFilter, pageSize, sortKey, sortDir]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
@@ -714,7 +749,7 @@ function ClientesPage() {
             />
           </div>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="sm:w-[200px]">
+            <SelectTrigger className="sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -722,6 +757,18 @@ function ClientesPage() {
               <SelectItem value="active">Ativos</SelectItem>
               <SelectItem value="noshow">Com falta ({stats.withNoshow})</SelectItem>
               <SelectItem value="blocked">Bloqueados ({stats.blocked})</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={lastFilter} onValueChange={(v) => setLastFilter(v as LastFilter)}>
+            <SelectTrigger className="sm:w-[200px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Qualquer período</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="inactive60">Sem agendar há +60 dias</SelectItem>
+              <SelectItem value="never">Nunca agendou</SelectItem>
             </SelectContent>
           </Select>
           {filtersActive && (
