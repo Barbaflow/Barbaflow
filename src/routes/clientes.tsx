@@ -34,6 +34,7 @@ import {
   ChevronRight,
   Search,
   Users,
+  Calendar,
   Download,
   Ban,
   Unlock,
@@ -374,15 +375,20 @@ function ClientesPage() {
     [sorted, currentPage, pageSize]
   );
 
-  const stats = useMemo(
-    () => ({
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    return {
       total: rows.length,
       blocked: rows.filter((r) => r.manual_blocked_until).length,
       withNoshow: rows.filter((r) => r.noshow_count > 0).length,
       totalAppointments: rows.reduce((sum, r) => sum + Number(r.total_appointments || 0), 0),
-    }),
-    [rows]
-  );
+      inactive60: rows.filter((r) => {
+        if (!r.last_appointment_at) return false;
+        return (now - new Date(r.last_appointment_at).getTime()) / day > 60;
+      }).length,
+    };
+  }, [rows]);
 
   const handleBlock = async () => {
     if (!blockTarget || !user) return;
@@ -715,12 +721,12 @@ function ClientesPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <StatCard label="Clientes" value={stats.total} icon={Users} color="text-primary" />
           <StatCard
             label="Agendamentos"
             value={stats.totalAppointments}
-            icon={Clock}
+            icon={Calendar}
             color="text-foreground"
           />
           <StatCard
@@ -728,6 +734,13 @@ function ClientesPage() {
             value={stats.withNoshow}
             icon={AlertCircle}
             color="text-yellow-500"
+          />
+          <StatCard
+            label="Inativos +60d"
+            value={stats.inactive60}
+            icon={Clock}
+            color="text-orange-500"
+            onClick={() => setLastFilter("inactive60")}
           />
           <StatCard
             label="Bloqueados"
@@ -1208,14 +1221,36 @@ function StatCard({
   value,
   icon: Icon,
   color,
+  onClick,
 }: {
   label: string;
   value: number;
   icon: typeof Users;
   color: string;
+  onClick?: () => void;
 }) {
+  const interactive = typeof onClick === "function";
   return (
-    <Card>
+    <Card
+      onClick={onClick}
+      className={
+        interactive
+          ? "cursor-pointer hover:border-primary/50 transition-colors"
+          : undefined
+      }
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+    >
       <CardContent className="p-4">
         <div className="flex items-center gap-2 mb-1">
           <Icon className={`w-4 h-4 ${color}`} />
