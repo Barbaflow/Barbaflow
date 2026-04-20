@@ -33,8 +33,16 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [qrWithLogo, setQrWithLogo] = useState(true);
+  const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
+
+  const sizeMap = {
+    small: { canvas: 320, preview: 120, logo: 28, pdfMm: 80, label: "Pequeno" },
+    medium: { canvas: 480, preview: 160, logo: 36, pdfMm: 110, label: "Médio" },
+    large: { canvas: 720, preview: 200, logo: 44, pdfMm: 150, label: "Grande" },
+  } as const;
+  const currentSize = sizeMap[qrSize];
 
   const publicUrl =
     typeof window !== "undefined" && data
@@ -76,24 +84,24 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setFontSize(14);
       pdf.text("Agende seu horário online", pageWidth / 2, 62, { align: "center" });
 
-      // QR Code (centered, large)
+      // QR Code (centered)
       const qrDataUrl = canvas.toDataURL("image/png");
-      const qrSize = 110;
-      const qrX = (pageWidth - qrSize) / 2;
+      const qrMm = currentSize.pdfMm;
+      const qrX = (pageWidth - qrMm) / 2;
       const qrY = 78;
 
       // White card behind QR
       pdf.setFillColor(255, 255, 255);
       pdf.setDrawColor(200, 169, 110);
       pdf.setLineWidth(1);
-      pdf.roundedRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 4, 4, "FD");
-      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+      pdf.roundedRect(qrX - 8, qrY - 8, qrMm + 16, qrMm + 16, 4, 4, "FD");
+      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrMm, qrMm);
 
       // Instructions
       pdf.setTextColor(40, 40, 40);
       pdf.setFont("helvetica", "bold");
       pdf.setFontSize(16);
-      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrSize + 28, {
+      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrMm + 28, {
         align: "center",
       });
 
@@ -103,7 +111,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.text(
         "Aponte a câmera para o código acima e toque no link que aparecer",
         pageWidth / 2,
-        qrY + qrSize + 38,
+        qrY + qrMm + 38,
         { align: "center" }
       );
 
@@ -111,7 +119,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setFont("helvetica", "italic");
       pdf.setFontSize(10);
       pdf.setTextColor(120, 120, 120);
-      pdf.text(publicUrl, pageWidth / 2, qrY + qrSize + 50, { align: "center" });
+      pdf.text(publicUrl, pageWidth / 2, qrY + qrMm + 50, { align: "center" });
 
       // Bottom accent bar
       pdf.setFillColor(200, 169, 110);
@@ -311,15 +319,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               {publicUrl && (
                 <QRCodeCanvas
                   value={publicUrl}
-                  size={160}
+                  size={currentSize.canvas}
                   level="H"
                   includeMargin={false}
+                  style={{
+                    width: currentSize.preview,
+                    height: currentSize.preview,
+                  }}
                   imageSettings={
                     qrWithLogo && logoUrl
                       ? {
                           src: logoUrl,
-                          height: 36,
-                          width: 36,
+                          height: currentSize.logo * (currentSize.canvas / currentSize.preview),
+                          width: currentSize.logo * (currentSize.canvas / currentSize.preview),
                           excavate: true,
                           crossOrigin: "anonymous",
                         }
@@ -345,11 +357,23 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   </Label>
                 </div>
               )}
-              {!logoUrl && (
-                <p className="text-xs text-muted-foreground italic">
-                  Envie um logo acima para incluí-lo no centro do QR Code.
-                </p>
-              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tamanho do QR Code</Label>
+                <div className="flex gap-1.5 justify-center sm:justify-start">
+                  {(["small", "medium", "large"] as const).map((s) => (
+                    <Button
+                      key={s}
+                      type="button"
+                      size="sm"
+                      variant={qrSize === s ? "gold" : "outline"}
+                      onClick={() => setQrSize(s)}
+                      className="flex-1 sm:flex-none"
+                    >
+                      {sizeMap[s].label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
                   <Download className="w-4 h-4" />
