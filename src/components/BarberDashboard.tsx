@@ -583,6 +583,29 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       // Barbers: standardized RPC
       const barberMap = await fetchBarberDisplayNames(barberIds);
 
+      // No-show block status per client (only for this barbershop)
+      const blockMap: Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }> = {};
+      if (clientIds.length > 0 && barbershopId) {
+        const blockResults = await Promise.all(
+          clientIds.map(async (cid) => {
+            const { data } = await supabase.rpc("check_client_noshow_block", {
+              _client_id: cid,
+              _barbershop_id: barbershopId,
+            });
+            return [cid, data] as const;
+          })
+        );
+        for (const [cid, data] of blockResults) {
+          const d = (data ?? {}) as { blocked?: boolean; noshow_count?: number; unblock_at?: string | null };
+          blockMap[cid] = {
+            blocked: !!d.blocked,
+            noshow_count: d.noshow_count ?? 0,
+            unblock_at: d.unblock_at ?? null,
+          };
+        }
+      }
+      setClientBlockMap(blockMap);
+
       setAppointments(
         (data || []).map((a) => ({
           ...a,
