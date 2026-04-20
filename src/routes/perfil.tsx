@@ -244,6 +244,41 @@ function PerfilPage() {
           </p>
         </div>
 
+        {pendingDeletion && (
+          <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 min-w-0">
+                <h3 className="font-display font-semibold text-destructive">
+                  Sua conta será excluída em {daysRemaining(pendingDeletion.scheduled_for)} {daysRemaining(pendingDeletion.scheduled_for) === 1 ? "dia" : "dias"}
+                </h3>
+                <p className="text-sm text-foreground/80">
+                  Exclusão definitiva agendada para{" "}
+                  <span className="font-medium text-foreground">
+                    {formatScheduled(pendingDeletion.scheduled_for)}
+                  </span>
+                  . Você ainda pode cancelar e manter sua conta.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelDeletion}
+                disabled={cancelling}
+                className="border-destructive/40"
+              >
+                {cancelling ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Cancelando...</>
+                ) : (
+                  <><RotateCcw className="w-4 h-4" /> Cancelar exclusão</>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <ProfilePhotoUpload />
 
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
@@ -282,12 +317,14 @@ function PerfilPage() {
           </Button>
         </div>
 
+        {!pendingDeletion && !loadingPending && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-5 space-y-4">
           <div>
             <h3 className="font-display font-semibold text-destructive">Excluir minha conta</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Esta ação é permanente. Seus dados pessoais (perfil, foto, telefone, notificações
-              e comentários de avaliações) serão removidos. Agendamentos futuros serão cancelados.
+              Sua conta entrará em período de carência de <strong className="text-foreground">30 dias</strong>.
+              Durante esse prazo você pode cancelar e voltar normalmente. Após 30 dias todos os
+              seus dados pessoais serão removidos permanentemente.
             </p>
           </div>
           <AlertDialog
@@ -309,13 +346,16 @@ function PerfilPage() {
             </AlertDialogTrigger>
             <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
               <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogTitle>Agendar exclusão da conta?</AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-2 text-sm">
                     <p>
-                      Esta ação <strong className="text-destructive">não pode ser desfeita</strong>.
-                      Sua conta <span className="font-medium text-foreground">{user.email}</span> e todos os
-                      seus dados pessoais serão removidos permanentemente.
+                      Sua conta <span className="font-medium text-foreground">{user.email}</span> entrará
+                      em <strong className="text-foreground">período de carência de 30 dias</strong>.
+                      Você poderá cancelar a exclusão a qualquer momento durante esse prazo.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Atenção: seus agendamentos futuros serão cancelados imediatamente.
                     </p>
                   </div>
                 </AlertDialogDescription>
@@ -385,52 +425,61 @@ function PerfilPage() {
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {deleting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo...</>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Agendando...</>
                   ) : (
-                    <><Trash2 className="w-4 h-4" /> Excluir definitivamente</>
+                    <><Trash2 className="w-4 h-4" /> Agendar exclusão</>
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        )}
 
         <AlertDialog open={successOpen} onOpenChange={(o) => { if (!o) handleSuccessClose(); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gold/15">
-                <CheckCircle2 className="h-8 w-8 text-gold" />
+                <CalendarClock className="h-8 w-8 text-gold" />
               </div>
               <AlertDialogTitle className="text-center font-display text-xl">
-                Conta excluída com sucesso
+                Exclusão agendada
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-sm text-center">
                   <p>
                     {deletedEmail ? (
-                      <>A conta <span className="font-medium text-foreground">{deletedEmail}</span> foi removida permanentemente.</>
+                      <>A conta <span className="font-medium text-foreground">{deletedEmail}</span> será excluída em <strong className="text-foreground">30 dias</strong>.</>
                     ) : (
-                      <>Sua conta foi removida permanentemente.</>
+                      <>Sua conta será excluída em <strong className="text-foreground">30 dias</strong>.</>
                     )}
                   </p>
+                  {pendingDeletion && (
+                    <p className="text-xs text-muted-foreground">
+                      Data agendada: <span className="font-medium text-foreground">{formatScheduled(pendingDeletion.scheduled_for)}</span>
+                    </p>
+                  )}
                   <div className="rounded-md border border-border bg-muted/30 p-3 text-left space-y-1.5">
-                    <p className="font-medium text-foreground text-xs uppercase tracking-wide">O que foi removido:</p>
+                    <p className="font-medium text-foreground text-xs uppercase tracking-wide">Já foi feito agora:</p>
                     <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Perfil, foto e telefone</li>
-                      <li>Notificações e histórico de bloqueios</li>
-                      <li>Comentários das suas avaliações (notas mantidas anônimas)</li>
                       <li>Agendamentos futuros foram cancelados</li>
+                    </ul>
+                    <p className="font-medium text-foreground text-xs uppercase tracking-wide pt-2">Após 30 dias:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Perfil, foto e telefone serão removidos</li>
+                      <li>Notificações e bloqueios apagados</li>
+                      <li>Comentários de avaliações serão anonimizados</li>
                     </ul>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Sentiremos sua falta. Você pode criar uma nova conta a qualquer momento.
+                    Mudou de ideia? Você pode cancelar a exclusão a qualquer momento durante os 30 dias, na sua página de perfil.
                   </p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogAction onClick={handleSuccessClose} className="w-full sm:w-auto">
-                Voltar à página inicial
+                Entendi
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
