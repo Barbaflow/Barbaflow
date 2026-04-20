@@ -991,6 +991,23 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_barbershop_clients: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          cancelled_count: number
+          client_avatar: string
+          client_id: string
+          client_name: string
+          client_phone: string
+          completed_count: number
+          first_appointment_at: string
+          last_appointment_at: string
+          manual_block_reason: string
+          manual_blocked_until: string
+          noshow_count: number
+          total_appointments: number
+        }[]
+      }
       get_client_phone: { Args: { _client_id: string }; Returns: string }
       get_noshow_report: {
         Args: { _barbershop_id: string; _days?: number }
