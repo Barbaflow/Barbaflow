@@ -40,6 +40,8 @@ interface BarberWithProfile {
   user_id: string;
   full_name: string | null;
   avatar_url: string | null;
+  rating_avg?: number;
+  rating_count?: number;
 }
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
