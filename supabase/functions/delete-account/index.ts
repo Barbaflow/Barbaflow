@@ -14,6 +14,8 @@ const responseHeaders = {
   },
 };
 
+const GRACE_PERIOD_DAYS = 30;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, responseHeaders);
@@ -39,7 +41,6 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
 
-    // Optional churn feedback (anonymous - no user identifier stored)
     const ALLOWED_REASONS = new Set([
       "no_use",
       "found_alternative",
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
       // ignore body parse errors
     }
 
-    // Block deletion if user owns a barbershop or has staff role (barbeiro/admin)
+    // Block scheduling if user owns a barbershop or has staff role
     const { data: ownedShops } = await supabase
       .from("barbershops")
       .select("id, name")
@@ -99,7 +100,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Cancel future appointments where the user is the client
+    // Cancel future appointments where the user is the client (immediate)
     const today = new Date().toISOString().slice(0, 10);
     await supabase
       .from("appointments")
@@ -108,45 +109,58 @@ Deno.serve(async (req) => {
       .eq("status", "scheduled")
       .gte("date", today);
 
-    // Anonymize past reviews (keep aggregate ratings intact, remove personal text)
-    await supabase
-      .from("reviews")
-      .update({ comment: null, updated_at: new Date().toISOString() })
-      .eq("client_id", userId);
+    // Schedule deletion for 30 days from now (upsert to handle re-requests)
+    const scheduledFor = new Date(Date.now() + GRACE_PERIOD_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-    // Remove personal records
-    await supabase.from("notifications").delete().eq("user_id", userId);
-    await supabase.from("client_blocks").delete().eq("client_id", userId);
-    await supabase.from("user_roles").delete().eq("user_id", userId);
-    await supabase.from("profiles").delete().eq("user_id", userId);
+    // Check if there's already an active scheduled deletion
+    const { data: existing } = await supabase
+      .from("account_deletions")
+      .select("id, scheduled_for, cancelled_at, processed_at")
+      .eq("user_id", userId)
+      .maybeSingle();
 
-    // Remove avatar files from storage
-    const { data: avatarFiles } = await supabase.storage.from("avatars").list(userId);
-    if (avatarFiles && avatarFiles.length > 0) {
-      await supabase.storage
-        .from("avatars")
-        .remove(avatarFiles.map((f) => `${userId}/${f.name}`));
-    }
-
-    // Persist anonymous churn feedback BEFORE deleting the user (no user_id stored)
-    if (feedbackReason) {
-      await supabase.from("account_deletion_feedback").insert({
-        reason: feedbackReason,
-        details: feedbackDetails,
-        had_barbershop_role: false,
-      });
-    }
-
-    // Finally, delete the auth user (cascades to auth.identities, sessions, etc.)
-    const { error: deleteError } = await supabase.auth.admin.deleteUser(userId);
-    if (deleteError) {
+    if (existing && !existing.cancelled_at && !existing.processed_at) {
       return new Response(
-        JSON.stringify({ error: "delete_failed", message: deleteError.message }),
-        { status: 500, ...responseHeaders },
+        JSON.stringify({
+          success: true,
+          already_scheduled: true,
+          scheduled_for: existing.scheduled_for,
+          grace_period_days: GRACE_PERIOD_DAYS,
+        }),
+        { status: 200, ...responseHeaders },
       );
     }
 
-    return new Response(JSON.stringify({ success: true }), { status: 200, ...responseHeaders });
+    if (existing) {
+      // Reset cancelled/processed entry to a new request
+      await supabase
+        .from("account_deletions")
+        .update({
+          scheduled_for: scheduledFor,
+          reason: feedbackReason,
+          details: feedbackDetails,
+          cancelled_at: null,
+          processed_at: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", existing.id);
+    } else {
+      await supabase.from("account_deletions").insert({
+        user_id: userId,
+        scheduled_for: scheduledFor,
+        reason: feedbackReason,
+        details: feedbackDetails,
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        scheduled_for: scheduledFor,
+        grace_period_days: GRACE_PERIOD_DAYS,
+      }),
+      { status: 200, ...responseHeaders },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return new Response(JSON.stringify({ error: "server_error", message }), {

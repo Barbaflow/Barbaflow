@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, KeyRound, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, KeyRound, Loader2, LogOut, RotateCcw, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
@@ -67,6 +67,67 @@ function PerfilPage() {
   const [details, setDetails] = useState<string>("");
   const requiredText = "EXCLUIR";
   const [sendingReset, setSendingReset] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<{ scheduled_for: string } | null>(null);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from("account_deletions" as any)
+        .select("scheduled_for, cancelled_at, processed_at")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!active) return;
+      if (data && !(data as any).cancelled_at && !(data as any).processed_at) {
+        setPendingDeletion({ scheduled_for: (data as any).scheduled_for });
+      } else {
+        setPendingDeletion(null);
+      }
+      setLoadingPending(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleCancelDeletion = async () => {
+    setCancelling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("cancel-account-deletion", {
+        body: {},
+      });
+      if (error || (data && (data as any).error)) {
+        const message = (data as any)?.message || error?.message || "Não foi possível cancelar.";
+        toast.error(message);
+        return;
+      }
+      setPendingDeletion(null);
+      toast.success("Exclusão cancelada. Sua conta está ativa novamente.");
+    } catch {
+      toast.error("Erro ao cancelar exclusão.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const formatScheduled = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const daysRemaining = (iso: string) => {
+    const diff = new Date(iso).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
 
   const handlePasswordReset = async () => {
     if (!user?.email) return;
@@ -120,7 +181,10 @@ function PerfilPage() {
         setDeleting(false);
         return;
       }
-      await supabase.auth.signOut();
+      const scheduled = (data as any)?.scheduled_for as string | undefined;
+      if (scheduled) {
+        setPendingDeletion({ scheduled_for: scheduled });
+      }
       setDeletedEmail(emailSnapshot);
       setDeleteOpen(false);
       setDeleting(false);
@@ -133,7 +197,6 @@ function PerfilPage() {
 
   const handleSuccessClose = () => {
     setSuccessOpen(false);
-    navigate({ to: "/" });
   };
 
   if (loading || !user) {
