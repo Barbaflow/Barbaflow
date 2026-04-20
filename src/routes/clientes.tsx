@@ -696,7 +696,9 @@ function ClientesPage() {
                 <ClientRowCard
                   key={row.client_id}
                   row={row}
+                  noteCount={noteCounts[row.client_id] ?? 0}
                   onHistory={() => openHistory(row)}
+                  onNotes={() => openNotes(row)}
                   onBlock={() => setBlockTarget(row)}
                   onUnblock={() => handleUnblock(row)}
                 />
