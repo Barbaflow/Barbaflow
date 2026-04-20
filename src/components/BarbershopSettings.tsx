@@ -569,8 +569,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               variant="outline"
               className="w-full sm:w-auto"
               onClick={() => {
-                const url = `${window.location.origin}/agendar/${data.subdomain}`;
-                const message = `Olá! 💈 Agende seu horário na *${data.name}* de forma rápida e fácil pelo link: ${url}`;
+                const message = renderWaMessage();
                 const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
                 window.open(waUrl, "_blank", "noopener,noreferrer");
               }}
