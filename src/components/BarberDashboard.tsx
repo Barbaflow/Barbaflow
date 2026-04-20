@@ -84,6 +84,7 @@ interface Appointment {
   notes: string | null;
   client_id: string;
   barber_id: string;
+  service_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
   client_profile: { full_name: string | null; phone: string | null } | null;
   barber_profile: { full_name: string | null; avatar_url: string | null } | null;
@@ -305,7 +306,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, client_id, barber_id, service:services(name, price, duration_minutes)")
+      .select("id, date, start_time, end_time, status, notes, client_id, barber_id, service_id, service:services(name, price, duration_minutes)")
       .eq("barbershop_id", barbershopId)
       .eq("date", selectedDate)
       .order("start_time", { ascending: true });
