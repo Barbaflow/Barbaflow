@@ -43,6 +43,7 @@ import {
   ChevronRight,
   Crown,
   History,
+  TrendingDown,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -266,6 +267,12 @@ export function AdminDashboard() {
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">Histórico</span>
             </Button>
+            <Link to="/admin/churn">
+              <Button variant="ghost" size="sm">
+                <TrendingDown className="w-4 h-4" />
+                <span className="hidden sm:inline">Churn</span>
+              </Button>
+            </Link>
             <Link to="/configuracoes">
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
