@@ -26,7 +26,7 @@ export const Route = createFileRoute("/meus-agendamentos")({
 
 function MeusAgendamentosPage() {
   const { user, loading } = useAuth();
-  const { barbershopId, barbershop } = useBarbershop();
+  const { barbershopId, barbershop, isDefault } = useBarbershop();
   const name = barbershop?.name || "BarbaFlow";
 
   return (
@@ -68,7 +68,7 @@ function MeusAgendamentosPage() {
           Histórico completo dos seus horários.
         </p>
 
-        <AppointmentHistory barbershopId={barbershopId} />
+        <AppointmentHistory barbershopId={isDefault ? undefined : barbershopId} />
       </main>
     </div>
   );

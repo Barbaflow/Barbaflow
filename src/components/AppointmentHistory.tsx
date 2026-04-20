@@ -29,6 +29,8 @@ interface Appointment {
   notes: string | null;
   created_at: string;
   barber_id: string;
+  barbershop_id: string;
+  barbershop: { name: string | null } | null;
   service: { name: string; price: number; duration_minutes: number } | null;
   barber_profile: { full_name: string | null; avatar_url: string | null } | null;
 }
@@ -56,7 +58,8 @@ function formatWeekday(dateStr: string) {
 }
 
 interface AppointmentHistoryProps {
-  barbershopId: string;
+  /** When provided, filters to a single barbershop. Omit to show all of the client's appointments across barbershops. */
+  barbershopId?: string;
 }
 
 export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
@@ -88,11 +91,14 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, service:services(name, price, duration_minutes)")
-      .eq("barbershop_id", barbershopId)
+      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, barbershop_id, barbershop:barbershops(name), service:services(name, price, duration_minutes)")
       .eq("client_id", user.id)
       .order("date", { ascending: false })
       .order("start_time", { ascending: false });
+
+    if (barbershopId) {
+      query = query.eq("barbershop_id", barbershopId);
+    }
 
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter as "scheduled" | "completed" | "cancelled" | "no_show");
@@ -383,6 +389,12 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         </div>
                       )}
 
+                      {!barbershopId && apt.barbershop?.name && (
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                          {apt.barbershop.name}
+                        </p>
+                      )}
+
                       {apt.notes && (
                         <p className="text-xs text-muted-foreground italic truncate">
                           {apt.notes}
@@ -433,7 +445,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           open={!!reviewing}
           onOpenChange={(o) => !o && setReviewing(null)}
           appointmentId={reviewing.id}
-          barbershopId={barbershopId}
+          barbershopId={reviewing.barbershop_id}
           barberName={reviewing.barber_profile?.full_name}
           onSubmitted={() => {
             setReviewedIds((prev) => new Set(prev).add(reviewing.id));
