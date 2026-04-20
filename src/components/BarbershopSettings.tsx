@@ -316,6 +316,20 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                 Ver minha página pública
               </Button>
             </a>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                const url = `${window.location.origin}/agendar/${data.subdomain}`;
+                navigator.clipboard
+                  .writeText(url)
+                  .then(() => toast.success("Link copiado!"))
+                  .catch(() => toast.error("Não foi possível copiar o link."));
+              }}
+            >
+              <Copy className="w-4 h-4" />
+              Copiar link
+            </Button>
           </div>
         </CardContent>
       </Card>
