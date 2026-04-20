@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Search,
