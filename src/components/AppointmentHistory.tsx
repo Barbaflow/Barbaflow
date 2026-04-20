@@ -389,6 +389,12 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         </div>
                       )}
 
+                      {!barbershopId && apt.barbershop?.name && (
+                        <p className="text-[11px] uppercase tracking-wider text-muted-foreground/80">
+                          {apt.barbershop.name}
+                        </p>
+                      )}
+
                       {apt.notes && (
                         <p className="text-xs text-muted-foreground italic truncate">
                           {apt.notes}
