@@ -74,6 +74,24 @@ export function TenantThemeColors({
  */
 export function TenantThemeApplier() {
   const { barbershop } = useBarbershop();
+  const [canApply, setCanApply] = useState(false);
+
+  useEffect(() => {
+    if (!barbershop?.plan_id) {
+      setCanApply(false);
+      return;
+    }
+    supabase
+      .from("plans")
+      .select("name")
+      .eq("id", barbershop.plan_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCanApply(data?.name === "pro" || data?.name === "enterprise");
+      });
+  }, [barbershop?.plan_id]);
+
+  if (!canApply) return null;
 
   return (
     <TenantThemeColors
