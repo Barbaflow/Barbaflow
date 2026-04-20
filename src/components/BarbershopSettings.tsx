@@ -5,6 +5,7 @@ import { usePlan } from "@/hooks/use-plan";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
@@ -20,7 +21,11 @@ interface BarbershopData {
   secondary_color: string;
   logo_url: string | null;
   subdomain: string;
+  whatsapp_message: string | null;
 }
+
+const DEFAULT_WA_TEMPLATE =
+  "Olá! 💈 Agende seu horário na *{nome}* de forma rápida e fácil pelo link: {link}";
 
 export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
@@ -35,6 +40,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [qrWithLogo, setQrWithLogo] = useState(true);
   const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
   const [pdfSlogan, setPdfSlogan] = useState("Agende seu horário online");
+  const [waMessage, setWaMessage] = useState(DEFAULT_WA_TEMPLATE);
+  const [savingWa, setSavingWa] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -143,13 +150,37 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .single()
       .then(({ data: shop }) => {
         if (shop) {
-          setData(shop);
+          setData(shop as BarbershopData);
           setPrimaryColor(shop.primary_color);
           setSecondaryColor(shop.secondary_color);
           setLogoUrl(shop.logo_url);
+          if ((shop as BarbershopData).whatsapp_message) {
+            setWaMessage((shop as BarbershopData).whatsapp_message as string);
+          }
         }
       });
   }, [barbershopId]);
+
+  const renderWaMessage = () => {
+    const url = `${window.location.origin}/agendar/${data?.subdomain ?? ""}`;
+    const template = (waMessage || "").trim() || DEFAULT_WA_TEMPLATE;
+    return template.replace(/\{nome\}/gi, data?.name ?? "").replace(/\{link\}/gi, url);
+  };
+
+  const handleSaveWaMessage = async () => {
+    if (!data) return;
+    setSavingWa(true);
+    const { error } = await supabase
+      .from("barbershops")
+      .update({ whatsapp_message: waMessage.trim() || null })
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar mensagem.");
+    } else {
+      toast.success("Mensagem do WhatsApp salva!");
+    }
+    setSavingWa(false);
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -404,6 +435,59 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
+      {/* WhatsApp message */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-gold" />
+            Mensagem do WhatsApp
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Personalize a mensagem que aparece quando você clica em "Compartilhar no WhatsApp".
+            Use <code className="px-1 py-0.5 rounded bg-secondary text-gold">{"{nome}"}</code> para
+            o nome da barbearia e{" "}
+            <code className="px-1 py-0.5 rounded bg-secondary text-gold">{"{link}"}</code> para o
+            link de agendamento.
+          </p>
+          <Textarea
+            value={waMessage}
+            onChange={(e) => setWaMessage(e.target.value)}
+            placeholder={DEFAULT_WA_TEMPLATE}
+            rows={4}
+            maxLength={500}
+            className="text-sm"
+          />
+          <div className="p-3 rounded-lg border border-border bg-secondary/50">
+            <p className="text-xs text-muted-foreground mb-1">Pré-visualização:</p>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{renderWaMessage()}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              onClick={handleSaveWaMessage}
+              disabled={savingWa}
+              variant="gold"
+              className="w-full sm:w-auto"
+            >
+              {savingWa ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {savingWa ? "Salvando..." : "Salvar mensagem"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setWaMessage(DEFAULT_WA_TEMPLATE)}
+            >
+              Restaurar padrão
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Color Picker */}
       <Card className="border-border bg-card">
         <CardHeader>
@@ -538,8 +622,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               variant="outline"
               className="w-full sm:w-auto"
               onClick={() => {
-                const url = `${window.location.origin}/agendar/${data.subdomain}`;
-                const message = `Olá! 💈 Agende seu horário na *${data.name}* de forma rápida e fácil pelo link: ${url}`;
+                const message = renderWaMessage();
                 const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
                 window.open(waUrl, "_blank", "noopener,noreferrer");
               }}
