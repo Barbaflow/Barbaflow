@@ -16,6 +16,11 @@ interface PublicBarbershop {
   rating_count: number;
   created_at: string;
   isMock?: boolean;
+  lastReview?: {
+    rating: number;
+    comment: string;
+    client_name: string;
+  } | null;
 }
 
 const MOCK_BARBEARIAS: PublicBarbershop[] = [
