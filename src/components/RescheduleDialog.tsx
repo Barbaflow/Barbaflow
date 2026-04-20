@@ -390,24 +390,39 @@ export function RescheduleDialog({
                 <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
               </SelectTrigger>
               <SelectContent>
-                {barbers.map((b) => (
-                  <SelectItem key={b.user_id} value={b.user_id}>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-5 h-5">
-                        {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
-                        <AvatarFallback className="text-[9px]">
-                          {b.display.display_name.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm">
-                        {b.display.display_name}
-                        {b.user_id === originalBarberId && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
-                        )}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {barbers.map((b) => {
+                  const free = freeCounts[b.user_id];
+                  const knownCount = !freeCountsLoading && free !== undefined;
+                  return (
+                    <SelectItem key={b.user_id} value={b.user_id}>
+                      <div className="flex items-center gap-2 w-full">
+                        <Avatar className="w-5 h-5">
+                          {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
+                          <AvatarFallback className="text-[9px]">
+                            {b.display.display_name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm flex-1">
+                          {b.display.display_name}
+                          {b.user_id === originalBarberId && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
+                          )}
+                        </span>
+                        <span
+                          className={cn(
+                            "ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                            knownCount && free === 0 && "bg-muted/40 text-muted-foreground border-transparent",
+                            knownCount && free > 0 && free <= 2 && "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
+                            knownCount && free > 2 && "bg-primary/10 text-primary border-primary/30",
+                            !knownCount && "bg-muted/40 text-muted-foreground border-transparent"
+                          )}
+                        >
+                          {knownCount ? `${free} ${free === 1 ? "slot" : "slots"}` : "…"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
