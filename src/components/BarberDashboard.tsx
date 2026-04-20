@@ -870,31 +870,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             </CardContent>
           </Card>
         ) : (
-          <DndContext
-            sensors={sensors}
-            onDragStart={(e: DragStartEvent) => {
-              setDraggingId(String(e.active.id));
-              dismissDragHint();
-            }}
-            onDragEnd={(e: DragEndEvent) => {
-              const id = String(e.active.id);
-              setDraggingId(null);
-              if (!e.over || e.over.id !== "appt-list-dropzone") return;
-              const apt = appointments.find((a) => a.id === id);
-              if (!apt || !barbershopId || !apt.service) return;
-              setReschedTarget({
-                id: apt.id,
-                date: apt.date,
-                start_time: apt.start_time,
-                barber_id: apt.barber_id,
-                barbershop_id: barbershopId,
-                duration_minutes: apt.service.duration_minutes,
-                client_name: apt.client_profile?.full_name ?? null,
-                service_name: apt.service.name,
-              });
-            }}
-            onDragCancel={() => setDraggingId(null)}
-          >
+          <>
             <DroppableList isActive={!!draggingId}>
               {draggingId && (
                 <div className="text-xs text-center text-primary font-medium py-1">
