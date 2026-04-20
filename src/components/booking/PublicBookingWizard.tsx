@@ -23,6 +23,7 @@ import {
   MapPin,
   Search,
   Crown,
+  Star,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
