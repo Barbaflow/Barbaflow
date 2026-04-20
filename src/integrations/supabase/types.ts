@@ -148,6 +148,7 @@ export type Database = {
           status: Database["public"]["Enums"]["approval_status"]
           subdomain: string
           updated_at: string
+          whatsapp_message: string | null
         }
         Insert: {
           appointments_this_month?: number
@@ -164,6 +165,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain: string
           updated_at?: string
+          whatsapp_message?: string | null
         }
         Update: {
           appointments_this_month?: number
@@ -180,6 +182,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain?: string
           updated_at?: string
+          whatsapp_message?: string | null
         }
         Relationships: [
           {
