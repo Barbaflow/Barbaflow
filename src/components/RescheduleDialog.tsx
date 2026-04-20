@@ -18,7 +18,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Loader2, Clock, AlertCircle, Check, ArrowRight, User } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Loader2, Clock, AlertCircle, Check, ArrowRight, User, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { fetchBarberDisplayNames, type BarberDisplay } from "@/lib/barber-names";
@@ -48,6 +50,10 @@ interface RescheduleDialogProps {
   onOpenChange: (open: boolean) => void;
   appointment: RescheduleTarget | null;
   onRescheduled: () => void;
+  // Optional: when the user picks a different date inside the dialog (via the
+  // "all full" warning calendar), the parent should re-issue the appointment
+  // prop with the new date so slots/counts re-fetch for the new day.
+  onDateChange?: (newDate: string) => void;
 }
 
 const toMin = (t: string) => {
@@ -68,6 +74,7 @@ export function RescheduleDialog({
   onOpenChange,
   appointment,
   onRescheduled,
+  onDateChange,
 }: RescheduleDialogProps) {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
@@ -78,6 +85,7 @@ export function RescheduleDialog({
   const [barbersLoading, setBarbersLoading] = useState(false);
   const [freeCounts, setFreeCounts] = useState<Record<string, number>>({});
   const [freeCountsLoading, setFreeCountsLoading] = useState(false);
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
   const originalBarberId = appointment?.barber_id ?? "";
@@ -98,6 +106,13 @@ export function RescheduleDialog({
       return a.display.display_name.localeCompare(b.display.display_name);
     });
   }, [barbers, freeCounts, originalBarberId]);
+
+  // True only when we have at least one barber, all counts have been
+  // computed, and every single barber has zero free slots on the chosen day.
+  const allFull =
+    barbers.length > 0 &&
+    !freeCountsLoading &&
+    barbers.every((b) => freeCounts[b.user_id] === 0);
 
   // Load barbers list when dialog opens
   useEffect(() => {
@@ -392,6 +407,48 @@ export function RescheduleDialog({
               </p>
             </div>
           </div>
+
+          {allFull && (
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-left hover:bg-destructive/15 transition-colors"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+                  <div className="flex-1 text-xs">
+                    <p className="font-medium text-destructive">
+                      Nenhum profissional tem horário livre em {appointment.date}.
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      {onDateChange
+                        ? "Toque aqui para escolher outra data no calendário."
+                        : "Feche este popup e escolha outra data no calendário do dashboard."}
+                    </p>
+                  </div>
+                  <CalendarDays className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+                </button>
+              </PopoverTrigger>
+              {onDateChange && (
+                <PopoverContent className="w-auto p-0" align="center">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(appointment.date + "T12:00:00")}
+                    onSelect={(d) => {
+                      if (!d) return;
+                      const y = d.getFullYear();
+                      const m = (d.getMonth() + 1).toString().padStart(2, "0");
+                      const day = d.getDate().toString().padStart(2, "0");
+                      onDateChange(`${y}-${m}-${day}`);
+                      setDatePickerOpen(false);
+                    }}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              )}
+            </Popover>
+          )}
 
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
