@@ -1,6 +1,15 @@
-import { Check, Clock, Scissors } from "lucide-react";
+import { Check, Clock, Scissors, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { Service, AvailabilitySlot } from "./types";
+
+function formatHours(h: number) {
+  if (h <= 0) return "sem limite";
+  if (h >= 24 && h % 24 === 0) {
+    const d = h / 24;
+    return d === 1 ? "1 dia" : `${d} dias`;
+  }
+  return `${h}h`;
+}
 
 const MONTH_NAMES = [
   "Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
@@ -19,6 +28,8 @@ interface BookingConfirmationProps {
   booking: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  rescheduleMinHours?: number;
+  cancelMinHours?: number;
 }
 
 export function BookingConfirmation({
@@ -28,6 +39,8 @@ export function BookingConfirmation({
   booking,
   onConfirm,
   onCancel,
+  rescheduleMinHours = 2,
+  cancelMinHours = 2,
 }: BookingConfirmationProps) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 md:static md:mt-4">
@@ -66,6 +79,17 @@ export function BookingConfirmation({
           <Check className="w-4 h-4" />
           {booking ? "Agendando..." : isLoggedIn ? "Confirmar" : "Faça login para agendar"}
         </Button>
+
+        <div className="flex items-start gap-1.5 pt-1 border-t border-border/50 text-[11px] leading-relaxed text-muted-foreground">
+          <Info className="w-3 h-3 mt-0.5 flex-shrink-0 text-primary/70" />
+          <p>
+            Reagendamento permitido até{" "}
+            <span className="text-foreground font-medium">{formatHours(rescheduleMinHours)}</span>
+            {rescheduleMinHours > 0 && " antes"} · Cancelamento até{" "}
+            <span className="text-foreground font-medium">{formatHours(cancelMinHours)}</span>
+            {cancelMinHours > 0 && " antes do horário"}.
+          </p>
+        </div>
       </div>
     </div>
   );

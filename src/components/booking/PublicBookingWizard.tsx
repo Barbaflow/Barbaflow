@@ -34,6 +34,8 @@ interface Barbershop {
   primary_color: string;
   subdomain: string;
   owner_id: string | null;
+  reschedule_min_hours?: number;
+  cancel_min_hours?: number;
 }
 
 interface BarberWithProfile {
@@ -79,7 +81,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (!preselectedBarbershopId) return;
     supabase
       .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain, owner_id")
+      .select("id, name, logo_url, primary_color, subdomain, owner_id, reschedule_min_hours, cancel_min_hours")
       .eq("id", preselectedBarbershopId)
       .maybeSingle()
       .then(({ data }) => {
@@ -93,7 +95,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     setLoadingStep(true);
     supabase
       .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain, owner_id")
+      .select("id, name, logo_url, primary_color, subdomain, owner_id, reschedule_min_hours, cancel_min_hours")
       .eq("status", "approved")
       .neq("subdomain", "_system")
       .order("name")
@@ -641,6 +643,8 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
               booking={booking}
               onConfirm={handleBook}
               onCancel={() => setSelectedSlot(null)}
+              rescheduleMinHours={selectedBarbershop?.reschedule_min_hours ?? 2}
+              cancelMinHours={selectedBarbershop?.cancel_min_hours ?? 2}
             />
           )}
 
