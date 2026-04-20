@@ -29,7 +29,8 @@ function ConfiguracoesPage() {
   const navigate = useNavigate();
   const { barbershopId, barbershop, isDefault } = useBarbershop();
   const name = barbershop?.name || "BarbaFlow";
-  const isClient = isDefault || barbershop?.owner_id !== user?.id;
+  // Cliente comum: não tem barbearia resolvida (apenas placeholder default)
+  const isClientOnly = isDefault;
 
   useEffect(() => {
     if (!loading && !user) {
