@@ -355,22 +355,55 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                     </div>
 
                     {/* Actions */}
-                    {canCancel && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 self-end sm:self-center"
-                        onClick={() => handleCancel(apt.id)}
-                      >
-                        Cancelar
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      {apt.status === "completed" && (
+                        reviewedIds.has(apt.id) ? (
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <Star className="w-3 h-3 fill-primary text-primary" />
+                            Avaliado
+                          </Badge>
+                        ) : (
+                          <Button
+                            variant="gold"
+                            size="sm"
+                            onClick={() => setReviewing(apt)}
+                          >
+                            <Star className="w-3.5 h-3.5" />
+                            Avaliar
+                          </Button>
+                        )
+                      )}
+                      {canCancel && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={() => handleCancel(apt.id)}
+                        >
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             );
           })}
         </div>
+      )}
+
+      {reviewing && (
+        <ReviewDialog
+          open={!!reviewing}
+          onOpenChange={(o) => !o && setReviewing(null)}
+          appointmentId={reviewing.id}
+          barbershopId={barbershopId}
+          barberName={reviewing.barber_profile?.full_name}
+          onSubmitted={() => {
+            setReviewedIds((prev) => new Set(prev).add(reviewing.id));
+            setReviewing(null);
+          }}
+        />
       )}
     </div>
   );
