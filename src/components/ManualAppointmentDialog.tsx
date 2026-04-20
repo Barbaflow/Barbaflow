@@ -704,16 +704,54 @@ export function ManualAppointmentDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+        <DialogFooter className="gap-2 sm:gap-2">
+          {isEditing && (
+            <Button
+              variant="destructive"
+              onClick={() => setCancelOpen(true)}
+              disabled={submitting || cancelling}
+              className="sm:mr-auto"
+            >
+              <Ban className="w-4 h-4" />
+              Cancelar agendamento
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting || cancelling}>
+            Fechar
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
+          <Button onClick={handleSubmit} disabled={!canSubmit || cancelling}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {isEditing ? "Salvar alterações" : "Criar agendamento"}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Cancelar este agendamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O agendamento será marcado como cancelado e o cliente
+              {selectedClient?.full_name ? ` (${selectedClient.full_name})` : ""} receberá uma
+              notificação automática. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelAppointment();
+              }}
+              disabled={cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+              Sim, cancelar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
