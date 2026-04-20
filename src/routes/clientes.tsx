@@ -27,6 +27,9 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
+  ArrowUp,
+  ArrowDown,
+  ArrowUpDown,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -91,6 +94,15 @@ const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls:
 };
 
 type StatusFilter = "all" | "blocked" | "active" | "noshow";
+type SortKey = "name" | "total" | "noshow" | "last";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
+  { key: "name", label: "Nome", defaultDir: "asc" },
+  { key: "total", label: "Agendamentos", defaultDir: "desc" },
+  { key: "noshow", label: "Faltas", defaultDir: "desc" },
+  { key: "last", label: "Último", defaultDir: "desc" },
+];
 
 function ClientesPage() {
   const { user, loading: authLoading } = useAuth();
@@ -104,6 +116,18 @@ function ClientesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortKey, setSortKey] = useState<SortKey>("last");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      const def = SORT_OPTIONS.find((o) => o.key === key)?.defaultDir ?? "asc";
+      setSortKey(key);
+      setSortDir(def);
+    }
+  };
 
   // Block dialog state
   const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
@@ -181,16 +205,37 @@ function ClientesPage() {
     return list;
   }, [rows, statusFilter, search]);
 
-  // Reset to page 1 when filters/search/page-size change
+  // Reset to page 1 when filters/search/page-size/sort change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case "name":
+          return a.client_name.localeCompare(b.client_name, "pt-BR") * dir;
+        case "total":
+          return (Number(a.total_appointments) - Number(b.total_appointments)) * dir;
+        case "noshow":
+          return (Number(a.noshow_count) - Number(b.noshow_count)) * dir;
+        case "last": {
+          const av = a.last_appointment_at ? new Date(a.last_appointment_at).getTime() : 0;
+          const bv = b.last_appointment_at ? new Date(b.last_appointment_at).getTime() : 0;
+          return (av - bv) * dir;
+        }
+      }
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginated = useMemo(
-    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [filtered, currentPage, pageSize]
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [sorted, currentPage, pageSize]
   );
 
   const stats = useMemo(
@@ -451,6 +496,31 @@ function ClientesPage() {
           </Card>
         ) : (
           <>
+            {/* Sort header */}
+            <div className="flex items-center gap-1 px-3 py-2 rounded-lg bg-muted/40 border border-border overflow-x-auto">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2 flex-shrink-0">
+                Ordenar:
+              </span>
+              {SORT_OPTIONS.map((opt) => {
+                const active = sortKey === opt.key;
+                const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                return (
+                  <Button
+                    key={opt.key}
+                    variant={active ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2 text-xs flex-shrink-0"
+                    onClick={() => handleSort(opt.key)}
+                  >
+                    {opt.label}
+                    <Icon
+                      className={`w-3 h-3 ml-1 ${active ? "text-primary" : "text-muted-foreground/60"}`}
+                    />
+                  </Button>
+                );
+              })}
+            </div>
+
             <div className="space-y-2">
               {paginated.map((row) => (
                 <ClientRowCard
