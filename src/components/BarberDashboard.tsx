@@ -268,6 +268,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [weekMetrics, setWeekMetrics] = useState({ totalWeek: 0, revenueWeek: 0 });
   const [selectedBarber, setSelectedBarber] = useState<string>("all");
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
+  const [showNewAppt, setShowNewAppt] = useState(false);
 
   // Fetch barbers for admin filter
   useEffect(() => {
@@ -458,8 +459,33 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
+          {isAdmin && (
+            <Button
+              size="sm"
+              className="ml-2"
+              onClick={() => setShowNewAppt(true)}
+              disabled={barbers.length === 0}
+            >
+              <Plus className="w-4 h-4" />
+              <span className="hidden sm:inline">Novo agendamento</span>
+            </Button>
+          )}
         </div>
       </div>
+
+      {isAdmin && barbershopId && (
+        <ManualAppointmentDialog
+          open={showNewAppt}
+          onOpenChange={setShowNewAppt}
+          barbershopId={barbershopId}
+          barbers={barbers}
+          defaultDate={selectedDate}
+          onCreated={() => {
+            fetchAppointments();
+            fetchWeekMetrics();
+          }}
+        />
+      )}
 
       {/* Barber filter (admin only) */}
       {isAdmin && barbers.length > 0 && (
