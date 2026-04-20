@@ -91,6 +91,15 @@ interface AppointmentHistoryRow {
   service: { name: string; price: number } | null;
 }
 
+interface NoteRow {
+  id: string;
+  note: string;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls: string }> = {
   scheduled: { label: "Agendado", icon: Clock, cls: "text-primary" },
   completed: { label: "Concluído", icon: CheckCircle, cls: "text-green-500" },
