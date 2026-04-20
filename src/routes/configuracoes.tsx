@@ -60,10 +60,10 @@ function ConfiguracoesPage() {
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" search={{ checkout: undefined }}>
+          <Link to={isClientOnly ? "/meus-agendamentos" : "/dashboard"} search={isClientOnly ? undefined : { checkout: undefined }}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
-              Dashboard
+              {isClientOnly ? "Meus agendamentos" : "Dashboard"}
             </Button>
           </Link>
           <Button variant="ghost" size="sm" onClick={() => signOut()}>
