@@ -40,6 +40,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [qrWithLogo, setQrWithLogo] = useState(true);
   const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
   const [pdfSlogan, setPdfSlogan] = useState("Agende seu horário online");
+  const [pdfTemplate, setPdfTemplate] = useState<"minimal" | "colorful" | "vintage">("minimal");
   const [waMessage, setWaMessage] = useState(DEFAULT_WA_TEMPLATE);
   const [savingWa, setSavingWa] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
