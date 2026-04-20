@@ -311,6 +311,39 @@ export type Database = {
         }
         Relationships: []
       }
+      client_notes: {
+        Row: {
+          barbershop_id: string
+          client_id: string
+          created_at: string
+          created_by: string
+          id: string
+          note: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          barbershop_id: string
+          client_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          note: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          barbershop_id?: string
+          client_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          note?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       contact_submissions: {
         Row: {
           created_at: string

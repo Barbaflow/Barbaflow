@@ -40,6 +40,11 @@ import {
   ShieldAlert,
   ShieldCheck,
   History,
+  StickyNote,
+  Pencil,
+  Trash2,
+  Plus,
+  Save,
   Phone,
   MessageCircle,
   RefreshCw,
@@ -84,6 +89,15 @@ interface AppointmentHistoryRow {
   start_time: string;
   status: "scheduled" | "completed" | "cancelled" | "no_show";
   service: { name: string; price: number } | null;
+}
+
+interface NoteRow {
+  id: string;
+  note: string;
+  created_by: string;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
 }
 
 const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls: string }> = {
@@ -149,6 +163,17 @@ function ClientesPage() {
   const [history, setHistory] = useState<AppointmentHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Notes state
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const [notesTarget, setNotesTarget] = useState<ClientRow | null>(null);
+  const [notes, setNotes] = useState<NoteRow[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNote, setNewNote] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
@@ -189,8 +214,26 @@ function ClientesPage() {
       setLoading(false);
       return;
     }
-    setRows((data as ClientRow[]) || []);
+    const list = (data as ClientRow[]) || [];
+    setRows(list);
     setLoading(false);
+
+    // Fetch note counts for all clients in one query
+    if (list.length > 0) {
+      const { data: notesData } = await (supabase
+        .from as any)("client_notes")
+        .select("client_id")
+        .eq("barbershop_id", barbershopId);
+      if (notesData) {
+        const counts: Record<string, number> = {};
+        for (const n of notesData as { client_id: string }[]) {
+          counts[n.client_id] = (counts[n.client_id] ?? 0) + 1;
+        }
+        setNoteCounts(counts);
+      }
+    } else {
+      setNoteCounts({});
+    }
   }, [hasAccess, barbershopId]);
 
   useEffect(() => {
@@ -319,6 +362,124 @@ function ClientesPage() {
       return;
     }
     setHistory((data as unknown as AppointmentHistoryRow[]) || []);
+  };
+
+  const loadAuthorNames = async (ids: string[]) => {
+    const missing = Array.from(new Set(ids.filter((id) => id && !authorNames[id])));
+    if (missing.length === 0) return;
+    const { data } = await supabase.rpc("get_barber_display_names", { _user_ids: missing });
+    if (data) {
+      setAuthorNames((prev) => {
+        const next = { ...prev };
+        for (const r of data as { user_id: string; display_name: string }[]) {
+          next[r.user_id] = r.display_name;
+        }
+        return next;
+      });
+    }
+  };
+
+  const openNotes = async (row: ClientRow) => {
+    setNotesTarget(row);
+    setNotesLoading(true);
+    setNotes([]);
+    setNewNote("");
+    setEditingNoteId(null);
+    setEditingText("");
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .eq("barbershop_id", barbershopId)
+      .eq("client_id", row.client_id)
+      .order("created_at", { ascending: false });
+    setNotesLoading(false);
+    if (error) {
+      toast.error("Erro ao carregar anotações");
+      return;
+    }
+    const list = (data as NoteRow[]) || [];
+    setNotes(list);
+    loadAuthorNames(list.flatMap((n) => [n.created_by, n.updated_by].filter(Boolean) as string[]));
+  };
+
+  const handleSaveNote = async () => {
+    if (!notesTarget || !user) return;
+    const text = newNote.trim();
+    if (!text) {
+      toast.error("Escreva algo antes de salvar");
+      return;
+    }
+    if (text.length > 2000) {
+      toast.error("Máximo 2000 caracteres");
+      return;
+    }
+    setSavingNote(true);
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .insert({
+        barbershop_id: barbershopId,
+        client_id: notesTarget.client_id,
+        note: text,
+        created_by: user.id,
+      })
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .single();
+    setSavingNote(false);
+    if (error) {
+      toast.error("Erro ao salvar anotação");
+      return;
+    }
+    setNotes((prev) => [data as NoteRow, ...prev]);
+    setNoteCounts((prev) => ({
+      ...prev,
+      [notesTarget.client_id]: (prev[notesTarget.client_id] ?? 0) + 1,
+    }));
+    setNewNote("");
+    loadAuthorNames([user.id]);
+    toast.success("Anotação adicionada");
+  };
+
+  const handleUpdateNote = async (noteId: string) => {
+    if (!user) return;
+    const text = editingText.trim();
+    if (!text) {
+      toast.error("A anotação não pode ficar vazia");
+      return;
+    }
+    if (text.length > 2000) {
+      toast.error("Máximo 2000 caracteres");
+      return;
+    }
+    setSavingNote(true);
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .update({ note: text, updated_by: user.id })
+      .eq("id", noteId)
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .single();
+    setSavingNote(false);
+    if (error) {
+      toast.error("Erro ao atualizar anotação");
+      return;
+    }
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? (data as NoteRow) : n)));
+    setEditingNoteId(null);
+    setEditingText("");
+    loadAuthorNames([user.id]);
+    toast.success("Anotação atualizada");
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!notesTarget) return;
+    if (!confirm("Excluir esta anotação?")) return;
+    const { error } = await (supabase.from as any)("client_notes").delete().eq("id", noteId);
+    if (error) {
+      toast.error("Erro ao excluir");
+      return;
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    setNoteCounts((prev) => ({
+      ...prev,
+      [notesTarget.client_id]: Math.max(0, (prev[notesTarget.client_id] ?? 1) - 1),
+    }));
+    toast.success("Anotação excluída");
   };
 
   const exportCSV = () => {
@@ -535,7 +696,9 @@ function ClientesPage() {
                 <ClientRowCard
                   key={row.client_id}
                   row={row}
+                  noteCount={noteCounts[row.client_id] ?? 0}
                   onHistory={() => openHistory(row)}
+                  onNotes={() => openNotes(row)}
                   onBlock={() => setBlockTarget(row)}
                   onUnblock={() => handleUnblock(row)}
                 />
@@ -704,6 +867,140 @@ function ClientesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Notes dialog (internal — staff only) */}
+      <Dialog open={Boolean(notesTarget)} onOpenChange={(o) => !o && setNotesTarget(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <StickyNote className="w-5 h-5 text-primary" />
+              Anotações de {notesTarget?.client_name}
+            </DialogTitle>
+            <DialogDescription>
+              Visíveis apenas para a equipe da barbearia. O cliente nunca vê estas anotações.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* New note */}
+          <div className="space-y-2">
+            <Label htmlFor="new-note" className="text-xs">
+              Nova anotação
+            </Label>
+            <Textarea
+              id="new-note"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value.slice(0, 2000))}
+              placeholder="Ex: prefere corte na máquina 2, alérgico a fragrâncias fortes, paga sempre em PIX..."
+              rows={3}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">{newNote.length}/2000</span>
+              <Button size="sm" onClick={handleSaveNote} disabled={savingNote || !newNote.trim()}>
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing notes */}
+          <div className="max-h-[50vh] overflow-y-auto space-y-2 border-t border-border pt-3">
+            {notesLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : notes.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-6">
+                Nenhuma anotação ainda. Adicione a primeira acima.
+              </p>
+            ) : (
+              notes.map((n) => {
+                const isEditing = editingNoteId === n.id;
+                const author = authorNames[n.created_by] || "Equipe";
+                const edited = n.updated_at && n.updated_at !== n.created_at;
+                return (
+                  <div
+                    key={n.id}
+                    className="rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                  >
+                    {isEditing ? (
+                      <>
+                        <Textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value.slice(0, 2000))}
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-foreground">
+                            {editingText.length}/2000
+                          </span>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setEditingText("");
+                              }}
+                              disabled={savingNote}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateNote(n.id)}
+                              disabled={savingNote || !editingText.trim()}
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              Salvar
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                          {n.note}
+                        </p>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span className="truncate">
+                            {author} ·{" "}
+                            {format(new Date(n.created_at), "dd/MM/yyyy 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                            {edited && " · editado"}
+                          </span>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => {
+                                setEditingNoteId(n.id);
+                                setEditingText(n.note);
+                              }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteNote(n.id)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -734,12 +1031,16 @@ function StatCard({
 
 function ClientRowCard({
   row,
+  noteCount,
   onHistory,
+  onNotes,
   onBlock,
   onUnblock,
 }: {
   row: ClientRow;
+  noteCount: number;
   onHistory: () => void;
+  onNotes: () => void;
   onBlock: () => void;
   onUnblock: () => void;
 }) {
@@ -803,6 +1104,18 @@ function ClientRowCard({
                 </a>
               ) : null;
             })()}
+            <Button size="sm" variant="ghost" onClick={onNotes} title="Anotações internas">
+              <StickyNote className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Notas</span>
+              {noteCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="ml-1 h-4 px-1 text-[10px] border-primary/40 bg-primary/10 text-primary"
+                >
+                  {noteCount}
+                </Badge>
+              )}
+            </Button>
             <Button size="sm" variant="ghost" onClick={onHistory} title="Ver histórico">
               <History className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Histórico</span>
