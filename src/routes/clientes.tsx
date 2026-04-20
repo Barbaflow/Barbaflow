@@ -205,16 +205,37 @@ function ClientesPage() {
     return list;
   }, [rows, statusFilter, search]);
 
-  // Reset to page 1 when filters/search/page-size change
+  // Reset to page 1 when filters/search/page-size/sort change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize]);
+  }, [search, statusFilter, pageSize, sortKey, sortDir]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const sorted = useMemo(() => {
+    const dir = sortDir === "asc" ? 1 : -1;
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      switch (sortKey) {
+        case "name":
+          return a.client_name.localeCompare(b.client_name, "pt-BR") * dir;
+        case "total":
+          return (Number(a.total_appointments) - Number(b.total_appointments)) * dir;
+        case "noshow":
+          return (Number(a.noshow_count) - Number(b.noshow_count)) * dir;
+        case "last": {
+          const av = a.last_appointment_at ? new Date(a.last_appointment_at).getTime() : 0;
+          const bv = b.last_appointment_at ? new Date(b.last_appointment_at).getTime() : 0;
+          return (av - bv) * dir;
+        }
+      }
+    });
+    return arr;
+  }, [filtered, sortKey, sortDir]);
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize));
   const currentPage = Math.min(page, totalPages);
   const paginated = useMemo(
-    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
-    [filtered, currentPage, pageSize]
+    () => sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [sorted, currentPage, pageSize]
   );
 
   const stats = useMemo(
