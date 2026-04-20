@@ -74,6 +74,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
   const [rescheduling, setRescheduling] = useState<RescheduleTarget | null>(null);
   const [clientPhone, setClientPhone] = useState<string | null>(null);
+  // Per-barbershop reschedule minimum-hours limit (default 2)
+  const [rescheduleMinHoursMap, setRescheduleMinHoursMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -132,6 +134,20 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
         };
       });
       setAppointments(finalAppointments);
+
+      // Fetch per-barbershop reschedule_min_hours setting (one query for all shops)
+      const shopIds = Array.from(new Set(finalAppointments.map((a) => a.barbershop_id)));
+      if (shopIds.length > 0) {
+        const { data: shops } = await supabase
+          .from("barbershops")
+          .select("id, reschedule_min_hours")
+          .in("id", shopIds);
+        const map: Record<string, number> = {};
+        (shops || []).forEach((s: any) => {
+          map[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
+        });
+        setRescheduleMinHoursMap(map);
+      }
 
       // Fetch reviews already made by this user for these appointments
       const completedIds = finalAppointments
@@ -333,10 +349,12 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
             const isPast = apt.date < new Date().toISOString().split("T")[0];
             const canCancel = apt.status === "scheduled" && !isPast;
-            // Reschedule lock: block if less than 2h before appointment start
+            // Reschedule lock: block if less than the barbershop's configured min-hours
+            // (default 2h, 0 = no limit). Configurable in barbershop settings.
+            const minHours = rescheduleMinHoursMap[apt.barbershop_id] ?? 2;
             const apptStart = new Date(`${apt.date}T${apt.start_time}`);
             const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
-            const canReschedule = canCancel && hoursUntil >= 2;
+            const canReschedule = canCancel && (minHours <= 0 || hoursUntil >= minHours);
             const rescheduleLocked = canCancel && !canReschedule;
 
             return (
@@ -432,11 +450,11 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         <>
                           {rescheduleLocked ? (
                             <div
-                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[140px] leading-tight"
-                              title="Para reagendar com menos de 2h de antecedência, entre em contato com a barbearia."
+                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[160px] leading-tight"
+                              title={`Para reagendar com menos de ${minHours}h de antecedência, entre em contato com a barbearia.`}
                             >
                               <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                              <span>Reagendamento bloqueado (menos de 2h)</span>
+                              <span>Reagendamento bloqueado (menos de {minHours}h)</span>
                             </div>
                           ) : (
                             <Button

@@ -147,6 +147,7 @@ export type Database = {
           qr_size: string | null
           rating_avg: number
           rating_count: number
+          reschedule_min_hours: number
           secondary_color: string
           status: Database["public"]["Enums"]["approval_status"]
           subdomain: string
@@ -167,6 +168,7 @@ export type Database = {
           qr_size?: string | null
           rating_avg?: number
           rating_count?: number
+          reschedule_min_hours?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain: string
@@ -187,6 +189,7 @@ export type Database = {
           qr_size?: string | null
           rating_avg?: number
           rating_count?: number
+          reschedule_min_hours?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
           subdomain?: string
