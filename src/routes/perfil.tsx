@@ -107,7 +107,13 @@ function PerfilPage() {
     setDeleting(true);
     try {
       const emailSnapshot = user?.email ?? null;
-      const { data, error } = await supabase.functions.invoke("delete-account");
+      const trimmedDetails = details.trim().slice(0, 500);
+      const { data, error } = await supabase.functions.invoke("delete-account", {
+        body: {
+          reason: reason || undefined,
+          details: trimmedDetails || undefined,
+        },
+      });
       if (error || (data && (data as any).error)) {
         const message = (data as any)?.message || error?.message || "Não foi possível excluir a conta.";
         toast.error(message);
