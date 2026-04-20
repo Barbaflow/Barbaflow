@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
+import { PoliciesBanner } from "@/components/booking/PoliciesBanner";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { ReviewsShowcase } from "@/components/ReviewsShowcase";
 import { Button } from "@/components/ui/button";
@@ -195,6 +196,16 @@ function AgendarSlugPage() {
             <Link to="/login" search={{ redirect: `/agendar/${slug}` }} className="text-gold underline">Faça login</Link>{" "}
             para confirmar seu agendamento.
           </div>
+        )}
+
+        {barbershop && (
+          <PoliciesBanner
+            rescheduleMinHours={barbershop.reschedule_min_hours}
+            cancelMinHours={barbershop.cancel_min_hours}
+            noshowEnabled={barbershop.noshow_policy_enabled}
+            noshowMaxCount={barbershop.noshow_max_count}
+            noshowBlockDays={barbershop.noshow_block_days}
+          />
         )}
 
         <PublicBookingWizard preselectedBarbershopId={barbershop?.id} />
