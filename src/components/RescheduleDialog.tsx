@@ -74,6 +74,7 @@ export function RescheduleDialog({
   onOpenChange,
   appointment,
   onRescheduled,
+  onDateChange,
 }: RescheduleDialogProps) {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loading, setLoading] = useState(false);
