@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -19,6 +19,19 @@ import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
+import {
+  DndContext,
+  type DragEndEvent,
+  type DragStartEvent,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  useDraggable,
+  useDroppable,
+  DragOverlay,
+} from "@dnd-kit/core";
 import {
   Scissors,
   LogOut,
@@ -142,6 +155,74 @@ const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
 
 interface BarberDashboardProps {
   isAdmin?: boolean;
+}
+
+// ─── Drag-and-drop helpers (dnd-kit) ─────────────────────
+// Wraps a Card so it becomes draggable AND keeps its onClick/keyboard
+// activation behavior. Uses dnd-kit which works on touch devices, unlike
+// the HTML5 drag API.
+function DraggableCard({
+  id,
+  enabled,
+  isDragging,
+  onActivate,
+  children,
+}: {
+  id: string;
+  enabled: boolean;
+  isDragging: boolean;
+  onActivate: () => void;
+  children: ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id, disabled: !enabled });
+  return (
+    <Card
+      ref={setNodeRef}
+      {...(enabled ? attributes : {})}
+      {...(enabled ? listeners : {})}
+      className={`bg-card border-border overflow-hidden transition-all ${
+        enabled ? "cursor-grab active:cursor-grabbing hover:border-primary/40 touch-none" : ""
+      } ${isDragging ? "opacity-40 scale-[0.98]" : ""}`}
+      onClick={() => {
+        if (enabled) onActivate();
+      }}
+      role={enabled ? "button" : undefined}
+      tabIndex={enabled ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (enabled && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+      title={enabled ? "Arraste para reagendar · Clique para editar" : undefined}
+    >
+      {children}
+    </Card>
+  );
+}
+
+function DroppableList({
+  isActive,
+  children,
+}: {
+  isActive: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "appt-list-dropzone" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`space-y-2 rounded-xl transition-colors ${
+        isActive
+          ? `ring-2 ring-offset-2 ring-offset-background bg-primary/5 p-2 ${
+              isOver ? "ring-primary" : "ring-primary/40"
+            }`
+          : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
 }
 
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
@@ -274,8 +355,16 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // Suppresses the click event that fires right after a drag ends in HTML5 DnD.
-  const justDraggedRef = useRef(false);
+
+  // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
+  // PointerSensor with distance:8 prevents accidental drag on simple click.
+  // TouchSensor with delay:200 lets vertical scroll work normally on mobile;
+  // a long-press starts the drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
@@ -674,21 +763,16 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             </CardContent>
           </Card>
         ) : (
-          <div
-            className={`space-y-2 rounded-xl transition-colors ${
-              draggingId
-                ? "ring-2 ring-primary/40 ring-offset-2 ring-offset-background bg-primary/5 p-2"
-                : ""
-            }`}
-            onDragOver={(e) => {
-              if (draggingId) e.preventDefault();
+          <DndContext
+            sensors={sensors}
+            onDragStart={(e: DragStartEvent) => {
+              setDraggingId(String(e.active.id));
             }}
-            onDrop={(e) => {
-              if (!draggingId) return;
-              e.preventDefault();
-              const apt = appointments.find((a) => a.id === draggingId);
-              justDraggedRef.current = true;
+            onDragEnd={(e: DragEndEvent) => {
+              const id = String(e.active.id);
               setDraggingId(null);
+              if (!e.over || e.over.id !== "appt-list-dropzone") return;
+              const apt = appointments.find((a) => a.id === id);
               if (!apt || !barbershopId || !apt.service) return;
               setReschedTarget({
                 id: apt.id,
@@ -701,154 +785,142 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 service_name: apt.service.name,
               });
             }}
+            onDragCancel={() => setDraggingId(null)}
           >
-            {draggingId && (
-              <div className="text-xs text-center text-primary font-medium py-1">
-                Solte para escolher o novo horário
-              </div>
-            )}
-            {appointments.map((apt) => {
-              const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
-              const StatusIcon = statusCfg.icon;
-              const isScheduled = apt.status === "scheduled";
-              const isDragging = draggingId === apt.id;
+            <DroppableList isActive={!!draggingId}>
+              {draggingId && (
+                <div className="text-xs text-center text-primary font-medium py-1">
+                  Solte para escolher o novo horário
+                </div>
+              )}
+              {appointments.map((apt) => {
+                const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
+                const StatusIcon = statusCfg.icon;
+                const isScheduled = apt.status === "scheduled";
+                const isDragging = draggingId === apt.id;
 
-              return (
-                <Card
-                  key={apt.id}
-                  draggable={isScheduled}
-                  onDragStart={(e) => {
-                    if (!isScheduled) return;
-                    justDraggedRef.current = false;
-                    setDraggingId(apt.id);
-                    e.dataTransfer.effectAllowed = "move";
-                    try {
-                      e.dataTransfer.setData("text/plain", apt.id);
-                    } catch {
-                      // some browsers throw on setData under certain CSPs
-                    }
-                  }}
-                  onDragEnd={() => {
-                    setDraggingId(null);
-                    // Clear shortly after, in case a synthetic click follows.
-                    setTimeout(() => {
-                      justDraggedRef.current = false;
-                    }, 250);
-                  }}
-                  className={`bg-card border-border overflow-hidden transition-all ${
-                    isScheduled ? "cursor-grab active:cursor-grabbing hover:border-primary/40" : ""
-                  } ${isDragging ? "opacity-40 scale-[0.98]" : ""}`}
-                  onClick={() => {
-                    if (justDraggedRef.current) return;
-                    if (isScheduled && !draggingId) setEditingAppt(apt);
-                  }}
-                  role={isScheduled ? "button" : undefined}
-                  tabIndex={isScheduled ? 0 : undefined}
-                  onKeyDown={(e) => {
-                    if (isScheduled && (e.key === "Enter" || e.key === " ")) {
-                      e.preventDefault();
-                      setEditingAppt(apt);
-                    }
-                  }}
-                  title={isScheduled ? "Arraste para reagendar · Clique para editar" : undefined}
-                >
-                  <CardContent className="p-0">
-                    <div className="flex">
-                      <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
-                        <span className="text-lg font-display font-bold text-foreground">
-                          {apt.start_time.slice(0, 5)}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">
-                          {apt.end_time.slice(0, 5)}
-                        </span>
-                      </div>
-                      <div className="flex-1 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="flex-1 min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <Users className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                            <span className="text-sm font-medium text-foreground truncate">
-                              {apt.client_profile?.full_name || "Cliente"}
-                            </span>
-                            {apt.client_profile?.phone && (
-                              <a
-                                href={whatsappUrl(apt.client_profile.phone) || "#"}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[11px] text-green-500 hover:text-green-400 hover:underline"
-                                title={`Chamar no WhatsApp: ${displayBRPhone(apt.client_profile.phone)}`}
-                              >
-                                <MessageCircle className="w-3 h-3" />
-                                {displayBRPhone(apt.client_profile.phone)}
-                              </a>
-                            )}
-                          </div>
-                          {apt.service && (
-                            <div className="flex items-center gap-2">
-                              <Scissors className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
-                              <span className="text-xs text-muted-foreground truncate">
-                                {apt.service.name} — R$ {Number(apt.service.price).toFixed(2)}
+                return (
+                  <DraggableCard
+                    key={apt.id}
+                    id={apt.id}
+                    enabled={isScheduled}
+                    isDragging={isDragging}
+                    onActivate={() => setEditingAppt(apt)}
+                  >
+                    <CardContent className="p-0">
+                      <div className="flex">
+                        <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
+                          <span className="text-lg font-display font-bold text-foreground">
+                            {apt.start_time.slice(0, 5)}
+                          </span>
+                          <span className="text-[10px] text-muted-foreground">
+                            {apt.end_time.slice(0, 5)}
+                          </span>
+                        </div>
+                        <div className="flex-1 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <Users className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                              <span className="text-sm font-medium text-foreground truncate">
+                                {apt.client_profile?.full_name || "Cliente"}
                               </span>
+                              {apt.client_profile?.phone && (
+                                <a
+                                  href={whatsappUrl(apt.client_profile.phone) || "#"}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  onPointerDown={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] text-green-500 hover:text-green-400 hover:underline"
+                                  title={`Chamar no WhatsApp: ${displayBRPhone(apt.client_profile.phone)}`}
+                                >
+                                  <MessageCircle className="w-3 h-3" />
+                                  {displayBRPhone(apt.client_profile.phone)}
+                                </a>
+                              )}
                             </div>
-                          )}
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <StatusIcon className={`w-3 h-3 ${statusCfg.color}`} />
-                              <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
-                            </div>
-                            {isAdmin && apt.barber_profile && (
-                              <div className="flex items-center gap-1.5">
-                                <Avatar className="w-4 h-4">
-                                  <AvatarImage
-                                    src={apt.barber_profile.avatar_url || undefined}
-                                    alt={apt.barber_profile.full_name || "Barbeiro"}
-                                  />
-                                  <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
-                                    {(apt.barber_profile.full_name || "B").charAt(0).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <span className="text-[10px] text-muted-foreground truncate">
-                                  {apt.barber_profile.full_name}
+                            {apt.service && (
+                              <div className="flex items-center gap-2">
+                                <Scissors className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                                <span className="text-xs text-muted-foreground truncate">
+                                  {apt.service.name} — R$ {Number(apt.service.price).toFixed(2)}
                                 </span>
                               </div>
                             )}
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-1.5">
+                                <StatusIcon className={`w-3 h-3 ${statusCfg.color}`} />
+                                <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
+                              </div>
+                              {isAdmin && apt.barber_profile && (
+                                <div className="flex items-center gap-1.5">
+                                  <Avatar className="w-4 h-4">
+                                    <AvatarImage
+                                      src={apt.barber_profile.avatar_url || undefined}
+                                      alt={apt.barber_profile.full_name || "Barbeiro"}
+                                    />
+                                    <AvatarFallback className="text-[8px] bg-primary/10 text-primary">
+                                      {(apt.barber_profile.full_name || "B").charAt(0).toUpperCase()}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <span className="text-[10px] text-muted-foreground truncate">
+                                    {apt.barber_profile.full_name}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
                           </div>
+                          {isScheduled && (
+                            <div
+                              className="flex gap-1.5 flex-shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => e.stopPropagation()}
+                            >
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusChange(apt.id, "completed");
+                                }}
+                              >
+                                <CheckCircle className="w-3.5 h-3.5" />
+                                Concluir
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-destructive hover:bg-destructive/10 text-xs h-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStatusChange(apt.id, "no_show");
+                                }}
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Faltou
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        {isScheduled && (
-                          <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStatusChange(apt.id, "completed");
-                              }}
-                            >
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              Concluir
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="text-destructive hover:bg-destructive/10 text-xs h-8"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleStatusChange(apt.id, "no_show");
-                              }}
-                            >
-                              <XCircle className="w-3.5 h-3.5" />
-                              Faltou
-                            </Button>
-                          </div>
-                        )}
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
+                    </CardContent>
+                  </DraggableCard>
+                );
+              })}
+            </DroppableList>
+            <DragOverlay dropAnimation={null}>
+              {draggingId ? (
+                <div className="rounded-xl border border-primary bg-card shadow-2xl px-4 py-3 text-sm font-medium text-foreground opacity-95">
+                  {appointments.find((a) => a.id === draggingId)?.client_profile?.full_name ||
+                    "Reagendando..."}
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    {appointments.find((a) => a.id === draggingId)?.start_time.slice(0, 5)}
+                  </span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
         )}
       </div>
     </div>
