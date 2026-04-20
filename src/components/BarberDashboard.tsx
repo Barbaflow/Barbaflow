@@ -500,7 +500,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   date: editingAppt.date,
                   start_time: editingAppt.start_time,
                   barber_id: editingAppt.barber_id,
-                  service_id: (editingAppt as Appointment & { service_id?: string }).service_id ?? "",
+                  service_id: editingAppt.service_id,
                   client_id: editingAppt.client_id,
                   client_full_name: editingAppt.client_profile?.full_name ?? null,
                   client_phone: editingAppt.client_profile?.phone ?? null,
