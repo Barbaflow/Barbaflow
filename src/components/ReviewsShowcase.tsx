@@ -145,6 +145,20 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
           <ReviewCard key={r.id} review={r} />
         ))}
       </div>
+
+      {hasMore && (
+        <div className="flex justify-center mt-6">
+          <Button
+            variant="outline"
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="border-gold/30 hover:border-gold/60 hover:bg-gold/5"
+          >
+            {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
+            Ver mais avaliações
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
