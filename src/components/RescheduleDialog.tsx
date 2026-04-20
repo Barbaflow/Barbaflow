@@ -205,7 +205,16 @@ export function RescheduleDialog({
             <span className="font-medium text-foreground">
               {appointment.client_name || "este cliente"}
             </span>
-            {appointment.service_name ? ` (${appointment.service_name})` : ""}.
+            {appointment.service_name ? ` (${appointment.service_name})` : ""}
+            {appointment.original_date && appointment.original_date !== appointment.date && (
+              <>
+                {" "}
+                <span className="block mt-1 text-xs text-primary">
+                  Movendo de {appointment.original_date} → {appointment.date}
+                </span>
+              </>
+            )}
+            .
           </DialogDescription>
         </DialogHeader>
 
