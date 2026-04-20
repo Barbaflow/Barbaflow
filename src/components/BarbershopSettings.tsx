@@ -22,6 +22,9 @@ interface BarbershopData {
   logo_url: string | null;
   subdomain: string;
   whatsapp_message: string | null;
+  pdf_template: string | null;
+  pdf_slogan: string | null;
+  qr_size: string | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
