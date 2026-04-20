@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { AlertTriangle, ArrowLeft, CalendarClock, CheckCircle2, KeyRound, Loader2, LogOut, RotateCcw, Scissors, Trash2, User as UserIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarClock, KeyRound, Loader2, LogOut, RotateCcw, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
