@@ -153,8 +153,9 @@ export function RescheduleDialog({
         s: toMin(w.start_time),
         e: toMin(w.end_time),
       }));
+      const sameBarber = selectedBarberId === originalBarberId;
       const busy = (apptRes.data ?? [])
-        .filter((a) => a.id !== appointment.id)
+        .filter((a) => !(sameBarber && a.id === appointment.id))
         .map((a) => ({ s: toMin(a.start_time), e: toMin(a.end_time) }));
 
       const today = new Date();
