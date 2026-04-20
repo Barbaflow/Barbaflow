@@ -533,27 +533,44 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   className="text-sm"
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <Label className="text-xs text-muted-foreground">Template do cartaz PDF</Label>
-                <div className="flex gap-1.5 justify-center sm:justify-start flex-wrap">
+                <div className="grid grid-cols-3 gap-2">
                   {(
                     [
                       { id: "minimal", label: "Minimalista" },
                       { id: "colorful", label: "Colorido" },
                       { id: "vintage", label: "Vintage" },
                     ] as const
-                  ).map((t) => (
-                    <Button
-                      key={t.id}
-                      type="button"
-                      size="sm"
-                      variant={pdfTemplate === t.id ? "gold" : "outline"}
-                      onClick={() => setPdfTemplate(t.id)}
-                      className="flex-1 sm:flex-none"
-                    >
-                      {t.label}
-                    </Button>
-                  ))}
+                  ).map((t) => {
+                    const selected = pdfTemplate === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setPdfTemplate(t.id)}
+                        className={`group flex flex-col items-center gap-1.5 rounded-lg border-2 p-1.5 transition-all ${
+                          selected
+                            ? "border-gold bg-gold/10"
+                            : "border-border hover:border-gold/50"
+                        }`}
+                        aria-pressed={selected}
+                      >
+                        <TemplateThumbnail
+                          template={t.id}
+                          primaryColor={primaryColor}
+                          secondaryColor={secondaryColor}
+                        />
+                        <span
+                          className={`text-[11px] font-medium ${
+                            selected ? "text-gold" : "text-foreground"
+                          }`}
+                        >
+                          {t.label}
+                        </span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
