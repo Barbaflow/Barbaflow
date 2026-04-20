@@ -287,8 +287,16 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
-  // Suppresses the click event that fires right after a drag ends in HTML5 DnD.
-  const justDraggedRef = useRef(false);
+
+  // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
+  // PointerSensor with distance:8 prevents accidental drag on simple click.
+  // TouchSensor with delay:200 lets vertical scroll work normally on mobile;
+  // a long-press starts the drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
+    useSensor(KeyboardSensor)
+  );
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
