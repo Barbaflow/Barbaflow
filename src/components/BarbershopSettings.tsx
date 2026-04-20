@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle, CalendarClock } from "lucide-react";
+import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle, CalendarClock, ShieldAlert } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -27,6 +27,9 @@ interface BarbershopData {
   qr_size: string | null;
   reschedule_min_hours: number | null;
   cancel_min_hours: number | null;
+  noshow_policy_enabled: boolean | null;
+  noshow_max_count: number | null;
+  noshow_block_days: number | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
@@ -53,6 +56,10 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [savingReschedule, setSavingReschedule] = useState(false);
   const [cancelMinHours, setCancelMinHours] = useState<number>(2);
   const [savingCancel, setSavingCancel] = useState(false);
+  const [noshowEnabled, setNoshowEnabled] = useState(false);
+  const [noshowMaxCount, setNoshowMaxCount] = useState<number>(3);
+  const [noshowBlockDays, setNoshowBlockDays] = useState<number>(15);
+  const [savingNoshow, setSavingNoshow] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -292,6 +299,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.cancel_min_hours === "number") {
             setCancelMinHours(s.cancel_min_hours);
           }
+          if (typeof s.noshow_policy_enabled === "boolean") {
+            setNoshowEnabled(s.noshow_policy_enabled);
+          }
+          if (typeof s.noshow_max_count === "number" && s.noshow_max_count > 0) {
+            setNoshowMaxCount(s.noshow_max_count);
+          }
+          if (typeof s.noshow_block_days === "number" && s.noshow_block_days > 0) {
+            setNoshowBlockDays(s.noshow_block_days);
+          }
         }
       });
   }, [barbershopId]);
@@ -363,6 +379,25 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Limite de cancelamento salvo!");
     }
     setSavingCancel(false);
+  };
+
+  const handleSaveNoshow = async () => {
+    setSavingNoshow(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({
+        noshow_policy_enabled: noshowEnabled,
+        noshow_max_count: noshowMaxCount,
+        noshow_block_days: noshowBlockDays,
+      } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar política de no-show.");
+    } else {
+      toast.success("Política de no-show salva!");
+    }
+    setSavingNoshow(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
