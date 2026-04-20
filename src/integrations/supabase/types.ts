@@ -850,6 +850,12 @@ export type Database = {
         }
         Returns: number
       }
+      get_public_barbers: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          user_id: string
+        }[]
+      }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean

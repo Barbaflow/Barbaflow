@@ -107,14 +107,11 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   useEffect(() => {
     if (!selectedBarbershop) return;
     setLoadingStep(true);
+    // Use SECURITY DEFINER RPC so anonymous visitors can list barbers of approved shops
     supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("barbershop_id", selectedBarbershop.id)
-      .in("role", ["barbeiro", "admin_barbearia"])
+      .rpc("get_public_barbers", { _barbershop_id: selectedBarbershop.id })
       .then(async ({ data: roles }) => {
-        // Dedupe user_ids (a user can have both 'barbeiro' and 'admin_barbearia' roles)
-        const userIds = Array.from(new Set((roles || []).map((r) => r.user_id)));
+        const userIds = Array.from(new Set((roles || []).map((r: { user_id: string }) => r.user_id)));
         if (userIds.length === 0) {
           setBarbers([]);
           setLoadingStep(false);
