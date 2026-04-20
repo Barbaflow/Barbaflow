@@ -162,6 +162,26 @@ function AgendarSlugPage() {
         </div>
       </nav>
 
+      {isStaff && (
+        <div className="border-b border-gold/30 bg-gold/10">
+          <div className="max-w-4xl mx-auto px-6 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs sm:text-sm text-foreground">
+              <Eye className="w-4 h-4 text-gold flex-shrink-0" />
+              <span>
+                <span className="font-medium">Modo visualização:</span>{" "}
+                <span className="text-muted-foreground">você está vendo sua página pública como um cliente.</span>
+              </span>
+            </div>
+            <Link to="/dashboard" search={{ checkout: undefined }}>
+              <Button variant="gold" size="sm" className="h-8">
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                Voltar ao painel
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       <main className="max-w-4xl mx-auto px-6 py-10">
         <h1 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-2">
           <span className="text-gradient-gold">Agendar</span> Horário
