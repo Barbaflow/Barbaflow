@@ -415,6 +415,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [clientBlockMap, setClientBlockMap] = useState<
+    Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }>
+  >({});
   const [showDragHint, setShowDragHint] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
