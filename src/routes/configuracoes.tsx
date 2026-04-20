@@ -2,6 +2,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { TeamManager } from "@/components/TeamManager";
+import { NoShowReport } from "@/components/NoShowReport";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors, LogOut } from "lucide-react";
@@ -99,6 +100,8 @@ function ConfiguracoesPage() {
             <TeamManager barbershopId={barbershopId} />
           </div>
         )}
+
+        {!isClientOnly && <NoShowReport barbershopId={barbershopId} />}
       </main>
     </div>
   );

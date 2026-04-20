@@ -218,6 +218,39 @@ export type Database = {
           },
         ]
       }
+      client_blocks: {
+        Row: {
+          barbershop_id: string
+          blocked_by: string
+          blocked_until: string
+          client_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          barbershop_id: string
+          blocked_by: string
+          blocked_until: string
+          client_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          barbershop_id?: string
+          blocked_by?: string
+          blocked_until?: string
+          client_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       contact_submissions: {
         Row: {
           created_at: string
@@ -899,6 +932,19 @@ export type Database = {
         }[]
       }
       get_client_phone: { Args: { _client_id: string }; Returns: string }
+      get_noshow_report: {
+        Args: { _barbershop_id: string; _days?: number }
+        Returns: {
+          client_avatar: string
+          client_id: string
+          client_name: string
+          last_noshow_at: string
+          manual_block_reason: string
+          manual_blocked_until: string
+          noshow_count: number
+          total_appointments: number
+        }[]
+      }
       get_public_barbers: {
         Args: { _barbershop_id: string }
         Returns: {
