@@ -261,6 +261,28 @@ function DateNavDroppable({
   );
 }
 
+// Wraps the date title so it accepts a hovering drag — when active, the
+// parent opens its calendar popover so the user can pick a target day.
+function DateTitleDroppable({
+  isDragging,
+  children,
+}: {
+  isDragging: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "date-title" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`inline-block rounded-md -mx-2 px-2 transition-all ${
+        isDragging ? "ring-1 ring-primary/30 cursor-pointer" : ""
+      } ${isOver ? "ring-2 ring-primary bg-primary/10" : ""}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
