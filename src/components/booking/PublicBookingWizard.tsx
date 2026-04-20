@@ -22,6 +22,7 @@ import {
   ChevronRight,
   MapPin,
   Search,
+  Crown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -376,42 +377,63 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           ) : barbers.length === 0 ? (
             <p className="text-muted-foreground text-sm py-10 text-center">Nenhum barbeiro disponível.</p>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {barbers.map((b) => (
-                <Card
-                  key={b.user_id}
-                  className="bg-card border-border hover:border-primary/50 transition-colors cursor-pointer group"
-                  onClick={() => handleSelectBarber(b)}
-                >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    {b.avatar_url ? (
-                      <img
-                        src={b.avatar_url}
-                        alt={b.full_name || "Barbeiro"}
-                        className="h-12 w-12 rounded-full object-cover flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                        <User className="w-5 h-5 text-primary" />
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors">
-                          {b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`}
-                        </h3>
-                        {selectedBarbershop?.owner_id === b.user_id && (
-                          <Badge variant="outline" className="border-primary/40 text-primary text-[10px] px-1.5 py-0 h-5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {barbers
+                .slice()
+                .sort((a, b) => {
+                  const aOwner = selectedBarbershop?.owner_id === a.user_id ? 0 : 1;
+                  const bOwner = selectedBarbershop?.owner_id === b.user_id ? 0 : 1;
+                  return aOwner - bOwner;
+                })
+                .map((b) => {
+                  const isOwner = selectedBarbershop?.owner_id === b.user_id;
+                  const displayName = b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`;
+                  return (
+                    <Card
+                      key={b.user_id}
+                      className="bg-card border-border hover:border-primary/60 hover:shadow-lg transition-all cursor-pointer group relative overflow-hidden"
+                      onClick={() => handleSelectBarber(b)}
+                    >
+                      {isOwner && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <Badge className="bg-primary text-primary-foreground text-[10px] px-2 py-0.5 h-5 shadow-md flex items-center gap-1">
+                            <Crown className="w-2.5 h-2.5" />
                             Proprietário
                           </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground">Profissional</p>
-                    </div>
-                    <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors flex-shrink-0" />
-                  </CardContent>
-                </Card>
-              ))}
+                        </div>
+                      )}
+                      <CardContent className="p-4 flex flex-col items-center text-center gap-3">
+                        <div className="relative">
+                          {b.avatar_url ? (
+                            <img
+                              src={b.avatar_url}
+                              alt={displayName}
+                              className={`h-20 w-20 rounded-full object-cover ${
+                                isOwner ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""
+                              }`}
+                            />
+                          ) : (
+                            <div
+                              className={`h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center ${
+                                isOwner ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""
+                              }`}
+                            >
+                              <User className="w-8 h-8 text-primary" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0 w-full">
+                          <h3 className="font-display font-semibold text-foreground group-hover:text-primary transition-colors text-sm leading-tight truncate">
+                            {displayName}
+                          </h3>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {isOwner ? "Dono & Barbeiro" : "Profissional"}
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
             </div>
           )}
         </div>
