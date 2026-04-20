@@ -157,6 +157,74 @@ interface BarberDashboardProps {
   isAdmin?: boolean;
 }
 
+// ─── Drag-and-drop helpers (dnd-kit) ─────────────────────
+// Wraps a Card so it becomes draggable AND keeps its onClick/keyboard
+// activation behavior. Uses dnd-kit which works on touch devices, unlike
+// the HTML5 drag API.
+function DraggableCard({
+  id,
+  enabled,
+  isDragging,
+  onActivate,
+  children,
+}: {
+  id: string;
+  enabled: boolean;
+  isDragging: boolean;
+  onActivate: () => void;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef } = useDraggable({ id, disabled: !enabled });
+  return (
+    <Card
+      ref={setNodeRef}
+      {...(enabled ? attributes : {})}
+      {...(enabled ? listeners : {})}
+      className={`bg-card border-border overflow-hidden transition-all ${
+        enabled ? "cursor-grab active:cursor-grabbing hover:border-primary/40 touch-none" : ""
+      } ${isDragging ? "opacity-40 scale-[0.98]" : ""}`}
+      onClick={() => {
+        if (enabled) onActivate();
+      }}
+      role={enabled ? "button" : undefined}
+      tabIndex={enabled ? 0 : undefined}
+      onKeyDown={(e) => {
+        if (enabled && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          onActivate();
+        }
+      }}
+      title={enabled ? "Arraste para reagendar · Clique para editar" : undefined}
+    >
+      {children}
+    </Card>
+  );
+}
+
+function DroppableList({
+  isActive,
+  children,
+}: {
+  isActive: boolean;
+  children: React.ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: "appt-list-dropzone" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`space-y-2 rounded-xl transition-colors ${
+        isActive
+          ? `ring-2 ring-offset-2 ring-offset-background bg-primary/5 p-2 ${
+              isOver ? "ring-primary" : "ring-primary/40"
+            }`
+          : ""
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
