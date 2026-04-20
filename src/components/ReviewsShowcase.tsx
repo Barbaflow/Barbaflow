@@ -453,7 +453,14 @@ function ReviewCard({
             <span className="text-[10px] text-muted-foreground">
               {replyText.length}/500
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <EmojiPicker
+                size="sm"
+                disabled={saving}
+                onSelect={(e) =>
+                  setReplyText((prev) => (prev + e).slice(0, 500))
+                }
+              />
               <Button
                 variant="ghost"
                 size="sm"
