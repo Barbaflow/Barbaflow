@@ -350,10 +350,16 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   Envie um logo acima para incluí-lo no centro do QR Code.
                 </p>
               )}
-              <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
-                <Download className="w-4 h-4" />
-                Baixar QR Code
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
+                  <Download className="w-4 h-4" />
+                  Baixar PNG
+                </Button>
+                <Button variant="outline" onClick={handleDownloadPDF} className="w-full sm:w-auto">
+                  <FileText className="w-4 h-4" />
+                  Baixar PDF (A4)
+                </Button>
+              </div>
             </div>
           </div>
         </CardContent>
