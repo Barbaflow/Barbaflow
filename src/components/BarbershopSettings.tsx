@@ -21,7 +21,11 @@ interface BarbershopData {
   secondary_color: string;
   logo_url: string | null;
   subdomain: string;
+  whatsapp_message: string | null;
 }
+
+const DEFAULT_WA_TEMPLATE =
+  "Olá! 💈 Agende seu horário na *{nome}* de forma rápida e fácil pelo link: {link}";
 
 export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
