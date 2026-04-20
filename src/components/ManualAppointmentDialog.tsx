@@ -184,6 +184,7 @@ export function ManualAppointmentDialog({
   useEffect(() => {
     if (!open) return;
     setLoadingClients(true);
+    setBlockMap(new Map());
     (async () => {
       const { data: appts } = await supabase
         .from("appointments")
@@ -202,6 +203,29 @@ export function ManualAppointmentDialog({
         .order("full_name", { ascending: true });
       setClients((profiles ?? []) as Client[]);
       setLoadingClients(false);
+
+      // Batch-check noshow block status (parallel RPCs, one per client)
+      const results = await Promise.all(
+        ids.map((cid) =>
+          supabase.rpc("check_client_noshow_block", {
+            _client_id: cid,
+            _barbershop_id: barbershopId,
+          }).then(({ data }) => [cid, data] as const)
+        )
+      );
+      const map = new Map<string, any>();
+      for (const [cid, data] of results) {
+        const d = (data as any) ?? {};
+        if (d.blocked) {
+          map.set(cid, {
+            blocked: true,
+            unblock_at: d.unblock_at ?? null,
+            noshow_count: d.noshow_count ?? 0,
+            max_count: d.max_count ?? 0,
+          });
+        }
+      }
+      setBlockMap(map);
     })();
   }, [open, barbershopId]);
 
