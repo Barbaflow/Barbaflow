@@ -60,10 +60,10 @@ function ConfiguracoesPage() {
           <span className="font-display text-xl text-foreground">{name}</span>
         </div>
         <div className="flex items-center gap-3">
-          <Link to="/dashboard" search={{ checkout: undefined }}>
+          <Link to={isClientOnly ? "/meus-agendamentos" : "/dashboard"} search={isClientOnly ? undefined : { checkout: undefined }}>
             <Button variant="ghost" size="sm">
               <ArrowLeft className="w-4 h-4" />
-              Dashboard
+              {isClientOnly ? "Meus agendamentos" : "Dashboard"}
             </Button>
           </Link>
           <Button variant="ghost" size="sm" onClick={() => signOut()}>
@@ -79,7 +79,7 @@ function ConfiguracoesPage() {
             <span className="text-gradient-gold">Configurações</span>
           </h1>
           <p className="text-muted-foreground mb-8">
-            Personalize seu perfil e a sua barbearia.
+            {isClientOnly ? "Atualize seu nome, foto e telefone." : "Personalize seu perfil e a sua barbearia."}
           </p>
 
           <div className="space-y-6">
