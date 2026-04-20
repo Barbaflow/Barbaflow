@@ -73,11 +73,47 @@ export function RescheduleDialog({
   const [loading, setLoading] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  const [selectedBarberId, setSelectedBarberId] = useState<string>("");
+  const [barbers, setBarbers] = useState<Array<{ user_id: string; display: BarberDisplay }>>([]);
+  const [barbersLoading, setBarbersLoading] = useState(false);
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
+  const originalBarberId = appointment?.barber_id ?? "";
 
+  // Load barbers list when dialog opens
   useEffect(() => {
     if (!open || !appointment) {
+      setBarbers([]);
+      setSelectedBarberId("");
+      return;
+    }
+    setSelectedBarberId(appointment.barber_id);
+    setBarbersLoading(true);
+    (async () => {
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("user_id, role")
+        .eq("barbershop_id", appointment.barbershop_id)
+        .in("role", ["barbeiro", "admin_barbearia"]);
+      const ids = [...new Set((roles ?? []).map((r) => r.user_id))];
+      if (ids.length === 0) {
+        setBarbers([]);
+        setBarbersLoading(false);
+        return;
+      }
+      const map = await fetchBarberDisplayNames(ids);
+      const list = ids.map((id) => ({
+        user_id: id,
+        display: map[id] ?? { display_name: "Barbeiro", avatar_url: null },
+      }));
+      list.sort((a, b) => a.display.display_name.localeCompare(b.display.display_name));
+      setBarbers(list);
+      setBarbersLoading(false);
+    })();
+  }, [open, appointment]);
+
+  useEffect(() => {
+    if (!open || !appointment || !selectedBarberId) {
       setSlots([]);
       setSelectedTime("");
       return;
@@ -92,7 +128,7 @@ export function RescheduleDialog({
           .from("weekly_schedule")
           .select("start_time, end_time, is_active")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("day_of_week", dow)
           .eq("is_active", true),
         supabase
