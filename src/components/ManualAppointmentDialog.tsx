@@ -44,6 +44,7 @@ import {
   Clock,
   CalendarIcon,
   Ban,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -147,6 +148,8 @@ export function ManualAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // Map clientId -> noshow block info (loaded after clients load)
+  const [blockMap, setBlockMap] = useState<Map<string, { blocked: boolean; unblock_at: string | null; noshow_count: number; max_count: number }>>(new Map());
 
   // Reset on open — populate from editAppointment when editing
   useEffect(() => {
@@ -181,6 +184,7 @@ export function ManualAppointmentDialog({
   useEffect(() => {
     if (!open) return;
     setLoadingClients(true);
+    setBlockMap(new Map());
     (async () => {
       const { data: appts } = await supabase
         .from("appointments")
@@ -199,6 +203,29 @@ export function ManualAppointmentDialog({
         .order("full_name", { ascending: true });
       setClients((profiles ?? []) as Client[]);
       setLoadingClients(false);
+
+      // Batch-check noshow block status (parallel RPCs, one per client)
+      const results = await Promise.all(
+        ids.map((cid) =>
+          supabase.rpc("check_client_noshow_block", {
+            _client_id: cid,
+            _barbershop_id: barbershopId,
+          }).then(({ data }) => [cid, data] as const)
+        )
+      );
+      const map = new Map<string, any>();
+      for (const [cid, data] of results) {
+        const d = (data as any) ?? {};
+        if (d.blocked) {
+          map.set(cid, {
+            blocked: true,
+            unblock_at: d.unblock_at ?? null,
+            noshow_count: d.noshow_count ?? 0,
+            max_count: d.max_count ?? 0,
+          });
+        }
+      }
+      setBlockMap(map);
     })();
   }, [open, barbershopId]);
 
@@ -429,30 +456,63 @@ export function ManualAppointmentDialog({
           <div className="space-y-2">
             <Label>Cliente</Label>
             {selectedClient ? (
-              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                <div className="flex items-center gap-3 min-w-0">
-                  <Avatar className="h-9 w-9">
-                    {selectedClient.avatar_url && <AvatarImage src={selectedClient.avatar_url} />}
-                    <AvatarFallback>
-                      <User className="w-4 h-4" />
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {selectedClient.full_name || "Cliente sem nome"}
-                    </p>
-                    {selectedClient.phone && (
-                      <p className="text-xs text-muted-foreground">
-                        {displayBRPhone(selectedClient.phone)}
-                      </p>
-                    )}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <Avatar className="h-9 w-9">
+                      {selectedClient.avatar_url && <AvatarImage src={selectedClient.avatar_url} />}
+                      <AvatarFallback>
+                        <User className="w-4 h-4" />
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-foreground truncate">
+                          {selectedClient.full_name || "Cliente sem nome"}
+                        </p>
+                        {blockMap.get(selectedClient.user_id)?.blocked && (
+                          <Badge variant="destructive" className="h-5 text-[10px] gap-1 px-1.5">
+                            <ShieldAlert className="w-3 h-3" />
+                            Bloqueado
+                          </Badge>
+                        )}
+                      </div>
+                      {selectedClient.phone && (
+                        <p className="text-xs text-muted-foreground">
+                          {displayBRPhone(selectedClient.phone)}
+                        </p>
+                      )}
+                    </div>
                   </div>
+                  {!isEditing && (
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
+                      Trocar
+                    </Button>
+                  )}
                 </div>
-                {!isEditing && (
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedClient(null)}>
-                    Trocar
-                  </Button>
-                )}
+
+                {(() => {
+                  const block = blockMap.get(selectedClient.user_id);
+                  if (!block?.blocked) return null;
+                  const unblock = block.unblock_at ? new Date(block.unblock_at) : null;
+                  return (
+                    <div className="flex items-start gap-2 p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-xs text-foreground">
+                      <ShieldAlert className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                      <div className="leading-relaxed">
+                        <p className="font-medium text-destructive">
+                          Cliente bloqueado por no-show
+                        </p>
+                        <p className="text-muted-foreground mt-0.5">
+                          {block.noshow_count} {block.noshow_count === 1 ? "falta" : "faltas"} nos últimos 30 dias
+                          {unblock && (
+                            <> · desbloqueia em <span className="text-foreground font-medium">{format(unblock, "dd/MM 'às' HH:mm", { locale: ptBR })}</span></>
+                          )}
+                          . Você pode agendar manualmente, mas confirme com o cliente antes.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : (
               <>
@@ -478,31 +538,42 @@ export function ManualAppointmentDialog({
                         : "Nenhum cliente corresponde à busca."}
                     </div>
                   ) : (
-                    filteredClients.slice(0, 50).map((c) => (
-                      <button
-                        key={c.user_id}
-                        type="button"
-                        onClick={() => setSelectedClient(c)}
-                        className="w-full text-left p-3 hover:bg-secondary/50 transition-colors flex items-center gap-3"
-                      >
-                        <Avatar className="h-8 w-8">
-                          {c.avatar_url && <AvatarImage src={c.avatar_url} />}
-                          <AvatarFallback>
-                            <User className="w-4 h-4" />
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {c.full_name || "Cliente sem nome"}
-                          </p>
-                          {c.phone && (
-                            <p className="text-xs text-muted-foreground">
-                              {displayBRPhone(c.phone)}
-                            </p>
-                          )}
-                        </div>
-                      </button>
-                    ))
+                    filteredClients.slice(0, 50).map((c) => {
+                      const isBlocked = blockMap.get(c.user_id)?.blocked;
+                      return (
+                        <button
+                          key={c.user_id}
+                          type="button"
+                          onClick={() => setSelectedClient(c)}
+                          className="w-full text-left p-3 hover:bg-secondary/50 transition-colors flex items-center gap-3"
+                        >
+                          <Avatar className="h-8 w-8">
+                            {c.avatar_url && <AvatarImage src={c.avatar_url} />}
+                            <AvatarFallback>
+                              <User className="w-4 h-4" />
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-foreground truncate">
+                                {c.full_name || "Cliente sem nome"}
+                              </p>
+                              {isBlocked && (
+                                <Badge variant="destructive" className="h-4 text-[9px] gap-0.5 px-1 flex-shrink-0">
+                                  <ShieldAlert className="w-2.5 h-2.5" />
+                                  Bloqueado
+                                </Badge>
+                              )}
+                            </div>
+                            {c.phone && (
+                              <p className="text-xs text-muted-foreground">
+                                {displayBRPhone(c.phone)}
+                              </p>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </>
