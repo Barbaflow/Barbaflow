@@ -804,8 +804,32 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   setSelectedDate(newDate);
                 }
               }}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
               initialFocus
               className="p-3 pointer-events-auto"
+              components={{
+                DayButton: (dayProps) => {
+                  const d = dayProps.day.date;
+                  const key = `${d.getFullYear()}-${(d.getMonth() + 1)
+                    .toString()
+                    .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+                  const count = dayCounts[key] ?? 0;
+                  return (
+                    <div className="relative w-full h-full">
+                      <CalendarDayButton {...dayProps} />
+                      {count > 0 && (
+                        <span
+                          className="pointer-events-none absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-[14px] text-center shadow-sm"
+                          aria-label={`${count} agendamento${count > 1 ? "s" : ""}`}
+                        >
+                          {count > 9 ? "9+" : count}
+                        </span>
+                      )}
+                    </div>
+                  );
+                },
+              }}
             />
           </PopoverContent>
         </Popover>
