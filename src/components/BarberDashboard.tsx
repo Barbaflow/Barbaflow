@@ -270,26 +270,32 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
   const [showNewAppt, setShowNewAppt] = useState(false);
 
-  // Fetch barbers for admin filter
+  // Fetch barbers: admin sees all, barber sees only themselves (used for the
+  // "Novo agendamento" dialog and the admin filter dropdown).
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!barbershopId) return;
     (async () => {
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("barbershop_id", barbershopId)
-        .in("role", ["barbeiro", "admin_barbearia"]);
-      if (!roles || roles.length === 0) return;
-      const ids = [...new Set(roles.map((r) => r.user_id))];
-      const namesMap = await fetchBarberDisplayNames(ids);
-      setBarbers(
-        ids.map((id) => ({
-          id,
-          name: namesMap[id]?.display_name || "Sem nome",
-        }))
-      );
+      if (isAdmin) {
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("user_id")
+          .eq("barbershop_id", barbershopId)
+          .in("role", ["barbeiro", "admin_barbearia"]);
+        if (!roles || roles.length === 0) return;
+        const ids = [...new Set(roles.map((r) => r.user_id))];
+        const namesMap = await fetchBarberDisplayNames(ids);
+        setBarbers(
+          ids.map((id) => ({
+            id,
+            name: namesMap[id]?.display_name || "Sem nome",
+          }))
+        );
+      } else if (user) {
+        const namesMap = await fetchBarberDisplayNames([user.id]);
+        setBarbers([{ id: user.id, name: namesMap[user.id]?.display_name || "Você" }]);
+      }
     })();
-  }, [isAdmin, barbershopId]);
+  }, [isAdmin, barbershopId, user]);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
@@ -459,21 +465,19 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
             <ChevronRight className="w-4 h-4" />
           </Button>
-          {isAdmin && (
-            <Button
-              size="sm"
-              className="ml-2"
-              onClick={() => setShowNewAppt(true)}
-              disabled={barbers.length === 0}
-            >
-              <Plus className="w-4 h-4" />
-              <span className="hidden sm:inline">Novo agendamento</span>
-            </Button>
-          )}
+          <Button
+            size="sm"
+            className="ml-2"
+            onClick={() => setShowNewAppt(true)}
+            disabled={barbers.length === 0}
+          >
+            <Plus className="w-4 h-4" />
+            <span className="hidden sm:inline">Novo agendamento</span>
+          </Button>
         </div>
       </div>
 
-      {isAdmin && barbershopId && (
+      {barbershopId && (
         <ManualAppointmentDialog
           open={showNewAppt}
           onOpenChange={setShowNewAppt}
