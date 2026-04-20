@@ -158,6 +158,17 @@ function ClientesPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("clientes:statusFilter", statusFilter);
   }, [statusFilter]);
+  const [lastFilter, setLastFilter] = useState<LastFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem("clientes:lastFilter");
+    return LAST_FILTER_VALUES.includes(stored as LastFilter)
+      ? (stored as LastFilter)
+      : "all";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:lastFilter", lastFilter);
+  }, [lastFilter]);
   const [sortKey, setSortKey] = useState<SortKey>(() => {
     if (typeof window === "undefined") return "last";
     const stored = window.localStorage.getItem("clientes:sortKey");
@@ -190,15 +201,21 @@ function ClientesPage() {
   };
 
   const filtersActive =
-    search.trim() !== "" || statusFilter !== "all" || sortKey !== "last" || sortDir !== "desc";
+    search.trim() !== "" ||
+    statusFilter !== "all" ||
+    lastFilter !== "all" ||
+    sortKey !== "last" ||
+    sortDir !== "desc";
 
   const clearFilters = () => {
     setSearch("");
     setStatusFilter("all");
+    setLastFilter("all");
     setSortKey("last");
     setSortDir("desc");
     if (typeof window !== "undefined") {
       window.localStorage.removeItem("clientes:statusFilter");
+      window.localStorage.removeItem("clientes:lastFilter");
       window.localStorage.removeItem("clientes:sortKey");
       window.localStorage.removeItem("clientes:sortDir");
     }
