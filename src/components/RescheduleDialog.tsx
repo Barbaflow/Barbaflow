@@ -22,13 +22,16 @@ interface Slot {
 
 export interface RescheduleTarget {
   id: string;
-  date: string; // YYYY-MM-DD
-  start_time: string; // HH:MM:SS
+  date: string; // YYYY-MM-DD — the day to show available slots for
+  start_time: string; // HH:MM:SS — original start time
   barber_id: string;
   barbershop_id: string;
   duration_minutes: number;
   client_name: string | null;
   service_name: string | null;
+  // Optional: original date when rescheduling across days. When omitted,
+  // assumes same-day reschedule (date === original_date).
+  original_date?: string;
 }
 
 interface RescheduleDialogProps {
@@ -116,6 +119,11 @@ export function RescheduleDialog({
           .toString()
           .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
       const nowMin = today.getHours() * 60 + today.getMinutes();
+      // The "atual" badge only applies when reviewing the SAME day as the
+      // original appointment — on cross-day reschedules the same clock time
+      // on another day is a perfectly valid target.
+      const isSameDay =
+        !appointment.original_date || appointment.original_date === appointment.date;
       const currentMin = toMin(currentTime);
       const dur = appointment.duration_minutes;
 
@@ -126,7 +134,7 @@ export function RescheduleDialog({
             const slotEnd = t + dur;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
             const isPast = isToday && t <= nowMin;
-            const isCurrent = t === currentMin;
+            const isCurrent = isSameDay && t === currentMin;
             generated.push({
               time: fmtShort(t),
               available: !conflicts && !isPast && !isCurrent,
@@ -158,6 +166,9 @@ export function RescheduleDialog({
     const { error } = await supabase
       .from("appointments")
       .update({
+        // Persist the new date too — supports cross-day reschedules
+        // when the parent passed appointment.date as the target day.
+        date: appointment.date,
         start_time: `${selectedTime}:00`,
         end_time: endTime,
       })
@@ -166,7 +177,13 @@ export function RescheduleDialog({
     if (error) {
       toast.error(error.message || "Erro ao reagendar.");
     } else {
-      toast.success(`Reagendado para ${selectedTime}!`);
+      const crossDay =
+        appointment.original_date && appointment.original_date !== appointment.date;
+      toast.success(
+        crossDay
+          ? `Reagendado para ${appointment.date} às ${selectedTime}!`
+          : `Reagendado para ${selectedTime}!`,
+      );
       onRescheduled();
       onOpenChange(false);
     }
@@ -188,7 +205,16 @@ export function RescheduleDialog({
             <span className="font-medium text-foreground">
               {appointment.client_name || "este cliente"}
             </span>
-            {appointment.service_name ? ` (${appointment.service_name})` : ""}.
+            {appointment.service_name ? ` (${appointment.service_name})` : ""}
+            {appointment.original_date && appointment.original_date !== appointment.date && (
+              <>
+                {" "}
+                <span className="block mt-1 text-xs text-primary">
+                  Movendo de {appointment.original_date} → {appointment.date}
+                </span>
+              </>
+            )}
+            .
           </DialogDescription>
         </DialogHeader>
 

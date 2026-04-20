@@ -606,9 +606,31 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           // Switched zones (or first hover): restart the timer.
           if (dateNavTimerRef.current) clearTimeout(dateNavTimerRef.current);
           setPendingDateNav(overId);
+          const draggedId = String(e.active.id);
           dateNavTimerRef.current = setTimeout(() => {
-            shiftDate(overId === "date-prev" ? -1 : 1);
-            // Re-arm so a continued hover advances another day.
+            const dir = overId === "date-prev" ? -1 : 1;
+            // Compute the new day from the *current* selectedDate at fire time.
+            const apt = appointments.find((a) => a.id === draggedId);
+            const baseDate = new Date(selectedDate + "T12:00:00");
+            baseDate.setDate(baseDate.getDate() + dir);
+            const newDate = baseDate.toISOString().split("T")[0];
+            shiftDate(dir);
+            // Also open the reschedule dialog targeted at the new day.
+            // dnd-kit will end the drag automatically when the source card
+            // unmounts on the day-change re-render.
+            if (apt && barbershopId && apt.service) {
+              setReschedTarget({
+                id: apt.id,
+                date: newDate,
+                start_time: apt.start_time,
+                barber_id: apt.barber_id,
+                barbershop_id: barbershopId,
+                duration_minutes: apt.service.duration_minutes,
+                client_name: apt.client_profile?.full_name ?? null,
+                service_name: apt.service.name,
+                original_date: apt.date,
+              });
+            }
             dateNavTimerRef.current = null;
             setPendingDateNav(null);
           }, 1000);
