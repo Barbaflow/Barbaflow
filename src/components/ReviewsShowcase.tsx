@@ -245,11 +245,16 @@ function ReviewCard({
   canModerate,
   onReplySaved,
   onDeleted,
+  onReviewUpdated,
 }: {
   review: ReviewItem;
   canModerate: boolean;
   onReplySaved: (id: string, reply: string | null) => void;
   onDeleted: (id: string) => void;
+  onReviewUpdated: (
+    id: string,
+    patch: { rating: number; comment: string | null },
+  ) => void;
 }) {
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -258,6 +263,11 @@ function ReviewCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingReview, setEditingReview] = useState(false);
+  const [editRating, setEditRating] = useState(review.rating);
+  const [editHover, setEditHover] = useState(0);
+  const [editComment, setEditComment] = useState(review.comment ?? "");
+  const [savingReview, setSavingReview] = useState(false);
 
   const initials = (review.client_name || "C")
     .split(" ")
