@@ -34,6 +34,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [uploading, setUploading] = useState(false);
   const [qrWithLogo, setQrWithLogo] = useState(true);
   const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
+  const [pdfSlogan, setPdfSlogan] = useState("Agende seu horário online");
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
