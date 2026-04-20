@@ -227,6 +227,38 @@ function DroppableList({
   );
 }
 
+// Wraps the prev/next date chevrons so they accept a hovering drag and
+// trigger a delayed day shift (handled by the parent's onDragOver timer).
+function DateNavDroppable({
+  id,
+  isDragging,
+  isPending,
+  children,
+}: {
+  id: "date-prev" | "date-next";
+  isDragging: boolean;
+  isPending: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative rounded-md transition-all ${
+        isDragging ? "ring-1 ring-primary/30" : ""
+      } ${isOver ? "ring-2 ring-primary bg-primary/10 scale-110" : ""}`}
+    >
+      {children}
+      {isPending && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-primary animate-pulse"
+          aria-hidden="true"
+        />
+      )}
+    </div>
+  );
+}
+
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
