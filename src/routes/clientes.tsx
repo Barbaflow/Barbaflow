@@ -970,6 +970,18 @@ function ClientRowCard({
                 </a>
               ) : null;
             })()}
+            <Button size="sm" variant="ghost" onClick={onNotes} title="Anotações internas">
+              <StickyNote className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">Notas</span>
+              {noteCount > 0 && (
+                <Badge
+                  variant="outline"
+                  className="ml-1 h-4 px-1 text-[10px] border-primary/40 bg-primary/10 text-primary"
+                >
+                  {noteCount}
+                </Badge>
+              )}
+            </Button>
             <Button size="sm" variant="ghost" onClick={onHistory} title="Ver histórico">
               <History className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Histórico</span>
