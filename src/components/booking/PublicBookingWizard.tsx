@@ -117,10 +117,9 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           setLoadingStep(false);
           return;
         }
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, avatar_url")
-          .in("user_id", userIds);
+        // Use SECURITY DEFINER RPC to fetch real names (falls back to auth email local-part)
+        const { data: names } = await supabase
+          .rpc("get_barber_display_names", { _user_ids: userIds });
 
         // Fetch reviews joined with appointments to compute per-barber ratings
         const { data: reviewRows } = await supabase
