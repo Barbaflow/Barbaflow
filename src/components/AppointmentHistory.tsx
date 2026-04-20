@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
+import { fetchBarberDisplayNames } from "@/lib/barber-names";
 
 interface Appointment {
   id: string;
@@ -97,22 +98,18 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       setError("Erro ao carregar agendamentos.");
     } else {
       const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
-      // Fetch barber profiles
-      const barberIds = [...new Set(rawAppointments.map((a) => a.barber_id))];
-      let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
-      if (barberIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name, avatar_url")
-          .in("user_id", barberIds);
-        if (profiles) {
-          profileMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name, avatar_url: p.avatar_url }]));
-        }
-      }
-      const finalAppointments = rawAppointments.map((a) => ({
-        ...a,
-        barber_profile: profileMap[a.barber_id] || { full_name: null, avatar_url: null },
-      }));
+      // Fetch standardized display names via RPC
+      const barberIds = rawAppointments.map((a) => a.barber_id);
+      const namesMap = await fetchBarberDisplayNames(barberIds);
+      const finalAppointments = rawAppointments.map((a) => {
+        const entry = namesMap[a.barber_id];
+        return {
+          ...a,
+          barber_profile: entry
+            ? { full_name: entry.display_name, avatar_url: entry.avatar_url }
+            : { full_name: null, avatar_url: null },
+        };
+      });
       setAppointments(finalAppointments);
 
       // Fetch reviews already made by this user for these appointments
