@@ -496,6 +496,31 @@ function ClientesPage() {
           </Card>
         ) : (
           <>
+            {/* Sort header */}
+            <div className="flex items-center gap-1 px-3 py-2 rounded-lg bg-muted/40 border border-border overflow-x-auto">
+              <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-2 flex-shrink-0">
+                Ordenar:
+              </span>
+              {SORT_OPTIONS.map((opt) => {
+                const active = sortKey === opt.key;
+                const Icon = active ? (sortDir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
+                return (
+                  <Button
+                    key={opt.key}
+                    variant={active ? "secondary" : "ghost"}
+                    size="sm"
+                    className="h-7 px-2 text-xs flex-shrink-0"
+                    onClick={() => handleSort(opt.key)}
+                  >
+                    {opt.label}
+                    <Icon
+                      className={`w-3 h-3 ml-1 ${active ? "text-primary" : "text-muted-foreground/60"}`}
+                    />
+                  </Button>
+                );
+              })}
+            </div>
+
             <div className="space-y-2">
               {paginated.map((row) => (
                 <ClientRowCard
