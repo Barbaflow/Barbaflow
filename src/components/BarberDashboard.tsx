@@ -60,6 +60,7 @@ import {
   ImagePlus,
   X,
   MessageCircle,
+  GripVertical,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -809,7 +810,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   >
                     <CardContent className="p-0">
                       <div className="flex">
-                        <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
+                        <div className="relative flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
+                          {isScheduled && (
+                            <GripVertical
+                              className="absolute left-0.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground/60"
+                              aria-hidden="true"
+                            />
+                          )}
                           <span className="text-lg font-display font-bold text-foreground">
                             {apt.start_time.slice(0, 5)}
                           </span>
