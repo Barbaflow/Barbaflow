@@ -127,7 +127,15 @@ function ClientesPage() {
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem("clientes:statusFilter");
+    return (["all", "blocked", "active", "noshow"] as StatusFilter[]).includes(
+      stored as StatusFilter,
+    )
+      ? (stored as StatusFilter)
+      : "all";
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     if (typeof window === "undefined") return 10;
