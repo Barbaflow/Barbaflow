@@ -409,22 +409,45 @@ export function RescheduleDialog({
           </div>
 
           {allFull && (
-            <button
-              type="button"
-              onClick={() => setDateCalendarOpen(true)}
-              className="w-full flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-left hover:bg-destructive/15 transition-colors"
-            >
-              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
-              <div className="flex-1 text-xs">
-                <p className="font-medium text-destructive">
-                  Nenhum profissional tem horário livre em {appointment.date}.
-                </p>
-                <p className="mt-0.5 text-muted-foreground">
-                  Toque aqui para escolher outra data no calendário.
-                </p>
-              </div>
-              <CalendarDays className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
-            </button>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  type="button"
+                  className="w-full flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-left hover:bg-destructive/15 transition-colors"
+                >
+                  <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+                  <div className="flex-1 text-xs">
+                    <p className="font-medium text-destructive">
+                      Nenhum profissional tem horário livre em {appointment.date}.
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      {onDateChange
+                        ? "Toque aqui para escolher outra data no calendário."
+                        : "Feche este popup e escolha outra data no calendário do dashboard."}
+                    </p>
+                  </div>
+                  <CalendarDays className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+                </button>
+              </PopoverTrigger>
+              {onDateChange && (
+                <PopoverContent className="w-auto p-0" align="center">
+                  <Calendar
+                    mode="single"
+                    selected={new Date(appointment.date + "T12:00:00")}
+                    onSelect={(d) => {
+                      if (!d) return;
+                      const y = d.getFullYear();
+                      const m = (d.getMonth() + 1).toString().padStart(2, "0");
+                      const day = d.getDate().toString().padStart(2, "0");
+                      onDateChange(`${y}-${m}-${day}`);
+                      setDatePickerOpen(false);
+                    }}
+                    initialFocus
+                    className="p-3 pointer-events-auto"
+                  />
+                </PopoverContent>
+              )}
+            </Popover>
           )}
 
           <div className="space-y-1.5">
