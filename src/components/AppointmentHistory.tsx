@@ -74,6 +74,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
   const [rescheduling, setRescheduling] = useState<RescheduleTarget | null>(null);
   const [clientPhone, setClientPhone] = useState<string | null>(null);
+  // Per-barbershop reschedule minimum-hours limit (default 2)
+  const [rescheduleMinHoursMap, setRescheduleMinHoursMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) return;
