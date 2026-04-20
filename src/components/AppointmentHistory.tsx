@@ -439,7 +439,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           open={!!reviewing}
           onOpenChange={(o) => !o && setReviewing(null)}
           appointmentId={reviewing.id}
-          barbershopId={barbershopId}
+          barbershopId={reviewing.barbershop_id}
           barberName={reviewing.barber_profile?.full_name}
           onSubmitted={() => {
             setReviewedIds((prev) => new Set(prev).add(reviewing.id));
