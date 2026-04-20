@@ -312,22 +312,6 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (error) {
       toast.error("Erro ao agendar. Tente novamente.");
     } else {
-      // Mark every availability slot covered by the appointment as ocupado
-      const slotIdsToOccupy = availability
-        .filter((s) => {
-          const sStart = toMin(s.start_time);
-          const sEnd = toMin(s.end_time);
-          return sStart < endMin && sEnd > startMin;
-        })
-        .map((s) => s.id);
-
-      if (slotIdsToOccupy.length > 0) {
-        await supabase
-          .from("availability")
-          .update({ status: "ocupado" })
-          .in("id", slotIdsToOccupy);
-      }
-
       toast.success("Agendamento confirmado! 🎉");
       notifyBookingConfirmed({
         appointmentId: crypto.randomUUID(),
@@ -337,6 +321,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       }).catch(console.error);
 
       setSelectedSlot(null);
+      // Refetch will recompute slot statuses by overlapping with the new appointment
       fetchAvailability();
     }
     setBooking(false);
