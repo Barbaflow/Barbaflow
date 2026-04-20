@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Star, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EmojiPicker } from "@/components/EmojiPicker";
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1, "Selecione de 1 a 5 estrelas").max(5),
@@ -140,9 +141,18 @@ export function ReviewDialog({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground" htmlFor="review-comment">
-            Comentário (opcional)
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-muted-foreground" htmlFor="review-comment">
+              Comentário (opcional)
+            </label>
+            <EmojiPicker
+              size="sm"
+              disabled={submitting}
+              onSelect={(e) =>
+                setComment((prev) => (prev + e).slice(0, 500))
+              }
+            />
+          </div>
           <Textarea
             id="review-comment"
             placeholder="Conte como foi sua experiência..."

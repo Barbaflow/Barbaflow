@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EmojiPicker } from "@/components/EmojiPicker";
 
 interface ReviewItem {
   id: string;
@@ -452,7 +453,14 @@ function ReviewCard({
             <span className="text-[10px] text-muted-foreground">
               {replyText.length}/500
             </span>
-            <div className="flex gap-2">
+            <div className="flex gap-2 items-center">
+              <EmojiPicker
+                size="sm"
+                disabled={saving}
+                onSelect={(e) =>
+                  setReplyText((prev) => (prev + e).slice(0, 500))
+                }
+              />
               <Button
                 variant="ghost"
                 size="sm"
