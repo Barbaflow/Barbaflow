@@ -150,6 +150,16 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     );
   };
 
+  const handleReviewUpdated = async (
+    id: string,
+    patch: { rating: number; comment: string | null },
+  ) => {
+    setReviews((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
+    await refreshAggregates();
+  };
+
   const handleDeleted = async (id: string) => {
     setReviews((prev) => prev.filter((r) => r.id !== id));
     await refreshAggregates();
