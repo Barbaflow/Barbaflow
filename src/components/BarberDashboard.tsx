@@ -652,9 +652,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+          <DateNavDroppable
+            id="date-prev"
+            isDragging={!!draggingId}
+            isPending={pendingDateNav === "date-prev"}
+          >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          </DateNavDroppable>
           {!isToday && (
             <Button
               variant="outline"
@@ -665,9 +671,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               Hoje
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <DateNavDroppable
+            id="date-next"
+            isDragging={!!draggingId}
+            isPending={pendingDateNav === "date-next"}
+          >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </DateNavDroppable>
           <Button
             size="sm"
             className="ml-2"
