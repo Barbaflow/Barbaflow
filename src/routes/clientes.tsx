@@ -749,7 +749,7 @@ function ClientesPage() {
             />
           </div>
           <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-            <SelectTrigger className="sm:w-[200px]">
+            <SelectTrigger className="sm:w-[180px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -757,6 +757,18 @@ function ClientesPage() {
               <SelectItem value="active">Ativos</SelectItem>
               <SelectItem value="noshow">Com falta ({stats.withNoshow})</SelectItem>
               <SelectItem value="blocked">Bloqueados ({stats.blocked})</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={lastFilter} onValueChange={(v) => setLastFilter(v as LastFilter)}>
+            <SelectTrigger className="sm:w-[200px]">
+              <SelectValue placeholder="Período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Qualquer período</SelectItem>
+              <SelectItem value="30">Últimos 30 dias</SelectItem>
+              <SelectItem value="90">Últimos 90 dias</SelectItem>
+              <SelectItem value="inactive60">Sem agendar há +60 dias</SelectItem>
+              <SelectItem value="never">Nunca agendou</SelectItem>
             </SelectContent>
           </Select>
           {filtersActive && (
