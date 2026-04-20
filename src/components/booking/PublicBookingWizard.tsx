@@ -175,20 +175,89 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       });
   }, [selectedBarbershop, selectedBarber]);
 
-  // Fetch availability
+  // Helper: convert "HH:MM[:SS]" to minutes
+  const toMin = (t: string) => {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  // Fetch availability + existing appointments, then mark each slot as
+  // "ocupado" if it conflicts with a real appointment, is in the past,
+  // or doesn't have enough contiguous free availability for the service duration.
   const fetchAvailability = useCallback(async () => {
     if (!selectedBarbershop || !selectedBarber) return;
     setLoadingSlots(true);
-    const { data } = await supabase
-      .from("availability")
-      .select("*")
-      .eq("barbershop_id", selectedBarbershop.id)
-      .eq("barber_id", selectedBarber.user_id)
-      .eq("date", selectedDate)
-      .order("start_time", { ascending: true });
-    setAvailability(data || []);
+
+    const [{ data: slots }, { data: appts }] = await Promise.all([
+      supabase
+        .from("availability")
+        .select("*")
+        .eq("barbershop_id", selectedBarbershop.id)
+        .eq("barber_id", selectedBarber.user_id)
+        .eq("date", selectedDate)
+        .order("start_time", { ascending: true }),
+      supabase
+        .from("appointments")
+        .select("start_time, end_time, status")
+        .eq("barbershop_id", selectedBarbershop.id)
+        .eq("barber_id", selectedBarber.user_id)
+        .eq("date", selectedDate)
+        .neq("status", "cancelled"),
+    ]);
+
+    const allSlots = (slots ?? []) as AvailabilitySlot[];
+    const bookings = (appts ?? []) as Array<{ start_time: string; end_time: string; status: string }>;
+    const duration = selectedService?.duration_minutes ?? 0;
+
+    const busy = bookings.map((b) => ({ s: toMin(b.start_time), e: toMin(b.end_time) }));
+
+    const now = new Date();
+    const isToday = selectedDate === now.toISOString().split("T")[0];
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    const sortedSlots = [...allSlots].sort(
+      (a, b) => toMin(a.start_time) - toMin(b.start_time)
+    );
+
+    const computed: AvailabilitySlot[] = allSlots.map((slot) => {
+      // Already blocked by barber/admin
+      if (slot.status !== "livre") return slot;
+
+      const start = toMin(slot.start_time);
+      const needEnd = start + duration;
+
+      // Past slots on today
+      if (isToday && start < nowMin) {
+        return { ...slot, status: "ocupado" };
+      }
+
+      // Conflict with a real appointment (interval overlap)
+      const conflicts = busy.some((b) => start < b.e && needEnd > b.s);
+      if (conflicts) return { ...slot, status: "ocupado" };
+
+      // Make sure contiguous "livre" availability covers the whole service duration
+      if (duration > 0) {
+        let coveredUntil = start;
+        for (const s of sortedSlots) {
+          const sStart = toMin(s.start_time);
+          const sEnd = toMin(s.end_time);
+          if (sEnd <= start) continue;
+          if (sStart > coveredUntil) break; // gap → can't extend
+          if (s.status !== "livre") break; // intermediate slot is taken
+          coveredUntil = Math.max(coveredUntil, sEnd);
+          if (coveredUntil >= needEnd) break;
+        }
+        if (coveredUntil < needEnd) {
+          return { ...slot, status: "ocupado" };
+        }
+      }
+
+      return slot;
+    });
+
+    setAvailability(computed);
     setLoadingSlots(false);
-  }, [selectedBarbershop, selectedBarber, selectedDate]);
+  }, [selectedBarbershop, selectedBarber, selectedDate, selectedService]);
 
   useEffect(() => {
     if (step === "datetime") {
