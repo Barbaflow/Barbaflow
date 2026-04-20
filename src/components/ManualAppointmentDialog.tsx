@@ -115,7 +115,9 @@ export function ManualAppointmentDialog({
   barbers,
   defaultDate,
   onCreated,
+  editAppointment = null,
 }: ManualAppointmentDialogProps) {
+  const isEditing = !!editAppointment;
   const [clients, setClients] = useState<Client[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
   const [search, setSearch] = useState("");
@@ -133,9 +135,24 @@ export function ManualAppointmentDialog({
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
 
-  // Reset on open
+  // Reset on open — populate from editAppointment when editing
   useEffect(() => {
-    if (open) {
+    if (!open) return;
+    if (editAppointment) {
+      setSearch("");
+      setSelectedClient({
+        user_id: editAppointment.client_id,
+        full_name: editAppointment.client_full_name,
+        phone: editAppointment.client_phone,
+        avatar_url: editAppointment.client_avatar_url,
+      });
+      setSelectedBarber(editAppointment.barber_id);
+      setSelectedService(editAppointment.service_id);
+      setDate(editAppointment.date);
+      setSelectedTime(editAppointment.start_time.slice(0, 5));
+      setNotes(editAppointment.notes ?? "");
+      setSlots([]);
+    } else {
       setSearch("");
       setSelectedClient(null);
       setSelectedBarber(barbers[0]?.id ?? "");
@@ -145,7 +162,7 @@ export function ManualAppointmentDialog({
       setNotes("");
       setSlots([]);
     }
-  }, [open, defaultDate, barbers]);
+  }, [open, defaultDate, barbers, editAppointment]);
 
   // Load clients with prior appointments at this barbershop
   useEffect(() => {
