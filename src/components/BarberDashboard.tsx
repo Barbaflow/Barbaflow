@@ -593,6 +593,53 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   };
 
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={(e: DragStartEvent) => {
+        setDraggingId(String(e.active.id));
+        dismissDragHint();
+      }}
+      onDragOver={(e: DragOverEvent) => {
+        const overId = e.over?.id;
+        if (overId === "date-prev" || overId === "date-next") {
+          if (pendingDateNav === overId) return;
+          // Switched zones (or first hover): restart the timer.
+          if (dateNavTimerRef.current) clearTimeout(dateNavTimerRef.current);
+          setPendingDateNav(overId);
+          dateNavTimerRef.current = setTimeout(() => {
+            shiftDate(overId === "date-prev" ? -1 : 1);
+            // Re-arm so a continued hover advances another day.
+            dateNavTimerRef.current = null;
+            setPendingDateNav(null);
+          }, 1000);
+        } else {
+          clearDateNavTimer();
+        }
+      }}
+      onDragEnd={(e: DragEndEvent) => {
+        const id = String(e.active.id);
+        setDraggingId(null);
+        clearDateNavTimer();
+        // Drops on the date-nav zones don't reschedule — they only navigate.
+        if (!e.over || e.over.id !== "appt-list-dropzone") return;
+        const apt = appointments.find((a) => a.id === id);
+        if (!apt || !barbershopId || !apt.service) return;
+        setReschedTarget({
+          id: apt.id,
+          date: apt.date,
+          start_time: apt.start_time,
+          barber_id: apt.barber_id,
+          barbershop_id: barbershopId,
+          duration_minutes: apt.service.duration_minutes,
+          client_name: apt.client_profile?.full_name ?? null,
+          service_name: apt.service.name,
+        });
+      }}
+      onDragCancel={() => {
+        setDraggingId(null);
+        clearDateNavTimer();
+      }}
+    >
     <div className="space-y-6">
       {/* Date navigation */}
       <div className="flex items-center justify-between">
