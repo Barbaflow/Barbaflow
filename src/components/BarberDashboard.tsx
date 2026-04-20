@@ -18,6 +18,7 @@ import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
+import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
 import {
   Scissors,
   LogOut,
