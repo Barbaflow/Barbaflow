@@ -134,7 +134,7 @@ export function RescheduleDialog({
             const slotEnd = t + dur;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
             const isPast = isToday && t <= nowMin;
-            const isCurrent = t === currentMin;
+            const isCurrent = isSameDay && t === currentMin;
             generated.push({
               time: fmtShort(t),
               available: !conflicts && !isPast && !isCurrent,
@@ -166,6 +166,9 @@ export function RescheduleDialog({
     const { error } = await supabase
       .from("appointments")
       .update({
+        // Persist the new date too — supports cross-day reschedules
+        // when the parent passed appointment.date as the target day.
+        date: appointment.date,
         start_time: `${selectedTime}:00`,
         end_time: endTime,
       })
@@ -174,7 +177,13 @@ export function RescheduleDialog({
     if (error) {
       toast.error(error.message || "Erro ao reagendar.");
     } else {
-      toast.success(`Reagendado para ${selectedTime}!`);
+      const crossDay =
+        appointment.original_date && appointment.original_date !== appointment.date;
+      toast.success(
+        crossDay
+          ? `Reagendado para ${appointment.date} às ${selectedTime}!`
+          : `Reagendado para ${selectedTime}!`,
+      );
       onRescheduled();
       onOpenChange(false);
     }
