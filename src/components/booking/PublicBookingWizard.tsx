@@ -22,6 +22,7 @@ import {
   ChevronRight,
   MapPin,
   Search,
+  Crown,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
