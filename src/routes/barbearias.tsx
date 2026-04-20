@@ -197,6 +197,11 @@ function BarbeariasPage() {
         setBarbearias(
           MOCK_BARBEARIAS.map((b, i) => ({
             ...b,
+            reschedule_min_hours: i === 0 ? 4 : i === 1 ? 2 : 24,
+            cancel_min_hours: i === 0 ? 12 : i === 1 ? 2 : 24,
+            noshow_policy_enabled: i === 0,
+            noshow_max_count: 3,
+            noshow_block_days: 15,
             lastReview:
               i === 0
                 ? {
@@ -355,6 +360,38 @@ function BarbeariaCard({ b }: { b: PublicBarbershop }) {
           <p className="text-xs text-foreground/85 font-body italic line-clamp-2 leading-snug">
             "{b.lastReview.comment}"
           </p>
+        </div>
+      )}
+
+      {(b.reschedule_min_hours !== undefined || b.cancel_min_hours !== undefined || b.noshow_policy_enabled) && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {b.reschedule_min_hours !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[10px] font-body text-muted-foreground"
+              title={`Reagendamento até ${formatHoursShort(b.reschedule_min_hours)} antes`}
+            >
+              <CalendarClock className="w-3 h-3 text-primary/70" />
+              Reagenda {formatHoursShort(b.reschedule_min_hours)}
+            </span>
+          )}
+          {b.cancel_min_hours !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[10px] font-body text-muted-foreground"
+              title={`Cancelamento até ${formatHoursShort(b.cancel_min_hours)} antes`}
+            >
+              <XCircle className="w-3 h-3 text-primary/70" />
+              Cancela {formatHoursShort(b.cancel_min_hours)}
+            </span>
+          )}
+          {b.noshow_policy_enabled && b.noshow_max_count && b.noshow_block_days && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-0.5 text-[10px] font-body text-destructive"
+              title={`${b.noshow_max_count} faltas em 30 dias bloqueia por ${b.noshow_block_days} dias`}
+            >
+              <ShieldAlert className="w-3 h-3" />
+              {b.noshow_max_count} faltas → {b.noshow_block_days}d
+            </span>
+          )}
         </div>
       )}
 
