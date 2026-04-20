@@ -33,6 +33,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [qrWithLogo, setQrWithLogo] = useState(true);
+  const [qrSize, setQrSize] = useState<"small" | "medium" | "large">("medium");
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
