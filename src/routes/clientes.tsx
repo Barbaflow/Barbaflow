@@ -94,6 +94,15 @@ const STATUS_CFG: Record<string, { label: string; icon: typeof CheckCircle; cls:
 };
 
 type StatusFilter = "all" | "blocked" | "active" | "noshow";
+type SortKey = "name" | "total" | "noshow" | "last";
+type SortDir = "asc" | "desc";
+
+const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
+  { key: "name", label: "Nome", defaultDir: "asc" },
+  { key: "total", label: "Agendamentos", defaultDir: "desc" },
+  { key: "noshow", label: "Faltas", defaultDir: "desc" },
+  { key: "last", label: "Último", defaultDir: "desc" },
+];
 
 function ClientesPage() {
   const { user, loading: authLoading } = useAuth();
