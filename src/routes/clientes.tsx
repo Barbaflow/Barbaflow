@@ -516,6 +516,35 @@ function ClientesPage() {
     toast.success("Anotação excluída");
   };
 
+  const handleTogglePin = async (note: NoteRow) => {
+    const next = !note.pinned;
+    // Optimistic update
+    setNotes((prev) => {
+      const updated = prev.map((n) => (n.id === note.id ? { ...n, pinned: next } : n));
+      // Re-sort: pinned first, then created_at desc
+      return updated.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    });
+    const { error } = await (supabase.from as any)("client_notes")
+      .update({ pinned: next })
+      .eq("id", note.id);
+    if (error) {
+      // Revert on failure
+      setNotes((prev) => {
+        const reverted = prev.map((n) => (n.id === note.id ? { ...n, pinned: note.pinned } : n));
+        return reverted.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      });
+      toast.error("Erro ao atualizar fixação");
+      return;
+    }
+    toast.success(next ? "Anotação fixada no topo" : "Anotação desfixada");
+  };
+
   const exportCSV = () => {
     if (filtered.length === 0) {
       toast.info("Nada para exportar");
