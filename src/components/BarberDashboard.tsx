@@ -632,6 +632,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       }}
       onDragOver={(e: DragOverEvent) => {
         const overId = e.over?.id;
+        if (overId === "date-title") {
+          // Instantly open the calendar picker and stash the dragged appt.
+          dragForCalendarRef.current = String(e.active.id);
+          if (!dateCalendarOpen) setDateCalendarOpen(true);
+          clearDateNavTimer();
+          return;
+        }
         if (overId === "date-prev" || overId === "date-next") {
           if (pendingDateNav === overId) return;
           // Switched zones (or first hover): restart the timer.
