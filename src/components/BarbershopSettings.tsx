@@ -217,6 +217,43 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
+      {/* QR Code */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <QrCode className="w-5 h-5 text-gold" />
+            QR Code da página pública
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col sm:flex-row items-center gap-6">
+            <div
+              ref={qrRef}
+              className="p-3 bg-white rounded-lg border border-border shrink-0"
+            >
+              {publicUrl && (
+                <QRCodeCanvas
+                  value={publicUrl}
+                  size={160}
+                  level="M"
+                  includeMargin={false}
+                />
+              )}
+            </div>
+            <div className="flex-1 space-y-3 text-center sm:text-left">
+              <p className="text-sm text-muted-foreground">
+                Imprima e coloque no balcão da sua barbearia. Os clientes escaneiam
+                com a câmera do celular e abrem direto a página de agendamento.
+              </p>
+              <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
+                <Download className="w-4 h-4" />
+                Baixar QR Code
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Color Picker */}
       <Card className="border-border bg-card">
         <CardHeader>
