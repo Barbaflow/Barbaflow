@@ -889,7 +889,98 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
-      {/* Color Picker */}
+      {/* No-show policy */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <ShieldAlert className="w-5 h-5 text-gold" />
+            Política de no-show
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <p className="text-sm text-muted-foreground">
+            Bloqueia automaticamente novos agendamentos do cliente que faltar várias vezes
+            seguidas (sem comparecer ao horário marcado). Você ou seus barbeiros precisam
+            marcar o agendamento como <strong>"Não compareceu"</strong> no painel para que conte.
+            Agendamentos manuais feitos por você ou pelo barbeiro <strong>ignoram</strong> o bloqueio.
+          </p>
+
+          <div className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div>
+              <p className="font-medium text-foreground text-sm">Ativar política</p>
+              <p className="text-xs text-muted-foreground">
+                Quando desativada, ninguém é bloqueado automaticamente.
+              </p>
+            </div>
+            <Switch checked={noshowEnabled} onCheckedChange={setNoshowEnabled} />
+          </div>
+
+          <div className={noshowEnabled ? "space-y-5" : "space-y-5 opacity-50 pointer-events-none"}>
+            <div>
+              <Label className="mb-2 block">Faltas em 30 dias para bloquear</Label>
+              <div className="flex flex-wrap gap-2">
+                {[2, 3, 4, 5].map((v) => (
+                  <Button
+                    key={v}
+                    type="button"
+                    size="sm"
+                    variant={noshowMaxCount === v ? "gold" : "outline"}
+                    onClick={() => setNoshowMaxCount(v)}
+                  >
+                    {v} faltas
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-2 block">Tempo de bloqueio</Label>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { v: 7, label: "7 dias" },
+                  { v: 15, label: "15 dias" },
+                  { v: 30, label: "30 dias" },
+                  { v: 60, label: "60 dias" },
+                ].map((opt) => (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    size="sm"
+                    variant={noshowBlockDays === opt.v ? "gold" : "outline"}
+                    onClick={() => setNoshowBlockDays(opt.v)}
+                  >
+                    {opt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-border bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground mb-1">Resumo da regra:</p>
+              <p className="text-sm text-foreground">
+                Se um cliente faltar <strong>{noshowMaxCount} vezes</strong> nos últimos 30 dias,
+                ele fica bloqueado de agendar sozinho por <strong>{noshowBlockDays} dias</strong>{" "}
+                após a última falta. Você ainda pode encaixar manualmente para ele.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleSaveNoshow}
+            disabled={savingNoshow}
+            variant="gold"
+            className="w-full sm:w-auto"
+          >
+            {savingNoshow ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {savingNoshow ? "Salvando..." : "Salvar política"}
+          </Button>
+        </CardContent>
+      </Card>
+
       <Card className="border-border bg-card">
         <CardHeader>
           <CardTitle className="font-display text-lg flex items-center gap-2">
