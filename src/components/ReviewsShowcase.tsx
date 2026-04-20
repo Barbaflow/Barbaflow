@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Star, Loader2, Trash2, MessageSquareReply, Pencil, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
