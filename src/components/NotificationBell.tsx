@@ -26,6 +26,7 @@ const typeColors: Record<string, string> = {
   appointment_confirmed: "bg-green-500",
   appointment_cancelled: "bg-red-500",
   appointment_completed: "bg-primary",
+  review_reply: "bg-gold",
 };
 
 export function NotificationBell() {
