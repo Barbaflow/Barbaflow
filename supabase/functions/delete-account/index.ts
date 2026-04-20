@@ -39,6 +39,31 @@ Deno.serve(async (req) => {
 
     const userId = user.id;
 
+    // Optional churn feedback (anonymous - no user identifier stored)
+    const ALLOWED_REASONS = new Set([
+      "no_use",
+      "found_alternative",
+      "too_expensive",
+      "missing_features",
+      "bad_experience",
+      "privacy",
+      "temporary",
+      "other",
+    ]);
+    let feedbackReason: string | null = null;
+    let feedbackDetails: string | null = null;
+    try {
+      const body = await req.json().catch(() => null);
+      if (body && typeof body === "object") {
+        const r = typeof body.reason === "string" ? body.reason.trim() : "";
+        if (ALLOWED_REASONS.has(r)) feedbackReason = r;
+        const d = typeof body.details === "string" ? body.details.trim() : "";
+        if (d) feedbackDetails = d.slice(0, 500);
+      }
+    } catch (_) {
+      // ignore body parse errors
+    }
+
     // Block deletion if user owns a barbershop or has staff role (barbeiro/admin)
     const { data: ownedShops } = await supabase
       .from("barbershops")
@@ -101,6 +126,15 @@ Deno.serve(async (req) => {
       await supabase.storage
         .from("avatars")
         .remove(avatarFiles.map((f) => `${userId}/${f.name}`));
+    }
+
+    // Persist anonymous churn feedback BEFORE deleting the user (no user_id stored)
+    if (feedbackReason) {
+      await supabase.from("account_deletion_feedback").insert({
+        reason: feedbackReason,
+        details: feedbackDetails,
+        had_barbershop_role: false,
+      });
     }
 
     // Finally, delete the auth user (cascades to auth.identities, sessions, etc.)
