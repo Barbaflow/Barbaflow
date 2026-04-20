@@ -408,6 +408,7 @@ function ReviewCard({
       id={`review-${review.id}`}
       className={cn(
         "rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 transition-all hover:border-gold/30 scroll-mt-24",
+        isAuthor && "border-gold/40 bg-gold/[0.03] ring-1 ring-gold/10",
         highlight && "border-gold ring-2 ring-gold/40 shadow-lg shadow-gold/10",
       )}
     >
@@ -428,6 +429,11 @@ function ReviewCard({
             <p className="font-body font-semibold text-foreground text-sm truncate">
               {review.client_name}
             </p>
+            {isAuthor && (
+              <span className="inline-flex items-center rounded-full border border-gold/50 bg-gold/15 px-2 py-0.5 text-[10px] font-body font-semibold uppercase tracking-wider text-gold">
+                Sua avaliação
+              </span>
+            )}
             {review.reply && (
               <span className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-body font-semibold uppercase tracking-wider text-gold">
                 <MessageSquareReply className="w-3 h-3" />
@@ -440,35 +446,43 @@ function ReviewCard({
             <span className="text-[11px] text-muted-foreground">{date}</span>
           </div>
         </div>
-        {(isAuthor || canDelete) && (
-          <div className="flex items-center gap-1">
-            {isAuthor && !editingReview && (
-              <button
-                type="button"
-                aria-label="Editar avaliação"
-                onClick={() => {
-                  setEditRating(review.rating);
-                  setEditComment(review.comment ?? "");
-                  setEditingReview(true);
-                }}
-                className="text-muted-foreground/60 hover:text-gold transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
-              >
-                <Pencil className="w-4 h-4" />
-              </button>
-            )}
-            {canDelete && (
-              <button
-                type="button"
-                aria-label="Excluir avaliação"
-                onClick={() => setConfirmDelete(true)}
-                className="text-muted-foreground/60 hover:text-destructive transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
-            )}
-          </div>
+        {canDelete && (
+          <button
+            type="button"
+            aria-label="Excluir avaliação"
+            onClick={() => setConfirmDelete(true)}
+            className="text-muted-foreground/60 hover:text-destructive transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive shrink-0"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         )}
       </div>
+
+      {/* Comentário (modo leitura) */}
+      {!editingReview && review.comment && (
+        <p className="text-sm text-foreground/90 font-body leading-relaxed">
+          "{review.comment}"
+        </p>
+      )}
+
+      {/* Ação rápida do autor: editar minha avaliação */}
+      {isAuthor && !editingReview && (
+        <div className="mt-3">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setEditRating(review.rating);
+              setEditComment(review.comment ?? "");
+              setEditingReview(true);
+            }}
+            className="border-gold/40 text-gold hover:bg-gold/10 hover:text-gold hover:border-gold/60"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+            Editar minha avaliação
+          </Button>
+        </div>
+      )}
 
       {/* Comentário (modo leitura) */}
       {!editingReview && review.comment && (
