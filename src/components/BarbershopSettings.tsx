@@ -83,7 +83,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setTextColor(60, 60, 60);
       pdf.setFont("helvetica", "normal");
       pdf.setFontSize(14);
-      pdf.text("Agende seu horário online", pageWidth / 2, 62, { align: "center" });
+      const slogan = (pdfSlogan || "").trim() || "Agende seu horário online";
+      pdf.text(slogan, pageWidth / 2, 62, { align: "center", maxWidth: pageWidth - 30 });
 
       // QR Code (centered)
       const qrDataUrl = canvas.toDataURL("image/png");
