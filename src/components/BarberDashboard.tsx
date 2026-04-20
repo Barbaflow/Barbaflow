@@ -269,6 +269,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [selectedBarber, setSelectedBarber] = useState<string>("all");
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
   const [showNewAppt, setShowNewAppt] = useState(false);
+  const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
@@ -479,11 +480,34 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
       {barbershopId && (
         <ManualAppointmentDialog
-          open={showNewAppt}
-          onOpenChange={setShowNewAppt}
+          open={showNewAppt || !!editingAppt}
+          onOpenChange={(o) => {
+            if (!o) {
+              setShowNewAppt(false);
+              setEditingAppt(null);
+            } else {
+              setShowNewAppt(true);
+            }
+          }}
           barbershopId={barbershopId}
           barbers={barbers}
           defaultDate={selectedDate}
+          editAppointment={
+            editingAppt
+              ? {
+                  id: editingAppt.id,
+                  date: editingAppt.date,
+                  start_time: editingAppt.start_time,
+                  barber_id: editingAppt.barber_id,
+                  service_id: (editingAppt as Appointment & { service_id?: string }).service_id ?? "",
+                  client_id: editingAppt.client_id,
+                  client_full_name: editingAppt.client_profile?.full_name ?? null,
+                  client_phone: editingAppt.client_profile?.phone ?? null,
+                  client_avatar_url: null,
+                  notes: editingAppt.notes,
+                }
+              : null
+          }
           onCreated={() => {
             fetchAppointments();
             fetchWeekMetrics();
