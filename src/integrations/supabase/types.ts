@@ -970,6 +970,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      notify_expired_client_blocks: { Args: never; Returns: number }
     }
     Enums: {
       app_role: "cliente" | "barbeiro" | "admin_barbearia" | "super_admin"
