@@ -728,6 +728,7 @@ function ClientesPage() {
             icon={Users}
             color="text-primary"
             onClick={() => setStatusFilter("all")}
+            active={statusFilter === "all" && lastFilter === "all"}
           />
           <StatCard
             label="Agendamentos"
@@ -741,6 +742,7 @@ function ClientesPage() {
             icon={AlertCircle}
             color="text-yellow-500"
             onClick={() => setStatusFilter("noshow")}
+            active={statusFilter === "noshow"}
           />
           <StatCard
             label="Inativos +60d"
@@ -748,6 +750,7 @@ function ClientesPage() {
             icon={Clock}
             color="text-orange-500"
             onClick={() => setLastFilter("inactive60")}
+            active={lastFilter === "inactive60"}
           />
           <StatCard
             label="Bloqueados"
@@ -755,6 +758,7 @@ function ClientesPage() {
             icon={ShieldAlert}
             color="text-destructive"
             onClick={() => setStatusFilter("blocked")}
+            active={statusFilter === "blocked"}
           />
         </div>
 
@@ -1230,24 +1234,30 @@ function StatCard({
   icon: Icon,
   color,
   onClick,
+  active = false,
 }: {
   label: string;
   value: number;
   icon: typeof Users;
   color: string;
   onClick?: () => void;
+  active?: boolean;
 }) {
   const interactive = typeof onClick === "function";
+  const classes = [
+    interactive ? "cursor-pointer transition-colors" : "",
+    interactive && !active ? "hover:border-primary/50" : "",
+    active ? "border-primary ring-2 ring-primary/40 bg-primary/5" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
   return (
     <Card
       onClick={onClick}
-      className={
-        interactive
-          ? "cursor-pointer hover:border-primary/50 transition-colors"
-          : undefined
-      }
+      className={classes || undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? active : undefined}
       onKeyDown={
         interactive
           ? (e) => {
