@@ -47,6 +47,7 @@ import {
   Pin,
   PinOff,
   Save,
+  X,
   Phone,
   MessageCircle,
   RefreshCw,
@@ -182,6 +183,21 @@ function ClientesPage() {
       const def = SORT_OPTIONS.find((o) => o.key === key)?.defaultDir ?? "asc";
       setSortKey(key);
       setSortDir(def);
+    }
+  };
+
+  const filtersActive =
+    search.trim() !== "" || statusFilter !== "all" || sortKey !== "last" || sortDir !== "desc";
+
+  const clearFilters = () => {
+    setSearch("");
+    setStatusFilter("all");
+    setSortKey("last");
+    setSortDir("desc");
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem("clientes:statusFilter");
+      window.localStorage.removeItem("clientes:sortKey");
+      window.localStorage.removeItem("clientes:sortDir");
     }
   };
 
@@ -696,6 +712,18 @@ function ClientesPage() {
               <SelectItem value="blocked">Bloqueados ({stats.blocked})</SelectItem>
             </SelectContent>
           </Select>
+          {filtersActive && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={clearFilters}
+              className="sm:w-auto"
+              title="Limpar busca, filtro e ordenação"
+            >
+              <X className="w-4 h-4" />
+              Limpar filtros
+            </Button>
+          )}
         </div>
 
         {/* List */}
