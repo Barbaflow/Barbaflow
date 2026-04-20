@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
+import { ReviewsShowcase } from "@/components/ReviewsShowcase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
@@ -167,6 +168,12 @@ function AgendarSlugPage() {
         )}
 
         <PublicBookingWizard preselectedBarbershopId={barbershop?.id} />
+
+        {barbershop?.id && (
+          <div className="mt-12">
+            <ReviewsShowcase barbershopId={barbershop.id} />
+          </div>
+        )}
 
         {barbershop?.id && (
           <div className="mt-12">
