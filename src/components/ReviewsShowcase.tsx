@@ -483,7 +483,6 @@ function ReviewCard({
           </Button>
         </div>
       )}
-      </div>
 
       {/* Comentário (modo leitura) */}
       {!editingReview && review.comment && (
