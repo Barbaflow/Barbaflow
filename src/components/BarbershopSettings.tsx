@@ -237,8 +237,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                 <QRCodeCanvas
                   value={publicUrl}
                   size={160}
-                  level="M"
+                  level="H"
                   includeMargin={false}
+                  imageSettings={
+                    qrWithLogo && logoUrl
+                      ? {
+                          src: logoUrl,
+                          height: 36,
+                          width: 36,
+                          excavate: true,
+                          crossOrigin: "anonymous",
+                        }
+                      : undefined
+                  }
                 />
               )}
             </div>
@@ -247,6 +258,23 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                 Imprima e coloque no balcão da sua barbearia. Os clientes escaneiam
                 com a câmera do celular e abrem direto a página de agendamento.
               </p>
+              {logoUrl && (
+                <div className="flex items-center justify-center sm:justify-start gap-2">
+                  <Switch
+                    id="qr-logo"
+                    checked={qrWithLogo}
+                    onCheckedChange={setQrWithLogo}
+                  />
+                  <Label htmlFor="qr-logo" className="text-sm cursor-pointer">
+                    Incluir logo no centro
+                  </Label>
+                </div>
+              )}
+              {!logoUrl && (
+                <p className="text-xs text-muted-foreground italic">
+                  Envie um logo acima para incluí-lo no centro do QR Code.
+                </p>
+              )}
               <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
                 <Download className="w-4 h-4" />
                 Baixar QR Code
