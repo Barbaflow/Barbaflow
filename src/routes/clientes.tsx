@@ -720,12 +720,12 @@ function ClientesPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
           <StatCard label="Clientes" value={stats.total} icon={Users} color="text-primary" />
           <StatCard
             label="Agendamentos"
             value={stats.totalAppointments}
-            icon={Clock}
+            icon={Calendar}
             color="text-foreground"
           />
           <StatCard
@@ -733,6 +733,13 @@ function ClientesPage() {
             value={stats.withNoshow}
             icon={AlertCircle}
             color="text-yellow-500"
+          />
+          <StatCard
+            label="Inativos +60d"
+            value={stats.inactive60}
+            icon={Clock}
+            color="text-orange-500"
+            onClick={() => setLastFilter("inactive60")}
           />
           <StatCard
             label="Bloqueados"
