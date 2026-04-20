@@ -400,6 +400,25 @@ export function RescheduleDialog({
             </div>
           </div>
 
+          {allFull && (
+            <button
+              type="button"
+              onClick={() => setDateCalendarOpen(true)}
+              className="w-full flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/10 text-left hover:bg-destructive/15 transition-colors"
+            >
+              <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+              <div className="flex-1 text-xs">
+                <p className="font-medium text-destructive">
+                  Nenhum profissional tem horário livre em {appointment.date}.
+                </p>
+                <p className="mt-0.5 text-muted-foreground">
+                  Toque aqui para escolher outra data no calendário.
+                </p>
+              </div>
+              <CalendarDays className="w-4 h-4 mt-0.5 flex-shrink-0 text-destructive" />
+            </button>
+          )}
+
           <div className="space-y-1.5">
             <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
