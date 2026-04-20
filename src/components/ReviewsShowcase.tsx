@@ -150,6 +150,16 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     );
   };
 
+  const handleReviewUpdated = async (
+    id: string,
+    patch: { rating: number; comment: string | null },
+  ) => {
+    setReviews((prev) =>
+      prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
+    );
+    await refreshAggregates();
+  };
+
   const handleDeleted = async (id: string) => {
     setReviews((prev) => prev.filter((r) => r.id !== id));
     await refreshAggregates();
@@ -208,6 +218,7 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
             canModerate={canModerate}
             onReplySaved={handleReplySaved}
             onDeleted={handleDeleted}
+            onReviewUpdated={handleReviewUpdated}
           />
         ))}
       </div>
@@ -234,11 +245,16 @@ function ReviewCard({
   canModerate,
   onReplySaved,
   onDeleted,
+  onReviewUpdated,
 }: {
   review: ReviewItem;
   canModerate: boolean;
   onReplySaved: (id: string, reply: string | null) => void;
   onDeleted: (id: string) => void;
+  onReviewUpdated: (
+    id: string,
+    patch: { rating: number; comment: string | null },
+  ) => void;
 }) {
   const { user } = useAuth();
   const [editing, setEditing] = useState(false);
@@ -247,6 +263,11 @@ function ReviewCard({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteReply, setConfirmDeleteReply] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingReview, setEditingReview] = useState(false);
+  const [editRating, setEditRating] = useState(review.rating);
+  const [editHover, setEditHover] = useState(0);
+  const [editComment, setEditComment] = useState(review.comment ?? "");
+  const [savingReview, setSavingReview] = useState(false);
 
   const initials = (review.client_name || "C")
     .split(" ")
@@ -332,7 +353,40 @@ function ReviewCard({
     onDeleted(review.id);
   };
 
+  const saveReview = async () => {
+    if (editRating < 1 || editRating > 5) {
+      toast.error("Selecione de 1 a 5 estrelas.");
+      return;
+    }
+    const trimmed = editComment.trim();
+    if (trimmed.length > 500) {
+      toast.error("Comentário deve ter no máximo 500 caracteres.");
+      return;
+    }
+    setSavingReview(true);
+    const { error } = await supabase
+      .from("reviews")
+      .update({
+        rating: editRating,
+        comment: trimmed || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", review.id);
+    setSavingReview(false);
+    if (error) {
+      toast.error("Não foi possível salvar a avaliação.");
+      return;
+    }
+    toast.success("Avaliação atualizada.");
+    onReviewUpdated(review.id, {
+      rating: editRating,
+      comment: trimmed || null,
+    });
+    setEditingReview(false);
+  };
+
   const canDelete = canModerate || isAuthor;
+  const editDisplay = editHover || editRating;
 
   const [highlight, setHighlight] = useState(false);
   useEffect(() => {
@@ -386,22 +440,117 @@ function ReviewCard({
             <span className="text-[11px] text-muted-foreground">{date}</span>
           </div>
         </div>
-        {canDelete && (
-          <button
-            type="button"
-            aria-label="Excluir avaliação"
-            onClick={() => setConfirmDelete(true)}
-            className="text-muted-foreground/60 hover:text-destructive transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+        {(isAuthor || canDelete) && (
+          <div className="flex items-center gap-1">
+            {isAuthor && !editingReview && (
+              <button
+                type="button"
+                aria-label="Editar avaliação"
+                onClick={() => {
+                  setEditRating(review.rating);
+                  setEditComment(review.comment ?? "");
+                  setEditingReview(true);
+                }}
+                className="text-muted-foreground/60 hover:text-gold transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
+              >
+                <Pencil className="w-4 h-4" />
+              </button>
+            )}
+            {canDelete && (
+              <button
+                type="button"
+                aria-label="Excluir avaliação"
+                onClick={() => setConfirmDelete(true)}
+                className="text-muted-foreground/60 hover:text-destructive transition-colors p-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
-      {review.comment && (
+      {/* Comentário (modo leitura) */}
+      {!editingReview && review.comment && (
         <p className="text-sm text-foreground/90 font-body leading-relaxed">
           "{review.comment}"
         </p>
+      )}
+
+      {/* Editor da avaliação (autor) */}
+      {editingReview && isAuthor && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <button
+                key={n}
+                type="button"
+                aria-label={`${n} estrela${n > 1 ? "s" : ""}`}
+                onClick={() => setEditRating(n)}
+                onMouseEnter={() => setEditHover(n)}
+                onMouseLeave={() => setEditHover(0)}
+                className="transition-transform hover:scale-110 focus:outline-none rounded p-0.5"
+              >
+                <Star
+                  className={cn(
+                    "w-6 h-6 transition-colors",
+                    n <= editDisplay
+                      ? "fill-gold text-gold"
+                      : "text-muted-foreground/30",
+                  )}
+                />
+              </button>
+            ))}
+          </div>
+          <Textarea
+            value={editComment}
+            onChange={(e) => setEditComment(e.target.value.slice(0, 500))}
+            placeholder="Atualize seu comentário (opcional)..."
+            rows={3}
+            maxLength={500}
+            className="resize-none text-sm"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground">
+              {editComment.length}/500
+            </span>
+            <div className="flex gap-2 items-center">
+              <EmojiPicker
+                size="sm"
+                disabled={savingReview}
+                onSelect={(e) =>
+                  setEditComment((prev) => (prev + e).slice(0, 500))
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setEditingReview(false);
+                  setEditRating(review.rating);
+                  setEditComment(review.comment ?? "");
+                }}
+                disabled={savingReview}
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancelar
+              </Button>
+              <Button
+                variant="gold"
+                size="sm"
+                onClick={saveReview}
+                disabled={savingReview}
+              >
+                {savingReview ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                Salvar
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Resposta existente */}
