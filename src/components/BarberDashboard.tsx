@@ -664,7 +664,24 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               const isScheduled = apt.status === "scheduled";
 
               return (
-                <Card key={apt.id} className="bg-card border-border overflow-hidden">
+                <Card
+                  key={apt.id}
+                  className={`bg-card border-border overflow-hidden ${
+                    isScheduled ? "cursor-pointer hover:border-primary/40 transition-colors" : ""
+                  }`}
+                  onClick={() => {
+                    if (isScheduled) setEditingAppt(apt);
+                  }}
+                  role={isScheduled ? "button" : undefined}
+                  tabIndex={isScheduled ? 0 : undefined}
+                  onKeyDown={(e) => {
+                    if (isScheduled && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      setEditingAppt(apt);
+                    }
+                  }}
+                  title={isScheduled ? "Clique para editar este agendamento" : undefined}
+                >
                   <CardContent className="p-0">
                     <div className="flex">
                       <div className="flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
@@ -728,12 +745,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                           </div>
                         </div>
                         {isScheduled && (
-                          <div className="flex gap-1.5 flex-shrink-0">
+                          <div className="flex gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
                             <Button
                               size="sm"
                               variant="ghost"
                               className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
-                              onClick={() => handleStatusChange(apt.id, "completed")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(apt.id, "completed");
+                              }}
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
                               Concluir
@@ -742,7 +762,10 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               size="sm"
                               variant="ghost"
                               className="text-destructive hover:bg-destructive/10 text-xs h-8"
-                              onClick={() => handleStatusChange(apt.id, "no_show")}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleStatusChange(apt.id, "no_show");
+                              }}
                             >
                               <XCircle className="w-3.5 h-3.5" />
                               Faltou
