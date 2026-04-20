@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Camera, Loader2, Trash2, User, Check, Phone } from "lucide-react";
 import { toast } from "sonner";
+import { displayBRPhone, isValidBRPhone, maskBRPhone, toStorageBRPhone } from "@/lib/phone";
 
 export function ProfilePhotoUpload() {
   const { user } = useAuth();
@@ -31,8 +32,10 @@ export function ProfilePhotoUpload() {
         if (data?.avatar_url) setAvatarUrl(data.avatar_url);
         setFullName(data?.full_name || "");
         setOriginalName(data?.full_name || "");
-        setPhone((data as any)?.phone || "");
-        setOriginalPhone((data as any)?.phone || "");
+        const storedPhone = (data as any)?.phone || "";
+        const masked = storedPhone ? displayBRPhone(storedPhone) : "";
+        setPhone(masked);
+        setOriginalPhone(masked);
         setLoading(false);
       });
   }, [user]);
@@ -41,16 +44,22 @@ export function ProfilePhotoUpload() {
 
   const handleSaveProfile = async () => {
     if (!user || !profileChanged) return;
+    const trimmedPhone = phone.trim();
+    if (trimmedPhone && !isValidBRPhone(trimmedPhone)) {
+      toast.error("Telefone inválido. Use o formato (11) 99999-9999.");
+      return;
+    }
     setSavingProfile(true);
+    const phoneToStore = trimmedPhone ? toStorageBRPhone(trimmedPhone) : null;
     const { error } = await supabase
       .from("profiles")
-      .update({ full_name: fullName.trim(), phone: phone.trim() || null } as any)
+      .update({ full_name: fullName.trim(), phone: phoneToStore } as any)
       .eq("user_id", user.id);
     if (error) {
       toast.error("Erro ao salvar perfil.");
     } else {
       setOriginalName(fullName.trim());
-      setOriginalPhone(phone.trim());
+      setOriginalPhone(trimmedPhone);
       toast.success("Perfil atualizado!");
     }
     setSavingProfile(false);
@@ -212,16 +221,21 @@ export function ProfilePhotoUpload() {
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp</Label>
+            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp <span className="text-muted-foreground/60">(opcional)</span></Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(maskBRPhone(e.target.value))}
                 placeholder="(11) 99999-9999"
+                inputMode="tel"
+                maxLength={16}
                 className="bg-background border-border pl-9"
               />
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Permite que barbeiros entrem em contato pelo WhatsApp.
+            </p>
           </div>
           <Button
             size="sm"
