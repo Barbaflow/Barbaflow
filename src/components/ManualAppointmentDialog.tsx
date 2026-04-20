@@ -145,6 +145,8 @@ export function ManualAppointmentDialog({
   const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Reset on open — populate from editAppointment when editing
   useEffect(() => {
