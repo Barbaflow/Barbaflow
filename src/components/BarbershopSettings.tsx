@@ -283,6 +283,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (s.qr_size === "small" || s.qr_size === "medium" || s.qr_size === "large") {
             setQrSize(s.qr_size);
           }
+          if (typeof s.reschedule_min_hours === "number") {
+            setRescheduleMinHours(s.reschedule_min_hours);
+          }
         }
       });
   }, [barbershopId]);
