@@ -14,7 +14,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
+import { ArrowLeft, KeyRound, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
@@ -43,6 +43,26 @@ function PerfilPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const requiredText = "EXCLUIR";
+  const [sendingReset, setSendingReset] = useState(false);
+
+  const handlePasswordReset = async () => {
+    if (!user?.email) return;
+    setSendingReset(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) {
+        toast.error("Não foi possível enviar o email. Tente novamente.");
+      } else {
+        toast.success("Email de redefinição enviado! Verifique sua caixa de entrada.");
+      }
+    } catch {
+      toast.error("Erro ao enviar email de redefinição.");
+    } finally {
+      setSendingReset(false);
+    }
+  };
 
   useEffect(() => {
     if (!loading && !user) {
@@ -132,6 +152,22 @@ function PerfilPage() {
             <h3 className="font-display font-semibold text-foreground">Email da conta</h3>
             <p className="text-sm text-muted-foreground break-all">{user.email}</p>
           </div>
+        </div>
+
+        <div className="rounded-lg border border-border bg-card p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 className="font-display font-semibold text-foreground">Alterar senha</h3>
+            <p className="text-sm text-muted-foreground">
+              Enviaremos um link de redefinição para o seu email.
+            </p>
+          </div>
+          <Button variant="outline" onClick={handlePasswordReset} disabled={sendingReset}>
+            {sendingReset ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Enviando...</>
+            ) : (
+              <><KeyRound className="w-4 h-4" /> Enviar link</>
+            )}
+          </Button>
         </div>
 
         <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
