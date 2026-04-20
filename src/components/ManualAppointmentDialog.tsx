@@ -44,6 +44,7 @@ import {
   Clock,
   CalendarIcon,
   Ban,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -147,6 +148,8 @@ export function ManualAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // Map clientId -> noshow block info (loaded after clients load)
+  const [blockMap, setBlockMap] = useState<Map<string, { blocked: boolean; unblock_at: string | null; noshow_count: number; max_count: number }>>(new Map());
 
   // Reset on open — populate from editAppointment when editing
   useEffect(() => {
