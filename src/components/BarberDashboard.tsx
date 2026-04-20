@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,6 +23,7 @@ import {
   DndContext,
   type DragEndEvent,
   type DragStartEvent,
+  type DragOverEvent,
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
@@ -226,6 +227,38 @@ function DroppableList({
   );
 }
 
+// Wraps the prev/next date chevrons so they accept a hovering drag and
+// trigger a delayed day shift (handled by the parent's onDragOver timer).
+function DateNavDroppable({
+  id,
+  isDragging,
+  isPending,
+  children,
+}: {
+  id: "date-prev" | "date-next";
+  isDragging: boolean;
+  isPending: boolean;
+  children: ReactNode;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`relative rounded-md transition-all ${
+        isDragging ? "ring-1 ring-primary/30" : ""
+      } ${isOver ? "ring-2 ring-primary bg-primary/10 scale-110" : ""}`}
+    >
+      {children}
+      {isPending && (
+        <span
+          className="pointer-events-none absolute inset-0 rounded-md ring-2 ring-primary animate-pulse"
+          aria-hidden="true"
+        />
+      )}
+    </div>
+  );
+}
+
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   const { barbershopId, barbershop } = useBarbershop();
@@ -368,6 +401,20 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       /* ignore quota errors */
     }
   }, []);
+
+  // Drag-to-navigate-day: when the user hovers a card over the prev/next
+  // chevrons for ~1 second, the day shifts. The timer resets if they move off,
+  // and re-arms while still hovering so they can advance multiple days.
+  const [pendingDateNav, setPendingDateNav] = useState<"date-prev" | "date-next" | null>(null);
+  const dateNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearDateNavTimer = useCallback(() => {
+    if (dateNavTimerRef.current) {
+      clearTimeout(dateNavTimerRef.current);
+      dateNavTimerRef.current = null;
+    }
+    setPendingDateNav(null);
+  }, []);
+  useEffect(() => () => clearDateNavTimer(), [clearDateNavTimer]);
 
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
@@ -546,6 +593,53 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   };
 
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={(e: DragStartEvent) => {
+        setDraggingId(String(e.active.id));
+        dismissDragHint();
+      }}
+      onDragOver={(e: DragOverEvent) => {
+        const overId = e.over?.id;
+        if (overId === "date-prev" || overId === "date-next") {
+          if (pendingDateNav === overId) return;
+          // Switched zones (or first hover): restart the timer.
+          if (dateNavTimerRef.current) clearTimeout(dateNavTimerRef.current);
+          setPendingDateNav(overId);
+          dateNavTimerRef.current = setTimeout(() => {
+            shiftDate(overId === "date-prev" ? -1 : 1);
+            // Re-arm so a continued hover advances another day.
+            dateNavTimerRef.current = null;
+            setPendingDateNav(null);
+          }, 1000);
+        } else {
+          clearDateNavTimer();
+        }
+      }}
+      onDragEnd={(e: DragEndEvent) => {
+        const id = String(e.active.id);
+        setDraggingId(null);
+        clearDateNavTimer();
+        // Drops on the date-nav zones don't reschedule — they only navigate.
+        if (!e.over || e.over.id !== "appt-list-dropzone") return;
+        const apt = appointments.find((a) => a.id === id);
+        if (!apt || !barbershopId || !apt.service) return;
+        setReschedTarget({
+          id: apt.id,
+          date: apt.date,
+          start_time: apt.start_time,
+          barber_id: apt.barber_id,
+          barbershop_id: barbershopId,
+          duration_minutes: apt.service.duration_minutes,
+          client_name: apt.client_profile?.full_name ?? null,
+          service_name: apt.service.name,
+        });
+      }}
+      onDragCancel={() => {
+        setDraggingId(null);
+        clearDateNavTimer();
+      }}
+    >
     <div className="space-y-6">
       {/* Date navigation */}
       <div className="flex items-center justify-between">
@@ -558,9 +652,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           )}
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
-            <ChevronLeft className="w-4 h-4" />
-          </Button>
+          <DateNavDroppable
+            id="date-prev"
+            isDragging={!!draggingId}
+            isPending={pendingDateNav === "date-prev"}
+          >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(-1)}>
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+          </DateNavDroppable>
           {!isToday && (
             <Button
               variant="outline"
@@ -571,9 +671,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               Hoje
             </Button>
           )}
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
-            <ChevronRight className="w-4 h-4" />
-          </Button>
+          <DateNavDroppable
+            id="date-next"
+            isDragging={!!draggingId}
+            isPending={pendingDateNav === "date-next"}
+          >
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => shiftDate(1)}>
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </DateNavDroppable>
           <Button
             size="sm"
             className="ml-2"
@@ -776,31 +882,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             </CardContent>
           </Card>
         ) : (
-          <DndContext
-            sensors={sensors}
-            onDragStart={(e: DragStartEvent) => {
-              setDraggingId(String(e.active.id));
-              dismissDragHint();
-            }}
-            onDragEnd={(e: DragEndEvent) => {
-              const id = String(e.active.id);
-              setDraggingId(null);
-              if (!e.over || e.over.id !== "appt-list-dropzone") return;
-              const apt = appointments.find((a) => a.id === id);
-              if (!apt || !barbershopId || !apt.service) return;
-              setReschedTarget({
-                id: apt.id,
-                date: apt.date,
-                start_time: apt.start_time,
-                barber_id: apt.barber_id,
-                barbershop_id: barbershopId,
-                duration_minutes: apt.service.duration_minutes,
-                client_name: apt.client_profile?.full_name ?? null,
-                service_name: apt.service.name,
-              });
-            }}
-            onDragCancel={() => setDraggingId(null)}
-          >
+          <>
             <DroppableList isActive={!!draggingId}>
               {draggingId && (
                 <div className="text-xs text-center text-primary font-medium py-1">
@@ -965,10 +1047,11 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               ) : null}
             </DragOverlay>
-          </DndContext>
+          </>
         )}
       </div>
     </div>
+    </DndContext>
   );
 }
 
