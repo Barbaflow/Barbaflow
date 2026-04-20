@@ -170,6 +170,7 @@ export function RescheduleDialog({
       // on another day is a perfectly valid target.
       const isSameDay =
         !appointment.original_date || appointment.original_date === appointment.date;
+      const isSameContext = isSameDay && sameBarber;
       const currentMin = toMin(currentTime);
       const dur = appointment.duration_minutes;
 
