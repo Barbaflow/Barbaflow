@@ -519,6 +519,18 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         />
       )}
 
+      <RescheduleDialog
+        open={!!reschedTarget}
+        onOpenChange={(o) => {
+          if (!o) setReschedTarget(null);
+        }}
+        appointment={reschedTarget}
+        onRescheduled={() => {
+          fetchAppointments();
+          fetchWeekMetrics();
+        }}
+      />
+
       {/* Barber filter (admin only) */}
       {isAdmin && barbers.length > 0 && (
         <div className="flex items-center gap-3">
