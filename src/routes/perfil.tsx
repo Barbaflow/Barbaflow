@@ -79,6 +79,8 @@ function PerfilPage() {
       setDeleting(false);
     }
   };
+
+  if (loading || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
@@ -143,6 +145,68 @@ function PerfilPage() {
             <LogOut className="w-4 h-4" />
             Sair
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-5 space-y-4">
+          <div>
+            <h3 className="font-display font-semibold text-destructive">Excluir minha conta</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Esta ação é permanente. Seus dados pessoais (perfil, foto, telefone, notificações
+              e comentários de avaliações) serão removidos. Agendamentos futuros serão cancelados.
+            </p>
+          </div>
+          <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setConfirmText(""); }}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="w-4 h-4" />
+                Excluir conta
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      Esta ação <strong className="text-destructive">não pode ser desfeita</strong>.
+                      Sua conta <span className="font-medium text-foreground">{user.email}</span> e todos os
+                      seus dados pessoais serão removidos permanentemente.
+                    </p>
+                    <p>
+                      Para confirmar, digite <strong className="text-foreground">{requiredText}</strong> abaixo:
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-delete" className="text-xs text-muted-foreground">
+                  Digite {requiredText} para liberar o botão
+                </Label>
+                <Input
+                  id="confirm-delete"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={requiredText}
+                  autoComplete="off"
+                  disabled={deleting}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }}
+                  disabled={confirmText !== requiredText || deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo...</>
+                  ) : (
+                    <><Trash2 className="w-4 h-4" /> Excluir definitivamente</>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
     </div>
