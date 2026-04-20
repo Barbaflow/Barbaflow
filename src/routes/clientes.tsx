@@ -315,6 +315,21 @@ function ClientesPage() {
     if (statusFilter === "active") list = list.filter((r) => !r.manual_blocked_until);
     if (statusFilter === "noshow") list = list.filter((r) => r.noshow_count > 0);
 
+    if (lastFilter !== "all") {
+      const now = Date.now();
+      const day = 24 * 60 * 60 * 1000;
+      list = list.filter((r) => {
+        const ts = r.last_appointment_at ? new Date(r.last_appointment_at).getTime() : null;
+        if (lastFilter === "never") return ts === null;
+        if (ts === null) return false;
+        const diffDays = (now - ts) / day;
+        if (lastFilter === "30") return diffDays <= 30;
+        if (lastFilter === "90") return diffDays <= 90;
+        if (lastFilter === "inactive60") return diffDays > 60;
+        return true;
+      });
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       list = list.filter(
@@ -324,12 +339,12 @@ function ClientesPage() {
       );
     }
     return list;
-  }, [rows, statusFilter, search]);
+  }, [rows, statusFilter, lastFilter, search]);
 
   // Reset to page 1 when filters/search/page-size/sort change
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter, pageSize, sortKey, sortDir]);
+  }, [search, statusFilter, lastFilter, pageSize, sortKey, sortDir]);
 
   const sorted = useMemo(() => {
     const dir = sortDir === "asc" ? 1 : -1;
