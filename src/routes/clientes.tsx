@@ -214,8 +214,26 @@ function ClientesPage() {
       setLoading(false);
       return;
     }
-    setRows((data as ClientRow[]) || []);
+    const list = (data as ClientRow[]) || [];
+    setRows(list);
     setLoading(false);
+
+    // Fetch note counts for all clients in one query
+    if (list.length > 0) {
+      const { data: notesData } = await (supabase
+        .from as any)("client_notes")
+        .select("client_id")
+        .eq("barbershop_id", barbershopId);
+      if (notesData) {
+        const counts: Record<string, number> = {};
+        for (const n of notesData as { client_id: string }[]) {
+          counts[n.client_id] = (counts[n.client_id] ?? 0) + 1;
+        }
+        setNoteCounts(counts);
+      }
+    } else {
+      setNoteCounts({});
+    }
   }, [hasAccess, barbershopId]);
 
   useEffect(() => {
