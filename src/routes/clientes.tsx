@@ -27,6 +27,8 @@ import {
 } from "@/components/ui/select";
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Search,
   Users,
   Download,
@@ -100,6 +102,8 @@ function ClientesPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Block dialog state
   const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
@@ -176,6 +180,18 @@ function ClientesPage() {
     }
     return list;
   }, [rows, statusFilter, search]);
+
+  // Reset to page 1 when filters/search/page-size change
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage, pageSize]
+  );
 
   const stats = useMemo(
     () => ({
@@ -434,17 +450,65 @@ function ClientesPage() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-2">
-            {filtered.map((row) => (
-              <ClientRowCard
-                key={row.client_id}
-                row={row}
-                onHistory={() => openHistory(row)}
-                onBlock={() => setBlockTarget(row)}
-                onUnblock={() => handleUnblock(row)}
-              />
-            ))}
-          </div>
+          <>
+            <div className="space-y-2">
+              {paginated.map((row) => (
+                <ClientRowCard
+                  key={row.client_id}
+                  row={row}
+                  onHistory={() => openHistory(row)}
+                  onBlock={() => setBlockTarget(row)}
+                  onUnblock={() => handleUnblock(row)}
+                />
+              ))}
+            </div>
+
+            {/* Pagination */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                Mostrando{" "}
+                <span className="font-medium text-foreground">
+                  {(currentPage - 1) * pageSize + 1}–
+                  {Math.min(currentPage * pageSize, filtered.length)}
+                </span>{" "}
+                de <span className="font-medium text-foreground">{filtered.length}</span>{" "}
+                {filtered.length === 1 ? "cliente" : "clientes"}
+              </p>
+              <div className="flex items-center gap-2">
+                <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v))}>
+                  <SelectTrigger className="h-8 w-[88px]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10 / pág</SelectItem>
+                    <SelectItem value="20">20 / pág</SelectItem>
+                    <SelectItem value="50">50 / pág</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  <span className="hidden sm:inline ml-1">Anterior</span>
+                </Button>
+                <span className="text-xs text-muted-foreground tabular-nums px-1">
+                  {currentPage} / {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                >
+                  <span className="hidden sm:inline mr-1">Próximo</span>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          </>
         )}
       </main>
 
