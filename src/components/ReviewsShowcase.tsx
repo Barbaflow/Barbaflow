@@ -333,8 +333,29 @@ function ReviewCard({
 
   const canDelete = canModerate || isAuthor;
 
+  const [highlight, setHighlight] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (window.location.hash !== `#review-${review.id}`) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(`review-${review.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setHighlight(true);
+        setTimeout(() => setHighlight(false), 2400);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [review.id]);
+
   return (
-    <div className="rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 transition-colors hover:border-gold/30">
+    <div
+      id={`review-${review.id}`}
+      className={cn(
+        "rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 transition-all hover:border-gold/30 scroll-mt-24",
+        highlight && "border-gold ring-2 ring-gold/40 shadow-lg shadow-gold/10",
+      )}
+    >
       <div className="flex items-start gap-3 mb-3">
         {review.client_avatar ? (
           <img
