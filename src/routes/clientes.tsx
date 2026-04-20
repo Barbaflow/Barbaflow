@@ -115,7 +115,16 @@ function ClientesPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState<number>(() => {
+    if (typeof window === "undefined") return 10;
+    const stored = Number(window.localStorage.getItem("clientes:pageSize"));
+    return [10, 20, 50].includes(stored) ? stored : 10;
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:pageSize", String(pageSize));
+  }, [pageSize]);
   const [sortKey, setSortKey] = useState<SortKey>("last");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
