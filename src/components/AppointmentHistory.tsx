@@ -333,6 +333,11 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
             const isPast = apt.date < new Date().toISOString().split("T")[0];
             const canCancel = apt.status === "scheduled" && !isPast;
+            // Reschedule lock: block if less than 2h before appointment start
+            const apptStart = new Date(`${apt.date}T${apt.start_time}`);
+            const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
+            const canReschedule = canCancel && hoursUntil >= 2;
+            const rescheduleLocked = canCancel && !canReschedule;
 
             return (
               <Card key={apt.id} className="bg-card border-border overflow-hidden">
