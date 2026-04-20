@@ -610,6 +610,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   <FileText className="w-4 h-4" />
                   Baixar PDF (A4)
                 </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleSavePrintPrefs}
+                  disabled={savingPrint}
+                  className="w-full sm:w-auto"
+                >
+                  {savingPrint ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  Salvar preferências
+                </Button>
               </div>
             </div>
           </div>
