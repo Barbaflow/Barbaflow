@@ -150,13 +150,37 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .single()
       .then(({ data: shop }) => {
         if (shop) {
-          setData(shop);
+          setData(shop as BarbershopData);
           setPrimaryColor(shop.primary_color);
           setSecondaryColor(shop.secondary_color);
           setLogoUrl(shop.logo_url);
+          if ((shop as BarbershopData).whatsapp_message) {
+            setWaMessage((shop as BarbershopData).whatsapp_message as string);
+          }
         }
       });
   }, [barbershopId]);
+
+  const renderWaMessage = () => {
+    const url = `${window.location.origin}/agendar/${data?.subdomain ?? ""}`;
+    const template = (waMessage || "").trim() || DEFAULT_WA_TEMPLATE;
+    return template.replace(/\{nome\}/gi, data?.name ?? "").replace(/\{link\}/gi, url);
+  };
+
+  const handleSaveWaMessage = async () => {
+    if (!data) return;
+    setSavingWa(true);
+    const { error } = await supabase
+      .from("barbershops")
+      .update({ whatsapp_message: waMessage.trim() || null })
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar mensagem.");
+    } else {
+      toast.success("Mensagem do WhatsApp salva!");
+    }
+    setSavingWa(false);
+  };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
