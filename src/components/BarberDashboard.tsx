@@ -402,6 +402,20 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     }
   }, []);
 
+  // Drag-to-navigate-day: when the user hovers a card over the prev/next
+  // chevrons for ~1 second, the day shifts. The timer resets if they move off,
+  // and re-arms while still hovering so they can advance multiple days.
+  const [pendingDateNav, setPendingDateNav] = useState<"date-prev" | "date-next" | null>(null);
+  const dateNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearDateNavTimer = useCallback(() => {
+    if (dateNavTimerRef.current) {
+      clearTimeout(dateNavTimerRef.current);
+      dateNavTimerRef.current = null;
+    }
+    setPendingDateNav(null);
+  }, []);
+  useEffect(() => () => clearDateNavTimer(), [clearDateNavTimer]);
+
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
   // TouchSensor with delay:200 lets vertical scroll work normally on mobile;
