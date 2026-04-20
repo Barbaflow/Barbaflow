@@ -79,7 +79,9 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
 
       if (error || !data) return [];
 
-      const clientIds = Array.from(new Set(data.map((r: any) => r.client_id)));
+      const clientIds = Array.from(
+        new Set(data.map((r: any) => r.client_id as string)),
+      );
       const { data: profiles } = await supabase
         .from("profiles")
         .select("user_id, full_name, avatar_url")
