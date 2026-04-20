@@ -820,8 +820,17 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                       <CalendarDayButton {...dayProps} />
                       {count > 0 && (
                         <span
-                          className="pointer-events-none absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-[14px] text-center shadow-sm"
-                          aria-label={`${count} agendamento${count > 1 ? "s" : ""}`}
+                          className={cn(
+                            "pointer-events-none absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full text-[9px] font-semibold leading-[14px] text-center shadow-sm",
+                            count >= 8
+                              ? "bg-destructive text-destructive-foreground ring-1 ring-destructive/40 animate-pulse"
+                              : count >= 5
+                                ? "bg-amber-500 text-white"
+                                : "bg-primary text-primary-foreground"
+                          )}
+                          aria-label={`${count} agendamento${count > 1 ? "s" : ""}${
+                            count >= 8 ? " — dia lotado" : count >= 5 ? " — dia cheio" : ""
+                          }`}
                         >
                           {count > 9 ? "9+" : count}
                         </span>
