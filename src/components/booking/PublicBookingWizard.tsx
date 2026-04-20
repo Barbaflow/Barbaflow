@@ -124,11 +124,35 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           .from("profiles")
           .select("user_id, full_name, avatar_url")
           .in("user_id", userIds);
+
+        // Fetch reviews joined with appointments to compute per-barber ratings
+        const { data: reviewRows } = await supabase
+          .from("reviews")
+          .select("rating, appointments!inner(barber_id)")
+          .eq("barbershop_id", selectedBarbershop.id)
+          .in("appointments.barber_id", userIds);
+
+        const ratingMap = new Map<string, { sum: number; count: number }>();
+        (reviewRows as unknown as Array<{ rating: number; appointments: { barber_id: string } | null }>)?.forEach((r) => {
+          const bid = r.appointments?.barber_id;
+          if (!bid) return;
+          const cur = ratingMap.get(bid) ?? { sum: 0, count: 0 };
+          cur.sum += r.rating;
+          cur.count += 1;
+          ratingMap.set(bid, cur);
+        });
+
         // Ensure every user_id has an entry, even if profile is missing
         const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
-        const barberList: BarberWithProfile[] = userIds.map(
-          (id) => profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null }
-        );
+        const barberList: BarberWithProfile[] = userIds.map((id) => {
+          const base = profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null };
+          const r = ratingMap.get(id);
+          return {
+            ...base,
+            rating_avg: r ? Math.round((r.sum / r.count) * 10) / 10 : 0,
+            rating_count: r?.count ?? 0,
+          };
+        });
         setBarbers(barberList);
         setLoadingStep(false);
       });
