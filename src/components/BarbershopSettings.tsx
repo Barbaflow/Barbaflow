@@ -435,6 +435,59 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
+      {/* WhatsApp message */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <MessageCircle className="w-5 h-5 text-gold" />
+            Mensagem do WhatsApp
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Personalize a mensagem que aparece quando você clica em "Compartilhar no WhatsApp".
+            Use <code className="px-1 py-0.5 rounded bg-secondary text-gold">{"{nome}"}</code> para
+            o nome da barbearia e{" "}
+            <code className="px-1 py-0.5 rounded bg-secondary text-gold">{"{link}"}</code> para o
+            link de agendamento.
+          </p>
+          <Textarea
+            value={waMessage}
+            onChange={(e) => setWaMessage(e.target.value)}
+            placeholder={DEFAULT_WA_TEMPLATE}
+            rows={4}
+            maxLength={500}
+            className="text-sm"
+          />
+          <div className="p-3 rounded-lg border border-border bg-secondary/50">
+            <p className="text-xs text-muted-foreground mb-1">Pré-visualização:</p>
+            <p className="text-sm text-foreground whitespace-pre-wrap">{renderWaMessage()}</p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              onClick={handleSaveWaMessage}
+              disabled={savingWa}
+              variant="gold"
+              className="w-full sm:w-auto"
+            >
+              {savingWa ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {savingWa ? "Salvando..." : "Salvar mensagem"}
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setWaMessage(DEFAULT_WA_TEMPLATE)}
+            >
+              Restaurar padrão
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Color Picker */}
       <Card className="border-border bg-card">
         <CardHeader>
