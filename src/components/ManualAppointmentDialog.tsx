@@ -72,6 +72,19 @@ interface Slot {
   reason?: "ocupado" | "passado";
 }
 
+export interface EditAppointmentInput {
+  id: string;
+  date: string; // YYYY-MM-DD
+  start_time: string; // HH:MM:SS or HH:MM
+  barber_id: string;
+  service_id: string;
+  client_id: string;
+  client_full_name: string | null;
+  client_phone: string | null;
+  client_avatar_url: string | null;
+  notes: string | null;
+}
+
 interface ManualAppointmentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -79,6 +92,7 @@ interface ManualAppointmentDialogProps {
   barbers: Barber[];
   defaultDate: string;
   onCreated: () => void;
+  editAppointment?: EditAppointmentInput | null;
 }
 
 const toMin = (t: string) => {
