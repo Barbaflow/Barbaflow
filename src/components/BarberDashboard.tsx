@@ -67,6 +67,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { QRCodeSVG } from "qrcode.react";
+import { fetchBarberDisplayNames } from "@/lib/barber-names";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -242,14 +243,14 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         .eq("barbershop_id", barbershopId)
         .in("role", ["barbeiro", "admin_barbearia"]);
       if (!roles || roles.length === 0) return;
-      const ids = roles.map((r) => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name")
-        .in("user_id", ids);
-      if (profiles) {
-        setBarbers(profiles.map((p) => ({ id: p.user_id, name: p.full_name || "Sem nome" })));
-      }
+      const ids = [...new Set(roles.map((r) => r.user_id))];
+      const namesMap = await fetchBarberDisplayNames(ids);
+      setBarbers(
+        ids.map((id) => ({
+          id,
+          name: namesMap[id]?.display_name || "Sem nome",
+        }))
+      );
     })();
   }, [isAdmin, barbershopId]);
 
@@ -278,25 +279,30 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     } else {
       const clientIds = [...new Set((data || []).map((a) => a.client_id))];
       const barberIds = [...new Set((data || []).map((a) => a.barber_id))];
-      const allUserIds = [...new Set([...clientIds, ...barberIds])];
 
-      let profilesMap: Record<string, { full_name: string | null }> = {};
-      if (allUserIds.length > 0) {
+      // Clients: profiles table (works because admin/barber can read profiles)
+      let clientMap: Record<string, { full_name: string | null }> = {};
+      if (clientIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
-          .in("user_id", allUserIds);
+          .in("user_id", clientIds);
         if (profiles) {
-          profilesMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name }]));
+          clientMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name }]));
         }
       }
+
+      // Barbers: standardized RPC
+      const barberMap = await fetchBarberDisplayNames(barberIds);
 
       setAppointments(
         (data || []).map((a) => ({
           ...a,
           service: Array.isArray(a.service) ? a.service[0] || null : a.service,
-          client_profile: profilesMap[a.client_id] || null,
-          barber_profile: profilesMap[a.barber_id] || null,
+          client_profile: clientMap[a.client_id] || null,
+          barber_profile: barberMap[a.barber_id]
+            ? { full_name: barberMap[a.barber_id].display_name }
+            : null,
         })) as Appointment[]
       );
     }
