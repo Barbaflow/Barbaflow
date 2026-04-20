@@ -376,6 +376,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   ))}
                 </div>
               </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="pdf-slogan" className="text-xs text-muted-foreground">
+                  Slogan no PDF de impressão
+                </Label>
+                <Input
+                  id="pdf-slogan"
+                  value={pdfSlogan}
+                  onChange={(e) => setPdfSlogan(e.target.value)}
+                  placeholder="Ex: Agende já o seu corte!"
+                  maxLength={80}
+                  className="text-sm"
+                />
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
                   <Download className="w-4 h-4" />
