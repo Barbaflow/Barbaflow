@@ -283,6 +283,42 @@ export function RescheduleDialog({
             </div>
           </div>
 
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5" />
+              Profissional
+            </label>
+            <Select
+              value={selectedBarberId}
+              onValueChange={setSelectedBarberId}
+              disabled={barbersLoading || submitting}
+            >
+              <SelectTrigger className="h-10">
+                <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
+              </SelectTrigger>
+              <SelectContent>
+                {barbers.map((b) => (
+                  <SelectItem key={b.user_id} value={b.user_id}>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="w-5 h-5">
+                        {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
+                        <AvatarFallback className="text-[9px]">
+                          {b.display.display_name.slice(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm">
+                        {b.display.display_name}
+                        {b.user_id === originalBarberId && (
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
+                        )}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {loading ? (
             <div className="p-6 rounded-lg border border-border flex items-center justify-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin" />
