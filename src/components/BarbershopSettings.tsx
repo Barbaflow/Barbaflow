@@ -51,6 +51,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [savingPrint, setSavingPrint] = useState(false);
   const [rescheduleMinHours, setRescheduleMinHours] = useState<number>(2);
   const [savingReschedule, setSavingReschedule] = useState(false);
+  const [cancelMinHours, setCancelMinHours] = useState<number>(2);
+  const [savingCancel, setSavingCancel] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -287,6 +289,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.reschedule_min_hours === "number") {
             setRescheduleMinHours(s.reschedule_min_hours);
           }
+          if (typeof s.cancel_min_hours === "number") {
+            setCancelMinHours(s.cancel_min_hours);
+          }
         }
       });
   }, [barbershopId]);
@@ -343,6 +348,21 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Limite de reagendamento salvo!");
     }
     setSavingReschedule(false);
+  };
+
+  const handleSaveCancel = async () => {
+    setSavingCancel(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ cancel_min_hours: cancelMinHours } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar limite de cancelamento.");
+    } else {
+      toast.success("Limite de cancelamento salvo!");
+    }
+    setSavingCancel(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
