@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Scissors, Star, Store } from "lucide-react";
+import { ArrowLeft, CalendarClock, Scissors, ShieldAlert, Star, Store, XCircle } from "lucide-react";
 
 interface PublicBarbershop {
   id: string;
@@ -15,12 +15,26 @@ interface PublicBarbershop {
   rating_avg: number;
   rating_count: number;
   created_at: string;
+  reschedule_min_hours?: number;
+  cancel_min_hours?: number;
+  noshow_policy_enabled?: boolean;
+  noshow_max_count?: number;
+  noshow_block_days?: number;
   isMock?: boolean;
   lastReview?: {
     rating: number;
     comment: string;
     client_name: string;
   } | null;
+}
+
+function formatHoursShort(h: number) {
+  if (h <= 0) return "—";
+  if (h >= 24 && h % 24 === 0) {
+    const d = h / 24;
+    return d === 1 ? "1d" : `${d}d`;
+  }
+  return `${h}h`;
 }
 
 const MOCK_BARBEARIAS: PublicBarbershop[] = [
@@ -111,9 +125,28 @@ function BarbeariasPage() {
         (b) => b.subdomain !== "_system",
       );
 
-      // Buscar últimas reviews (com comentário) para cada barbearia
+      // Buscar políticas (não estão na view pública) + últimas reviews
       if (list.length > 0) {
         const ids = list.map((b) => b.id);
+
+        const { data: policies } = await supabase
+          .from("barbershops")
+          .select("id, reschedule_min_hours, cancel_min_hours, noshow_policy_enabled, noshow_max_count, noshow_block_days")
+          .in("id", ids);
+
+        const policyMap = new Map<string, any>();
+        (policies || []).forEach((p) => policyMap.set(p.id, p));
+        list.forEach((b) => {
+          const p = policyMap.get(b.id);
+          if (p) {
+            b.reschedule_min_hours = p.reschedule_min_hours;
+            b.cancel_min_hours = p.cancel_min_hours;
+            b.noshow_policy_enabled = p.noshow_policy_enabled;
+            b.noshow_max_count = p.noshow_max_count;
+            b.noshow_block_days = p.noshow_block_days;
+          }
+        });
+
         const { data: reviews } = await supabase
           .from("reviews")
           .select("barbershop_id, rating, comment, created_at, client_id")
@@ -164,6 +197,11 @@ function BarbeariasPage() {
         setBarbearias(
           MOCK_BARBEARIAS.map((b, i) => ({
             ...b,
+            reschedule_min_hours: i === 0 ? 4 : i === 1 ? 2 : 24,
+            cancel_min_hours: i === 0 ? 12 : i === 1 ? 2 : 24,
+            noshow_policy_enabled: i === 0,
+            noshow_max_count: 3,
+            noshow_block_days: 15,
             lastReview:
               i === 0
                 ? {
@@ -322,6 +360,38 @@ function BarbeariaCard({ b }: { b: PublicBarbershop }) {
           <p className="text-xs text-foreground/85 font-body italic line-clamp-2 leading-snug">
             "{b.lastReview.comment}"
           </p>
+        </div>
+      )}
+
+      {(b.reschedule_min_hours !== undefined || b.cancel_min_hours !== undefined || b.noshow_policy_enabled) && (
+        <div className="mb-4 flex flex-wrap gap-1.5">
+          {b.reschedule_min_hours !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[10px] font-body text-muted-foreground"
+              title={`Reagendamento até ${formatHoursShort(b.reschedule_min_hours)} antes`}
+            >
+              <CalendarClock className="w-3 h-3 text-primary/70" />
+              Reagenda {formatHoursShort(b.reschedule_min_hours)}
+            </span>
+          )}
+          {b.cancel_min_hours !== undefined && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-border/60 bg-background/40 px-2 py-0.5 text-[10px] font-body text-muted-foreground"
+              title={`Cancelamento até ${formatHoursShort(b.cancel_min_hours)} antes`}
+            >
+              <XCircle className="w-3 h-3 text-primary/70" />
+              Cancela {formatHoursShort(b.cancel_min_hours)}
+            </span>
+          )}
+          {b.noshow_policy_enabled && b.noshow_max_count && b.noshow_block_days && (
+            <span
+              className="inline-flex items-center gap-1 rounded-md border border-destructive/30 bg-destructive/5 px-2 py-0.5 text-[10px] font-body text-destructive"
+              title={`${b.noshow_max_count} faltas em 30 dias bloqueia por ${b.noshow_block_days} dias`}
+            >
+              <ShieldAlert className="w-3 h-3" />
+              {b.noshow_max_count} faltas → {b.noshow_block_days}d
+            </span>
+          )}
         </div>
       )}
 
