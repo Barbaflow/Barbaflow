@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Scissors, Star, Store } from "lucide-react";
+import { ArrowLeft, CalendarClock, Scissors, ShieldAlert, Star, Store, XCircle } from "lucide-react";
 
 interface PublicBarbershop {
   id: string;
@@ -15,12 +15,26 @@ interface PublicBarbershop {
   rating_avg: number;
   rating_count: number;
   created_at: string;
+  reschedule_min_hours?: number;
+  cancel_min_hours?: number;
+  noshow_policy_enabled?: boolean;
+  noshow_max_count?: number;
+  noshow_block_days?: number;
   isMock?: boolean;
   lastReview?: {
     rating: number;
     comment: string;
     client_name: string;
   } | null;
+}
+
+function formatHoursShort(h: number) {
+  if (h <= 0) return "—";
+  if (h >= 24 && h % 24 === 0) {
+    const d = h / 24;
+    return d === 1 ? "1d" : `${d}d`;
+  }
+  return `${h}h`;
 }
 
 const MOCK_BARBEARIAS: PublicBarbershop[] = [
