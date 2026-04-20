@@ -333,6 +333,11 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
             const isPast = apt.date < new Date().toISOString().split("T")[0];
             const canCancel = apt.status === "scheduled" && !isPast;
+            // Reschedule lock: block if less than 2h before appointment start
+            const apptStart = new Date(`${apt.date}T${apt.start_time}`);
+            const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
+            const canReschedule = canCancel && hoursUntil >= 2;
+            const rescheduleLocked = canCancel && !canReschedule;
 
             return (
               <Card key={apt.id} className="bg-card border-border overflow-hidden">
@@ -425,26 +430,36 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                       )}
                       {canCancel && (
                         <>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() =>
-                              setRescheduling({
-                                id: apt.id,
-                                date: apt.date,
-                                start_time: apt.start_time,
-                                barber_id: apt.barber_id,
-                                barbershop_id: apt.barbershop_id,
-                                duration_minutes: apt.service?.duration_minutes ?? 30,
-                                client_name: null,
-                                service_name: apt.service?.name ?? null,
-                                original_date: apt.date,
-                              })
-                            }
-                          >
-                            <CalendarClock className="w-3.5 h-3.5" />
-                            Reagendar
-                          </Button>
+                          {rescheduleLocked ? (
+                            <div
+                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[140px] leading-tight"
+                              title="Para reagendar com menos de 2h de antecedência, entre em contato com a barbearia."
+                            >
+                              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                              <span>Reagendamento bloqueado (menos de 2h)</span>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                setRescheduling({
+                                  id: apt.id,
+                                  date: apt.date,
+                                  start_time: apt.start_time,
+                                  barber_id: apt.barber_id,
+                                  barbershop_id: apt.barbershop_id,
+                                  duration_minutes: apt.service?.duration_minutes ?? 30,
+                                  client_name: null,
+                                  service_name: apt.service?.name ?? null,
+                                  original_date: apt.date,
+                                })
+                              }
+                            >
+                              <CalendarClock className="w-3.5 h-3.5" />
+                              Reagendar
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
