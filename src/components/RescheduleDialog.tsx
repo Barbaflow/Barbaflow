@@ -135,14 +135,14 @@ export function RescheduleDialog({
           .from("appointments")
           .select("id, start_time, end_time, status")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("date", appointment.date)
           .neq("status", "cancelled"),
         supabase
           .from("schedule_blocks")
           .select("id")
           .eq("barbershop_id", appointment.barbershop_id)
-          .eq("barber_id", appointment.barber_id)
+          .eq("barber_id", selectedBarberId)
           .eq("block_date", appointment.date),
       ]);
 
