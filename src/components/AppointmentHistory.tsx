@@ -91,11 +91,14 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
     let query = supabase
       .from("appointments")
-      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, service:services(name, price, duration_minutes)")
-      .eq("barbershop_id", barbershopId)
+      .select("id, date, start_time, end_time, status, notes, created_at, barber_id, barbershop_id, barbershop:barbershops(name), service:services(name, price, duration_minutes)")
       .eq("client_id", user.id)
       .order("date", { ascending: false })
       .order("start_time", { ascending: false });
+
+    if (barbershopId) {
+      query = query.eq("barbershop_id", barbershopId);
+    }
 
     if (statusFilter !== "all") {
       query = query.eq("status", statusFilter as "scheduled" | "completed" | "cancelled" | "no_show");
