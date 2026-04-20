@@ -36,7 +36,7 @@ import {
 import {
   Scissors,
   LogOut,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   Users,
   DollarSign,
