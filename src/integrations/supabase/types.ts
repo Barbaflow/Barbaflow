@@ -140,8 +140,11 @@ export type Database = {
           logo_url: string | null
           name: string
           owner_id: string | null
+          pdf_slogan: string | null
+          pdf_template: string | null
           plan_id: string | null
           primary_color: string
+          qr_size: string | null
           rating_avg: number
           rating_count: number
           secondary_color: string
@@ -157,8 +160,11 @@ export type Database = {
           logo_url?: string | null
           name: string
           owner_id?: string | null
+          pdf_slogan?: string | null
+          pdf_template?: string | null
           plan_id?: string | null
           primary_color?: string
+          qr_size?: string | null
           rating_avg?: number
           rating_count?: number
           secondary_color?: string
@@ -174,8 +180,11 @@ export type Database = {
           logo_url?: string | null
           name?: string
           owner_id?: string | null
+          pdf_slogan?: string | null
+          pdf_template?: string | null
           plan_id?: string | null
           primary_color?: string
+          qr_size?: string | null
           rating_avg?: number
           rating_count?: number
           secondary_color?: string
