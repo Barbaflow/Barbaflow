@@ -58,7 +58,8 @@ function formatWeekday(dateStr: string) {
 }
 
 interface AppointmentHistoryProps {
-  barbershopId: string;
+  /** When provided, filters to a single barbershop. Omit to show all of the client's appointments across barbershops. */
+  barbershopId?: string;
 }
 
 export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
