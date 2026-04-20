@@ -179,6 +179,18 @@ function ClientesPage() {
     return list;
   }, [rows, statusFilter, search]);
 
+  // Reset to page 1 when filters/search/page-size change
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter, pageSize]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const paginated = useMemo(
+    () => filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filtered, currentPage, pageSize]
+  );
+
   const stats = useMemo(
     () => ({
       total: rows.length,
