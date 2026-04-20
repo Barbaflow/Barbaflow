@@ -374,15 +374,20 @@ function ClientesPage() {
     [sorted, currentPage, pageSize]
   );
 
-  const stats = useMemo(
-    () => ({
+  const stats = useMemo(() => {
+    const now = Date.now();
+    const day = 24 * 60 * 60 * 1000;
+    return {
       total: rows.length,
       blocked: rows.filter((r) => r.manual_blocked_until).length,
       withNoshow: rows.filter((r) => r.noshow_count > 0).length,
       totalAppointments: rows.reduce((sum, r) => sum + Number(r.total_appointments || 0), 0),
-    }),
-    [rows]
-  );
+      inactive60: rows.filter((r) => {
+        if (!r.last_appointment_at) return false;
+        return (now - new Date(r.last_appointment_at).getTime()) / day > 60;
+      }).length,
+    };
+  }, [rows]);
 
   const handleBlock = async () => {
     if (!blockTarget || !user) return;
