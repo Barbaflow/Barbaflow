@@ -181,11 +181,18 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     return h * 60 + m;
   };
 
-  // Fetch availability + existing appointments, then mark each slot as
-  // "ocupado" if it conflicts with a real appointment, is in the past,
-  // or doesn't have enough contiguous free availability for the service duration.
+  const fmtTime = (mins: number) => {
+    const h = Math.floor(mins / 60).toString().padStart(2, "0");
+    const m = (mins % 60).toString().padStart(2, "0");
+    return `${h}:${m}:00`;
+  };
+
+  // Fetch availability windows + existing appointments, then slice each window
+  // into discrete slots of `service.duration_minutes`. A slot is "ocupado" if it
+  // overlaps an existing appointment, falls outside any "livre" window, is in the
+  // past, or lies inside a window that the barber/admin marked as ocupado/folga.
   const fetchAvailability = useCallback(async () => {
-    if (!selectedBarbershop || !selectedBarber) return;
+    if (!selectedBarbershop || !selectedBarber || !selectedService) return;
     setLoadingSlots(true);
 
     const [{ data: slots }, { data: appts }] = await Promise.all([
@@ -205,57 +212,51 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
         .neq("status", "cancelled"),
     ]);
 
-    const allSlots = (slots ?? []) as AvailabilitySlot[];
-    const bookings = (appts ?? []) as Array<{ start_time: string; end_time: string; status: string }>;
-    const duration = selectedService?.duration_minutes ?? 0;
+    const windows = (slots ?? []) as AvailabilitySlot[];
+    const bookings = (appts ?? []) as Array<{ start_time: string; end_time: string }>;
+    const duration = selectedService.duration_minutes;
 
     const busy = bookings.map((b) => ({ s: toMin(b.start_time), e: toMin(b.end_time) }));
+    const blocks = windows
+      .filter((w) => w.status !== "livre")
+      .map((w) => ({ s: toMin(w.start_time), e: toMin(w.end_time) }));
+    const freeWindows = windows.filter((w) => w.status === "livre");
 
     const now = new Date();
     const isToday = selectedDate === now.toISOString().split("T")[0];
     const nowMin = now.getHours() * 60 + now.getMinutes();
 
-    const sortedSlots = [...allSlots].sort(
-      (a, b) => toMin(a.start_time) - toMin(b.start_time)
-    );
+    // Build distinct discrete slots from every "livre" window
+    const seen = new Set<number>();
+    const generated: AvailabilitySlot[] = [];
 
-    const computed: AvailabilitySlot[] = allSlots.map((slot) => {
-      // Already blocked by barber/admin
-      if (slot.status !== "livre") return slot;
+    for (const win of freeWindows) {
+      const winStart = toMin(win.start_time);
+      const winEnd = toMin(win.end_time);
+      // step = service duration ensures we don't offer impossible mid-times
+      for (let t = winStart; t + duration <= winEnd; t += duration) {
+        if (seen.has(t)) continue;
+        seen.add(t);
 
-      const start = toMin(slot.start_time);
-      const needEnd = start + duration;
+        const slotEnd = t + duration;
+        const isPast = isToday && t < nowMin;
+        const conflictsAppt = busy.some((b) => t < b.e && slotEnd > b.s);
+        const conflictsBlock = blocks.some((b) => t < b.e && slotEnd > b.s);
 
-      // Past slots on today
-      if (isToday && start < nowMin) {
-        return { ...slot, status: "ocupado" };
+        generated.push({
+          // Synthetic id keyed by window+offset so React keys stay stable per fetch
+          id: `${win.id}-${t}`,
+          barber_id: win.barber_id,
+          date: win.date,
+          start_time: fmtTime(t),
+          end_time: fmtTime(slotEnd),
+          status: isPast || conflictsAppt || conflictsBlock ? "ocupado" : "livre",
+        });
       }
+    }
 
-      // Conflict with a real appointment (interval overlap)
-      const conflicts = busy.some((b) => start < b.e && needEnd > b.s);
-      if (conflicts) return { ...slot, status: "ocupado" };
-
-      // Make sure contiguous "livre" availability covers the whole service duration
-      if (duration > 0) {
-        let coveredUntil = start;
-        for (const s of sortedSlots) {
-          const sStart = toMin(s.start_time);
-          const sEnd = toMin(s.end_time);
-          if (sEnd <= start) continue;
-          if (sStart > coveredUntil) break; // gap → can't extend
-          if (s.status !== "livre") break; // intermediate slot is taken
-          coveredUntil = Math.max(coveredUntil, sEnd);
-          if (coveredUntil >= needEnd) break;
-        }
-        if (coveredUntil < needEnd) {
-          return { ...slot, status: "ocupado" };
-        }
-      }
-
-      return slot;
-    });
-
-    setAvailability(computed);
+    generated.sort((a, b) => toMin(a.start_time) - toMin(b.start_time));
+    setAvailability(generated);
     setLoadingSlots(false);
   }, [selectedBarbershop, selectedBarber, selectedDate, selectedService]);
 
@@ -311,22 +312,6 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (error) {
       toast.error("Erro ao agendar. Tente novamente.");
     } else {
-      // Mark every availability slot covered by the appointment as ocupado
-      const slotIdsToOccupy = availability
-        .filter((s) => {
-          const sStart = toMin(s.start_time);
-          const sEnd = toMin(s.end_time);
-          return sStart < endMin && sEnd > startMin;
-        })
-        .map((s) => s.id);
-
-      if (slotIdsToOccupy.length > 0) {
-        await supabase
-          .from("availability")
-          .update({ status: "ocupado" })
-          .in("id", slotIdsToOccupy);
-      }
-
       toast.success("Agendamento confirmado! 🎉");
       notifyBookingConfirmed({
         appointmentId: crypto.randomUUID(),
@@ -336,6 +321,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       }).catch(console.error);
 
       setSelectedSlot(null);
+      // Refetch will recompute slot statuses by overlapping with the new appointment
       fetchAvailability();
     }
     setBooking(false);
