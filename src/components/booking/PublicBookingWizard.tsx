@@ -456,6 +456,23 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
                           <p className="text-[11px] text-muted-foreground mt-0.5">
                             {isOwner ? "Dono & Barbeiro" : "Profissional"}
                           </p>
+                          <div className="flex items-center justify-center gap-1 mt-1.5 h-4">
+                            {b.rating_count && b.rating_count > 0 ? (
+                              <>
+                                <Star className="w-3 h-3 fill-primary text-primary" />
+                                <span className="text-[11px] font-semibold text-foreground">
+                                  {b.rating_avg?.toFixed(1)}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  ({b.rating_count})
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Sem avaliações
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
