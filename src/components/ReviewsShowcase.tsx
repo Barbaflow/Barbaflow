@@ -117,13 +117,41 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     }
   }, [barbershopId]);
 
+  const fetchMyReview = useCallback(async (): Promise<ReviewItem | null> => {
+    if (!user) return null;
+    const { data } = await (supabase as any)
+      .from("reviews")
+      .select("id, rating, comment, created_at, client_id, reply, reply_at")
+      .eq("barbershop_id", barbershopId)
+      .eq("client_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!data) return null;
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("full_name, avatar_url")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    return {
+      ...(data as any),
+      client_name:
+        (profile?.full_name && profile.full_name.trim()) || "Você",
+      client_avatar: profile?.avatar_url || null,
+    } as ReviewItem;
+  }, [barbershopId, user]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoading(true);
-      const first = await fetchPage(0);
+      const [first, mine] = await Promise.all([
+        fetchPage(0),
+        fetchMyReview(),
+      ]);
       if (cancelled) return;
       setReviews(first);
+      setMyReview(mine);
       setHasMore(first.length === pageSize);
       await refreshAggregates();
       if (!cancelled) setLoading(false);
@@ -131,7 +159,7 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     return () => {
       cancelled = true;
     };
-  }, [barbershopId, pageSize, fetchPage, refreshAggregates]);
+  }, [barbershopId, pageSize, fetchPage, refreshAggregates, fetchMyReview]);
 
   const loadMore = async () => {
     setLoadingMore(true);
@@ -142,13 +170,12 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
   };
 
   const handleReplySaved = (id: string, reply: string | null) => {
-    setReviews((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? { ...r, reply, reply_at: reply ? new Date().toISOString() : null }
-          : r,
-      ),
-    );
+    const patch = (r: ReviewItem) =>
+      r.id === id
+        ? { ...r, reply, reply_at: reply ? new Date().toISOString() : null }
+        : r;
+    setReviews((prev) => prev.map(patch));
+    setMyReview((prev) => (prev ? patch(prev) : prev));
   };
 
   const handleReviewUpdated = async (
@@ -158,13 +185,22 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     setReviews((prev) =>
       prev.map((r) => (r.id === id ? { ...r, ...patch } : r)),
     );
+    setMyReview((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
     await refreshAggregates();
   };
 
   const handleDeleted = async (id: string) => {
     setReviews((prev) => prev.filter((r) => r.id !== id));
+    setMyReview((prev) => (prev && prev.id === id ? null : prev));
     await refreshAggregates();
   };
+
+  // Move my review to the top, deduplicated
+  const displayedReviews = useMemo(() => {
+    if (!myReview) return reviews;
+    const rest = reviews.filter((r) => r.id !== myReview.id);
+    return [myReview, ...rest];
+  }, [myReview, reviews]);
 
   if (loading) {
     return (
