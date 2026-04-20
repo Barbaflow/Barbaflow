@@ -26,6 +26,16 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
   User,
   Loader2,
@@ -33,6 +43,7 @@ import {
   AlertCircle,
   Clock,
   CalendarIcon,
+  Ban,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -134,6 +145,8 @@ export function ManualAppointmentDialog({
   const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   // Reset on open — populate from editAppointment when editing
   useEffect(() => {
@@ -374,6 +387,24 @@ export function ManualAppointmentDialog({
       onOpenChange(false);
     }
     setSubmitting(false);
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!editAppointment) return;
+    setCancelling(true);
+    const { error } = await supabase
+      .from("appointments")
+      .update({ status: "cancelled" })
+      .eq("id", editAppointment.id);
+    if (error) {
+      toast.error(error.message || "Erro ao cancelar agendamento.");
+    } else {
+      toast.success("Agendamento cancelado. O cliente será notificado.");
+      onCreated();
+      setCancelOpen(false);
+      onOpenChange(false);
+    }
+    setCancelling(false);
   };
 
   const canSubmit =
@@ -673,16 +704,54 @@ export function ManualAppointmentDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>
-            Cancelar
+        <DialogFooter className="gap-2 sm:gap-2">
+          {isEditing && (
+            <Button
+              variant="destructive"
+              onClick={() => setCancelOpen(true)}
+              disabled={submitting || cancelling}
+              className="sm:mr-auto"
+            >
+              <Ban className="w-4 h-4" />
+              Cancelar agendamento
+            </Button>
+          )}
+          <Button variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting || cancelling}>
+            Fechar
           </Button>
-          <Button onClick={handleSubmit} disabled={!canSubmit}>
+          <Button onClick={handleSubmit} disabled={!canSubmit || cancelling}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
             {isEditing ? "Salvar alterações" : "Criar agendamento"}
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-display">Cancelar este agendamento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              O agendamento será marcado como cancelado e o cliente
+              {selectedClient?.full_name ? ` (${selectedClient.full_name})` : ""} receberá uma
+              notificação automática. Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelAppointment();
+              }}
+              disabled={cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? <Loader2 className="w-4 h-4 animate-spin" /> : <Ban className="w-4 h-4" />}
+              Sim, cancelar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }
