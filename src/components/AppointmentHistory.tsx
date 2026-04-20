@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star, Phone } from "lucide-react";
+import { CalendarIcon, Clock, Scissors, AlertCircle, History, X, User, Star, Phone, CalendarClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
+import { RescheduleDialog, type RescheduleTarget } from "./RescheduleDialog";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone } from "@/lib/phone";
 import { Link } from "@tanstack/react-router";
