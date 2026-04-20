@@ -146,13 +146,14 @@ function formatDateFull(dateStr: string) {
   return `${weekdays[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
 }
 
-type AdminTab = "overview" | "services" | "products" | "team" | "schedule" | "settings";
+type AdminTab = "overview" | "services" | "products" | "team" | "clients" | "schedule" | "settings";
 
-const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
+const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard; href?: string }[] = [
   { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { id: "services", label: "Serviços", icon: Wrench },
   { id: "products", label: "Produtos", icon: Package },
   { id: "team", label: "Equipe", icon: UserCog },
+  { id: "clients", label: "Clientes", icon: Users, href: "/clientes" },
   { id: "schedule", label: "Horários", icon: CalendarCog },
   { id: "settings", label: "Configurações", icon: Settings },
 ];
@@ -345,12 +346,6 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 </Button>
               </>
             )}
-            <Link to="/clientes">
-              <Button variant="ghost" size="sm">
-                <Users className="w-4 h-4" />
-                <span className="hidden sm:inline">Clientes</span>
-              </Button>
-            </Link>
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
@@ -374,15 +369,24 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
+              const className = `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+                active
+                  ? "border-primary text-primary"
+                  : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              }`;
+              if (tab.href) {
+                return (
+                  <Link key={tab.id} to={tab.href} className={className}>
+                    <Icon className="w-4 h-4" />
+                    {tab.label}
+                  </Link>
+                );
+              }
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-                    active
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
-                  }`}
+                  className={className}
                 >
                   <Icon className="w-4 h-4" />
                   {tab.label}
