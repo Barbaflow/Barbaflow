@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Star, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { EmojiPicker } from "@/components/EmojiPicker";
 
 const reviewSchema = z.object({
   rating: z.number().int().min(1, "Selecione de 1 a 5 estrelas").max(5),
