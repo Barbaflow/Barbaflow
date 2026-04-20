@@ -218,6 +218,7 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
             canModerate={canModerate}
             onReplySaved={handleReplySaved}
             onDeleted={handleDeleted}
+            onReviewUpdated={handleReviewUpdated}
           />
         ))}
       </div>
