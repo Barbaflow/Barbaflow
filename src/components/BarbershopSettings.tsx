@@ -209,6 +209,13 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-5">
+          <div className="flex items-start gap-2 p-3 rounded-lg border border-gold/30 bg-gold/5">
+            <Info className="w-4 h-4 text-gold shrink-0 mt-0.5" />
+            <p className="text-xs text-foreground">
+              As cores personalizadas são aplicadas na sua página pública de agendamento apenas para barbearias nos planos <strong>Pro</strong> e <strong>Enterprise</strong>. Clientes do plano Free verão o tema padrão.
+            </p>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="primary" className="text-sm text-foreground">
