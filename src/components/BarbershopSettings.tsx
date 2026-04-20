@@ -26,6 +26,7 @@ interface BarbershopData {
   pdf_slogan: string | null;
   qr_size: string | null;
   reschedule_min_hours: number | null;
+  cancel_min_hours: number | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
