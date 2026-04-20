@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Authenticated users can insert deletion feedback" ON public.account_deletion_feedback;
