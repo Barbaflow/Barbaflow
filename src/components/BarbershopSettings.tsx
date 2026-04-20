@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info } from "lucide-react";
+import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 
@@ -291,19 +291,32 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
             </div>
           </div>
 
-          <Button
-            onClick={handleSaveColors}
-            disabled={saving}
-            variant="gold"
-            className="w-full sm:w-auto"
-          >
-            {saving ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Check className="w-4 h-4" />
-            )}
-            {saving ? "Salvando..." : "Salvar Cores"}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button
+              onClick={handleSaveColors}
+              disabled={saving}
+              variant="gold"
+              className="w-full sm:w-auto"
+            >
+              {saving ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {saving ? "Salvando..." : "Salvar Cores"}
+            </Button>
+            <a
+              href={`/agendar/${data.subdomain}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full sm:w-auto"
+            >
+              <Button variant="outline" className="w-full sm:w-auto">
+                <ExternalLink className="w-4 h-4" />
+                Ver minha página pública
+              </Button>
+            </a>
+          </div>
         </CardContent>
       </Card>
     </div>
