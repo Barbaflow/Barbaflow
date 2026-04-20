@@ -1,11 +1,25 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, LogOut, Scissors, User as UserIcon } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { NotificationBell } from "@/components/NotificationBell";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/perfil")({
@@ -25,6 +39,10 @@ function PerfilPage() {
   const { barbershop } = useBarbershop();
   const navigate = useNavigate();
   const name = barbershop?.name || "BarbaFlow";
+  const [confirmText, setConfirmText] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const requiredText = "EXCLUIR";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -39,6 +57,26 @@ function PerfilPage() {
       navigate({ to: "/" });
     } catch {
       toast.error("Erro ao sair. Tente novamente.");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-account");
+      if (error || (data && (data as any).error)) {
+        const message = (data as any)?.message || error?.message || "Não foi possível excluir a conta.";
+        toast.error(message);
+        setDeleting(false);
+        return;
+      }
+      toast.success("Sua conta foi excluída.");
+      await supabase.auth.signOut();
+      setDeleteOpen(false);
+      navigate({ to: "/" });
+    } catch (e) {
+      toast.error("Erro ao excluir conta. Tente novamente.");
+      setDeleting(false);
     }
   };
 
@@ -107,6 +145,68 @@ function PerfilPage() {
             <LogOut className="w-4 h-4" />
             Sair
           </Button>
+        </div>
+
+        <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-5 space-y-4">
+          <div>
+            <h3 className="font-display font-semibold text-destructive">Excluir minha conta</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Esta ação é permanente. Seus dados pessoais (perfil, foto, telefone, notificações
+              e comentários de avaliações) serão removidos. Agendamentos futuros serão cancelados.
+            </p>
+          </div>
+          <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setConfirmText(""); }}>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" size="sm">
+                <Trash2 className="w-4 h-4" />
+                Excluir conta
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      Esta ação <strong className="text-destructive">não pode ser desfeita</strong>.
+                      Sua conta <span className="font-medium text-foreground">{user.email}</span> e todos os
+                      seus dados pessoais serão removidos permanentemente.
+                    </p>
+                    <p>
+                      Para confirmar, digite <strong className="text-foreground">{requiredText}</strong> abaixo:
+                    </p>
+                  </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-delete" className="text-xs text-muted-foreground">
+                  Digite {requiredText} para liberar o botão
+                </Label>
+                <Input
+                  id="confirm-delete"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  placeholder={requiredText}
+                  autoComplete="off"
+                  disabled={deleting}
+                />
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(e) => { e.preventDefault(); handleDeleteAccount(); }}
+                  disabled={confirmText !== requiredText || deleting}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {deleting ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo...</>
+                  ) : (
+                    <><Trash2 className="w-4 h-4" /> Excluir definitivamente</>
+                  )}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </main>
     </div>
