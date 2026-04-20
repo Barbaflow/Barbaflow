@@ -983,8 +983,18 @@ function ClientesPage() {
                 return (
                   <div
                     key={n.id}
-                    className="rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                    className={
+                      n.pinned
+                        ? "rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2"
+                        : "rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                    }
                   >
+                    {n.pinned && !isEditing && (
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-primary">
+                        <Pin className="w-3 h-3 fill-current" />
+                        Fixada
+                      </div>
+                    )}
                     {isEditing ? (
                       <>
                         <Textarea
@@ -1034,6 +1044,23 @@ function ClientesPage() {
                             {edited && " · editado"}
                           </span>
                           <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={
+                                n.pinned
+                                  ? "h-7 px-2 text-primary hover:text-primary"
+                                  : "h-7 px-2"
+                              }
+                              onClick={() => handleTogglePin(n)}
+                              title={n.pinned ? "Desfixar" : "Fixar no topo"}
+                            >
+                              {n.pinned ? (
+                                <PinOff className="w-3 h-3" />
+                              ) : (
+                                <Pin className="w-3 h-3" />
+                              )}
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
