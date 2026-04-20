@@ -17,6 +17,7 @@ import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
+import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import {
   Scissors,
   LogOut,
