@@ -171,6 +171,12 @@ function AgendarSlugPage() {
 
         {barbershop?.id && (
           <div className="mt-12">
+            <ReviewsShowcase barbershopId={barbershop.id} />
+          </div>
+        )}
+
+        {barbershop?.id && (
+          <div className="mt-12">
             <ProductsShowcase barbershopId={barbershop.id} />
           </div>
         )}
