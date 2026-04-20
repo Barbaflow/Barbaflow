@@ -274,6 +274,8 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Suppresses the click event that fires right after a drag ends in HTML5 DnD.
+  const justDraggedRef = useRef(false);
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
