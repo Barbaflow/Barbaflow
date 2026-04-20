@@ -841,6 +841,20 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 },
               }}
             />
+            <div className="border-t border-border px-3 py-2 flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-primary" />
+                Normal
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                Cheio
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="inline-block w-2 h-2 rounded-full bg-destructive" />
+                Lotado
+              </span>
+            </div>
           </PopoverContent>
         </Popover>
         <div className="flex items-center gap-1">
