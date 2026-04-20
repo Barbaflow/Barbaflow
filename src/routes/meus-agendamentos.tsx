@@ -68,7 +68,7 @@ function MeusAgendamentosPage() {
           Histórico completo dos seus horários.
         </p>
 
-        <AppointmentHistory barbershopId={barbershopId} />
+        <AppointmentHistory barbershopId={isDefault ? undefined : barbershopId} />
       </main>
     </div>
   );
