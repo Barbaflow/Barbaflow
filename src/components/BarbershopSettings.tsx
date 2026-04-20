@@ -31,6 +31,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [qrWithLogo, setQrWithLogo] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
