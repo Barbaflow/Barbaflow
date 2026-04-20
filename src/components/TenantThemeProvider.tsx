@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { supabase } from "@/integrations/supabase/client";
 
 function hexToOklch(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
