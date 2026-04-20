@@ -274,6 +274,8 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  // Suppresses the click event that fires right after a drag ends in HTML5 DnD.
+  const justDraggedRef = useRef(false);
 
   // Fetch barbers: admin sees all, barber sees only themselves (used for the
   // "Novo agendamento" dialog and the admin filter dropdown).
@@ -685,6 +687,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               if (!draggingId) return;
               e.preventDefault();
               const apt = appointments.find((a) => a.id === draggingId);
+              justDraggedRef.current = true;
               setDraggingId(null);
               if (!apt || !barbershopId || !apt.service) return;
               setReschedTarget({
@@ -716,6 +719,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   draggable={isScheduled}
                   onDragStart={(e) => {
                     if (!isScheduled) return;
+                    justDraggedRef.current = false;
                     setDraggingId(apt.id);
                     e.dataTransfer.effectAllowed = "move";
                     try {
@@ -724,11 +728,18 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                       // some browsers throw on setData under certain CSPs
                     }
                   }}
-                  onDragEnd={() => setDraggingId(null)}
+                  onDragEnd={() => {
+                    setDraggingId(null);
+                    // Clear shortly after, in case a synthetic click follows.
+                    setTimeout(() => {
+                      justDraggedRef.current = false;
+                    }, 250);
+                  }}
                   className={`bg-card border-border overflow-hidden transition-all ${
                     isScheduled ? "cursor-grab active:cursor-grabbing hover:border-primary/40" : ""
                   } ${isDragging ? "opacity-40 scale-[0.98]" : ""}`}
                   onClick={() => {
+                    if (justDraggedRef.current) return;
                     if (isScheduled && !draggingId) setEditingAppt(apt);
                   }}
                   role={isScheduled ? "button" : undefined}
