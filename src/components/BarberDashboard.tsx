@@ -418,6 +418,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   }, []);
   useEffect(() => () => clearDateNavTimer(), [clearDateNavTimer]);
 
+  // Calendar popover for picking a target date during a drag (or by clicking
+  // the date title normally). When a card is dragged over the title, the
+  // popover opens immediately and the dragged appointment id is stashed so
+  // the chosen date can be wired into the Reschedule dialog.
+  const [dateCalendarOpen, setDateCalendarOpen] = useState(false);
+  const dragForCalendarRef = useRef<string | null>(null);
+
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
   // TouchSensor with delay:200 lets vertical scroll work normally on mobile;
