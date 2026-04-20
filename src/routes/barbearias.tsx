@@ -302,6 +302,29 @@ function BarbeariaCard({ b }: { b: PublicBarbershop }) {
         </div>
       </div>
 
+      {b.lastReview && (
+        <div className="mb-4 rounded-lg border border-border/60 bg-background/40 p-3">
+          <div className="flex items-center gap-1.5 mb-1">
+            {[1, 2, 3, 4, 5].map((n) => (
+              <Star
+                key={n}
+                className={
+                  n <= b.lastReview!.rating
+                    ? "w-3 h-3 fill-gold text-gold"
+                    : "w-3 h-3 text-muted-foreground/30"
+                }
+              />
+            ))}
+            <span className="ml-1 text-[11px] text-muted-foreground font-body truncate">
+              {b.lastReview.client_name}
+            </span>
+          </div>
+          <p className="text-xs text-foreground/85 font-body italic line-clamp-2 leading-snug">
+            "{b.lastReview.comment}"
+          </p>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <RatingDisplay avg={b.rating_avg} count={b.rating_count} />
         <span className="text-sm font-body text-gold opacity-0 group-hover:opacity-100 transition-opacity">
