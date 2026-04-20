@@ -72,6 +72,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
+  const [rescheduling, setRescheduling] = useState<RescheduleTarget | null>(null);
   const [clientPhone, setClientPhone] = useState<string | null>(null);
 
   useEffect(() => {
