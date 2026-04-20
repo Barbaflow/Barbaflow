@@ -127,7 +127,15 @@ function ClientesPage() {
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>(() => {
+    if (typeof window === "undefined") return "all";
+    const stored = window.localStorage.getItem("clientes:statusFilter");
+    return (["all", "blocked", "active", "noshow"] as StatusFilter[]).includes(
+      stored as StatusFilter,
+    )
+      ? (stored as StatusFilter)
+      : "all";
+  });
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<number>(() => {
     if (typeof window === "undefined") return 10;
@@ -139,8 +147,30 @@ function ClientesPage() {
     if (typeof window === "undefined") return;
     window.localStorage.setItem("clientes:pageSize", String(pageSize));
   }, [pageSize]);
-  const [sortKey, setSortKey] = useState<SortKey>("last");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:statusFilter", statusFilter);
+  }, [statusFilter]);
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window === "undefined") return "last";
+    const stored = window.localStorage.getItem("clientes:sortKey");
+    return (["name", "total", "noshow", "last"] as SortKey[]).includes(stored as SortKey)
+      ? (stored as SortKey)
+      : "last";
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    if (typeof window === "undefined") return "desc";
+    const stored = window.localStorage.getItem("clientes:sortDir");
+    return stored === "asc" || stored === "desc" ? stored : "desc";
+  });
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:sortKey", sortKey);
+  }, [sortKey]);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem("clientes:sortDir", sortDir);
+  }, [sortDir]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
