@@ -172,7 +172,7 @@ function DraggableCard({
   enabled: boolean;
   isDragging: boolean;
   onActivate: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { attributes, listeners, setNodeRef } = useDraggable({ id, disabled: !enabled });
   return (
@@ -206,7 +206,7 @@ function DroppableList({
   children,
 }: {
   isActive: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: "appt-list-dropzone" });
   return (
