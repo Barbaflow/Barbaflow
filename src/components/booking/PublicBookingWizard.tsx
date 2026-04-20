@@ -23,6 +23,7 @@ import {
   MapPin,
   Search,
   Crown,
+  Star,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
@@ -39,6 +40,8 @@ interface BarberWithProfile {
   user_id: string;
   full_name: string | null;
   avatar_url: string | null;
+  rating_avg?: number;
+  rating_count?: number;
 }
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
@@ -121,11 +124,35 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
           .from("profiles")
           .select("user_id, full_name, avatar_url")
           .in("user_id", userIds);
+
+        // Fetch reviews joined with appointments to compute per-barber ratings
+        const { data: reviewRows } = await supabase
+          .from("reviews")
+          .select("rating, appointments!inner(barber_id)")
+          .eq("barbershop_id", selectedBarbershop.id)
+          .in("appointments.barber_id", userIds);
+
+        const ratingMap = new Map<string, { sum: number; count: number }>();
+        (reviewRows as unknown as Array<{ rating: number; appointments: { barber_id: string } | null }>)?.forEach((r) => {
+          const bid = r.appointments?.barber_id;
+          if (!bid) return;
+          const cur = ratingMap.get(bid) ?? { sum: 0, count: 0 };
+          cur.sum += r.rating;
+          cur.count += 1;
+          ratingMap.set(bid, cur);
+        });
+
         // Ensure every user_id has an entry, even if profile is missing
         const profileMap = new Map((profiles || []).map((p) => [p.user_id, p]));
-        const barberList: BarberWithProfile[] = userIds.map(
-          (id) => profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null }
-        );
+        const barberList: BarberWithProfile[] = userIds.map((id) => {
+          const base = profileMap.get(id) ?? { user_id: id, full_name: null, avatar_url: null };
+          const r = ratingMap.get(id);
+          return {
+            ...base,
+            rating_avg: r ? Math.round((r.sum / r.count) * 10) / 10 : 0,
+            rating_count: r?.count ?? 0,
+          };
+        });
         setBarbers(barberList);
         setLoadingStep(false);
       });
@@ -429,6 +456,23 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
                           <p className="text-[11px] text-muted-foreground mt-0.5">
                             {isOwner ? "Dono & Barbeiro" : "Profissional"}
                           </p>
+                          <div className="flex items-center justify-center gap-1 mt-1.5 h-4">
+                            {b.rating_count && b.rating_count > 0 ? (
+                              <>
+                                <Star className="w-3 h-3 fill-primary text-primary" />
+                                <span className="text-[11px] font-semibold text-foreground">
+                                  {b.rating_avg?.toFixed(1)}
+                                </span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  ({b.rating_count})
+                                </span>
+                              </>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Sem avaliações
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
