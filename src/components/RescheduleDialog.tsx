@@ -181,7 +181,7 @@ export function RescheduleDialog({
             const slotEnd = t + dur;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
             const isPast = isToday && t <= nowMin;
-            const isCurrent = isSameDay && t === currentMin;
+            const isCurrent = isSameContext && t === currentMin;
             generated.push({
               time: fmtShort(t),
               available: !conflicts && !isPast && !isCurrent,
@@ -203,7 +203,7 @@ export function RescheduleDialog({
     })();
 
     return () => ctrl.abort();
-  }, [open, appointment, currentTime]);
+  }, [open, appointment, currentTime, selectedBarberId, originalBarberId]);
 
   const handleConfirm = async () => {
     if (!appointment || !selectedTime) return;
