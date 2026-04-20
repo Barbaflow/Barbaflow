@@ -244,15 +244,14 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
         const conflictsBlock = blocks.some((b) => t < b.e && slotEnd > b.s);
 
         generated.push({
-          // Synthetic id keyed by date+time so React keys stay stable per fetch
+          // Synthetic id keyed by window+offset so React keys stay stable per fetch
           id: `${win.id}-${t}`,
           barber_id: win.barber_id,
-          barbershop_id: win.barbershop_id,
           date: win.date,
           start_time: fmtTime(t),
           end_time: fmtTime(slotEnd),
           status: isPast || conflictsAppt || conflictsBlock ? "ocupado" : "livre",
-        } as AvailabilitySlot);
+        });
       }
     }
 
