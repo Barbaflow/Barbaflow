@@ -65,21 +65,22 @@ function DashboardPage() {
           return;
         }
 
-        // Check barbershop-specific roles (user may have multiple)
+        // Check ALL roles for this user across all barbershops.
+        // Priority globally: admin_barbearia > barbeiro > cliente.
+        // This ensures an admin/barber going to /dashboard always sees the management panel,
+        // even if the resolved barbershopId context happens to be one where they're only a client.
         supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
-          .eq("barbershop_id", barbershopId)
           .then(({ data }) => {
-            const roles = (data || []).map((r) => r.role);
-            // Priority: admin_barbearia > barbeiro > cliente
-            if (roles.includes("admin_barbearia")) {
+            const allRoles = (data || []).map((r) => r.role);
+            if (allRoles.includes("admin_barbearia")) {
               setRole("admin_barbearia");
-            } else if (roles.includes("barbeiro")) {
+            } else if (allRoles.includes("barbeiro")) {
               setRole("barbeiro");
             } else {
-              setRole(roles[0] || "cliente");
+              setRole(allRoles[0] || "cliente");
             }
             setRoleLoading(false);
           });

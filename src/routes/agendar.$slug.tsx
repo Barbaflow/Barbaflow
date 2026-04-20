@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { ReviewsShowcase } from "@/components/ReviewsShowcase";
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/agendar/$slug")({
 function AgendarSlugPage() {
   const { slug } = Route.useParams();
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
+  // navigate removed: admin/barber are not redirected away from their own public booking page
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
@@ -66,23 +66,13 @@ function AgendarSlugPage() {
 
   const canApplyBranding = planName === "pro" || planName === "enterprise";
 
-  // Role-based redirect + auto-assign cliente role for path-based access
+  // Auto-assign 'cliente' role for path-based access if user has no role yet in this barbershop.
+  // Admins/barbers/super_admins can freely view their own public booking page (preview mode) — no forced redirect.
   useEffect(() => {
     if (!user || loading || loadingShop || !barbershop || roleCheckDone.current) return;
     roleCheckDone.current = true;
 
     (async () => {
-      // Check super_admin first
-      const { data: isSuperAdmin } = await supabase.rpc("has_role", {
-        _user_id: user.id,
-        _role: "super_admin",
-      });
-      if (isSuperAdmin) {
-        navigate({ to: "/dashboard", search: { checkout: undefined } });
-        return;
-      }
-
-      // Check roles in this barbershop
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
@@ -91,13 +81,7 @@ function AgendarSlugPage() {
 
       const roleList = (roles || []).map((r) => r.role);
 
-      if (roleList.includes("admin_barbearia") || roleList.includes("barbeiro")) {
-        navigate({ to: "/dashboard", search: { checkout: undefined } });
-        return;
-      }
-
       // No role yet in this barbershop → auto-assign cliente
-      // (the global AutoClientRole hook only runs on subdomain access; this covers path-based /agendar/$slug)
       if (roleList.length === 0) {
         await supabase.from("user_roles").insert({
           user_id: user.id,
@@ -105,9 +89,8 @@ function AgendarSlugPage() {
           role: "cliente" as const,
         });
       }
-      // clients stay on the booking page — no redirect
     })();
-  }, [user, loading, loadingShop, barbershop, navigate]);
+  }, [user, loading, loadingShop, barbershop]);
 
   const name = barbershop?.name || "BarbaFlow";
 
