@@ -141,9 +141,18 @@ export function ReviewDialog({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-xs text-muted-foreground" htmlFor="review-comment">
-            Comentário (opcional)
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="text-xs text-muted-foreground" htmlFor="review-comment">
+              Comentário (opcional)
+            </label>
+            <EmojiPicker
+              size="sm"
+              disabled={submitting}
+              onSelect={(e) =>
+                setComment((prev) => (prev + e).slice(0, 500))
+              }
+            />
+          </div>
           <Textarea
             id="review-comment"
             placeholder="Conte como foi sua experiência..."
