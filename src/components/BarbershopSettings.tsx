@@ -267,12 +267,18 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .single()
       .then(({ data: shop }) => {
         if (shop) {
-          setData(shop as BarbershopData);
+          const s = shop as BarbershopData;
+          setData(s);
           setPrimaryColor(shop.primary_color);
           setSecondaryColor(shop.secondary_color);
           setLogoUrl(shop.logo_url);
-          if ((shop as BarbershopData).whatsapp_message) {
-            setWaMessage((shop as BarbershopData).whatsapp_message as string);
+          if (s.whatsapp_message) setWaMessage(s.whatsapp_message);
+          if (s.pdf_template === "minimal" || s.pdf_template === "colorful" || s.pdf_template === "vintage") {
+            setPdfTemplate(s.pdf_template);
+          }
+          if (s.pdf_slogan) setPdfSlogan(s.pdf_slogan);
+          if (s.qr_size === "small" || s.qr_size === "medium" || s.qr_size === "large") {
+            setQrSize(s.qr_size);
           }
         }
       });
@@ -297,6 +303,24 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Mensagem do WhatsApp salva!");
     }
     setSavingWa(false);
+  };
+
+  const handleSavePrintPrefs = async () => {
+    setSavingPrint(true);
+    const { error } = await supabase
+      .from("barbershops")
+      .update({
+        pdf_template: pdfTemplate,
+        pdf_slogan: pdfSlogan.trim() || null,
+        qr_size: qrSize,
+      })
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar preferências.");
+    } else {
+      toast.success("Preferências de impressão salvas!");
+    }
+    setSavingPrint(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
