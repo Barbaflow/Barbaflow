@@ -253,6 +253,47 @@ function PerfilPage() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+
+        <AlertDialog open={successOpen} onOpenChange={(o) => { if (!o) handleSuccessClose(); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gold/15">
+                <CheckCircle2 className="h-8 w-8 text-gold" />
+              </div>
+              <AlertDialogTitle className="text-center font-display text-xl">
+                Conta excluída com sucesso
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm text-center">
+                  <p>
+                    {deletedEmail ? (
+                      <>A conta <span className="font-medium text-foreground">{deletedEmail}</span> foi removida permanentemente.</>
+                    ) : (
+                      <>Sua conta foi removida permanentemente.</>
+                    )}
+                  </p>
+                  <div className="rounded-md border border-border bg-muted/30 p-3 text-left space-y-1.5">
+                    <p className="font-medium text-foreground text-xs uppercase tracking-wide">O que foi removido:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Perfil, foto e telefone</li>
+                      <li>Notificações e histórico de bloqueios</li>
+                      <li>Comentários das suas avaliações (notas mantidas anônimas)</li>
+                      <li>Agendamentos futuros foram cancelados</li>
+                    </ul>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Sentiremos sua falta. Você pode criar uma nova conta a qualquer momento.
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogAction onClick={handleSuccessClose} className="w-full sm:w-auto">
+                Voltar à página inicial
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </main>
     </div>
   );
