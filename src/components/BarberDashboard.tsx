@@ -87,6 +87,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
