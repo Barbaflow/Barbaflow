@@ -703,14 +703,71 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     <div className="space-y-6">
       {/* Date navigation */}
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl md:text-2xl font-display font-bold text-foreground">
-            {isToday ? "Hoje" : formatDateFull(selectedDate)}
-          </h2>
-          {isToday && (
-            <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
-          )}
-        </div>
+        <Popover
+          open={dateCalendarOpen}
+          onOpenChange={(o) => {
+            setDateCalendarOpen(o);
+            if (!o) dragForCalendarRef.current = null;
+          }}
+        >
+          <DateTitleDroppable isDragging={!!draggingId}>
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                className="text-left rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                aria-label="Escolher data"
+              >
+                <h2 className="text-xl md:text-2xl font-display font-bold text-foreground inline-flex items-center gap-2">
+                  {isToday ? "Hoje" : formatDateFull(selectedDate)}
+                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                </h2>
+                {isToday && (
+                  <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
+                )}
+              </button>
+            </PopoverTrigger>
+          </DateTitleDroppable>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={new Date(selectedDate + "T12:00:00")}
+              onSelect={(d) => {
+                if (!d) return;
+                const y = d.getFullYear();
+                const m = (d.getMonth() + 1).toString().padStart(2, "0");
+                const day = d.getDate().toString().padStart(2, "0");
+                const newDate = `${y}-${m}-${day}`;
+                // If a card was being dragged when this opened, route the
+                // chosen day into the Reschedule dialog. Otherwise just
+                // navigate to the picked day.
+                const draggedId = dragForCalendarRef.current;
+                dragForCalendarRef.current = null;
+                setDateCalendarOpen(false);
+                if (draggedId) {
+                  const apt = appointments.find((a) => a.id === draggedId);
+                  setSelectedDate(newDate);
+                  if (apt && barbershopId && apt.service) {
+                    setReschedTarget({
+                      id: apt.id,
+                      date: newDate,
+                      start_time: apt.start_time,
+                      barber_id: apt.barber_id,
+                      barbershop_id: barbershopId,
+                      duration_minutes: apt.service.duration_minutes,
+                      client_name: apt.client_profile?.full_name ?? null,
+                      service_name: apt.service.name,
+                      original_date: apt.date,
+                    });
+                  }
+                } else {
+                  setSelectedDate(newDate);
+                }
+              }}
+              initialFocus
+              className="p-3 pointer-events-auto"
+            />
+          </PopoverContent>
+        </Popover>
         <div className="flex items-center gap-1">
           <DateNavDroppable
             id="date-prev"
