@@ -1035,10 +1035,11 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                 </div>
               ) : null}
             </DragOverlay>
-          </DndContext>
+          </>
         )}
       </div>
     </div>
+    </DndContext>
   );
 }
 
