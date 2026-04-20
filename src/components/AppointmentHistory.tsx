@@ -353,14 +353,16 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           {appointments.map((apt) => {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
             const isPast = apt.date < new Date().toISOString().split("T")[0];
-            const canCancel = apt.status === "scheduled" && !isPast;
-            // Reschedule lock: block if less than the barbershop's configured min-hours
-            // (default 2h, 0 = no limit). Configurable in barbershop settings.
+            const isFutureScheduled = apt.status === "scheduled" && !isPast;
+            // Per-barbershop limits (default 2h, 0 = no limit). Configurable in settings.
             const minHours = rescheduleMinHoursMap[apt.barbershop_id] ?? 2;
+            const cancelMinHours = cancelMinHoursMap[apt.barbershop_id] ?? 2;
             const apptStart = new Date(`${apt.date}T${apt.start_time}`);
             const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
-            const canReschedule = canCancel && (minHours <= 0 || hoursUntil >= minHours);
-            const rescheduleLocked = canCancel && !canReschedule;
+            const canReschedule = isFutureScheduled && (minHours <= 0 || hoursUntil >= minHours);
+            const canCancel = isFutureScheduled && (cancelMinHours <= 0 || hoursUntil >= cancelMinHours);
+            const rescheduleLocked = isFutureScheduled && !canReschedule;
+            const cancelLocked = isFutureScheduled && !canCancel;
 
             return (
               <Card key={apt.id} className="bg-card border-border overflow-hidden">
