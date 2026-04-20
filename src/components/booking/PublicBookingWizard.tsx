@@ -294,9 +294,9 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (!selectedSlot || !selectedService || !user || !selectedBarbershop) return;
     setBooking(true);
 
-    const [h, m] = selectedSlot.start_time.split(":").map(Number);
-    const endMinutes = h * 60 + m + selectedService.duration_minutes;
-    const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, "0")}:${(endMinutes % 60).toString().padStart(2, "0")}:00`;
+    const startMin = toMin(selectedSlot.start_time);
+    const endMin = startMin + selectedService.duration_minutes;
+    const endTime = `${Math.floor(endMin / 60).toString().padStart(2, "0")}:${(endMin % 60).toString().padStart(2, "0")}:00`;
 
     const { error } = await supabase.from("appointments").insert({
       barbershop_id: selectedBarbershop.id,
@@ -311,10 +311,21 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (error) {
       toast.error("Erro ao agendar. Tente novamente.");
     } else {
-      await supabase
-        .from("availability")
-        .update({ status: "ocupado" })
-        .eq("id", selectedSlot.id);
+      // Mark every availability slot covered by the appointment as ocupado
+      const slotIdsToOccupy = availability
+        .filter((s) => {
+          const sStart = toMin(s.start_time);
+          const sEnd = toMin(s.end_time);
+          return sStart < endMin && sEnd > startMin;
+        })
+        .map((s) => s.id);
+
+      if (slotIdsToOccupy.length > 0) {
+        await supabase
+          .from("availability")
+          .update({ status: "ocupado" })
+          .in("id", slotIdsToOccupy);
+      }
 
       toast.success("Agendamento confirmado! 🎉");
       notifyBookingConfirmed({
