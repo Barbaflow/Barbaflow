@@ -154,6 +154,17 @@ function ClientesPage() {
   const [history, setHistory] = useState<AppointmentHistoryRow[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // Notes state
+  const [noteCounts, setNoteCounts] = useState<Record<string, number>>({});
+  const [notesTarget, setNotesTarget] = useState<ClientRow | null>(null);
+  const [notes, setNotes] = useState<NoteRow[]>([]);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [newNote, setNewNote] = useState("");
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [authorNames, setAuthorNames] = useState<Record<string, string>>({});
+
   // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
