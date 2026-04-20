@@ -450,11 +450,11 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         <>
                           {rescheduleLocked ? (
                             <div
-                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[140px] leading-tight"
-                              title="Para reagendar com menos de 2h de antecedência, entre em contato com a barbearia."
+                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[160px] leading-tight"
+                              title={`Para reagendar com menos de ${minHours}h de antecedência, entre em contato com a barbearia.`}
                             >
                               <AlertCircle className="w-3 h-3 flex-shrink-0" />
-                              <span>Reagendamento bloqueado (menos de 2h)</span>
+                              <span>Reagendamento bloqueado (menos de {minHours}h)</span>
                             </div>
                           ) : (
                             <Button
