@@ -699,6 +699,73 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
+      {/* Reschedule limit */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <CalendarClock className="w-5 h-5 text-gold" />
+            Limite para reagendamento do cliente
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Quanto tempo de antecedência o cliente precisa ter para reagendar sozinho pelo app.
+            Quando faltar menos do que isso para o horário, o botão "Reagendar" fica bloqueado e
+            ele precisa entrar em contato com a barbearia.
+          </p>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Antecedência mínima</Label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {[
+                { v: 0, label: "Sem limite" },
+                { v: 1, label: "1 hora" },
+                { v: 2, label: "2 horas" },
+                { v: 4, label: "4 horas" },
+                { v: 12, label: "12 horas" },
+                { v: 24, label: "24 horas" },
+              ].map((opt) => {
+                const selected = rescheduleMinHours === opt.v;
+                return (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    size="sm"
+                    variant={selected ? "gold" : "outline"}
+                    onClick={() => setRescheduleMinHours(opt.v)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg border border-border bg-secondary/50">
+            <p className="text-xs text-muted-foreground mb-1">Como o cliente verá:</p>
+            <p className="text-sm text-foreground">
+              {rescheduleMinHours === 0
+                ? "Reagendamento liberado a qualquer momento (até a hora do horário)."
+                : `Reagendamento bloqueado quando faltar menos de ${rescheduleMinHours}h para o atendimento.`}
+            </p>
+          </div>
+
+          <Button
+            onClick={handleSaveReschedule}
+            disabled={savingReschedule}
+            variant="gold"
+            className="w-full sm:w-auto"
+          >
+            {savingReschedule ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {savingReschedule ? "Salvando..." : "Salvar limite"}
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Color Picker */}
       <Card className="border-border bg-card">
         <CardHeader>
