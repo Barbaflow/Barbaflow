@@ -25,6 +25,7 @@ interface BarbershopData {
   pdf_template: string | null;
   pdf_slogan: string | null;
   qr_size: string | null;
+  reschedule_min_hours: number | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
@@ -47,6 +48,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [waMessage, setWaMessage] = useState(DEFAULT_WA_TEMPLATE);
   const [savingWa, setSavingWa] = useState(false);
   const [savingPrint, setSavingPrint] = useState(false);
+  const [rescheduleMinHours, setRescheduleMinHours] = useState<number>(2);
+  const [savingReschedule, setSavingReschedule] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
