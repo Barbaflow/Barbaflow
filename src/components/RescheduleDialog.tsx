@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -81,6 +81,23 @@ export function RescheduleDialog({
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
   const originalBarberId = appointment?.barber_id ?? "";
+
+  // Sort barbers for the dropdown: current barber always first, then by
+  // most free slots descending, falling back to alphabetical name.
+  const sortedBarbers = useMemo(() => {
+    return [...barbers].sort((a, b) => {
+      if (a.user_id === originalBarberId) return -1;
+      if (b.user_id === originalBarberId) return 1;
+      const fa = freeCounts[a.user_id];
+      const fb = freeCounts[b.user_id];
+      const ka = fa !== undefined;
+      const kb = fb !== undefined;
+      if (ka && kb && fa !== fb) return fb - fa;
+      if (ka && !kb) return -1;
+      if (!ka && kb) return 1;
+      return a.display.display_name.localeCompare(b.display.display_name);
+    });
+  }, [barbers, freeCounts, originalBarberId]);
 
   // Load barbers list when dialog opens
   useEffect(() => {
@@ -390,7 +407,7 @@ export function RescheduleDialog({
                 <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
               </SelectTrigger>
               <SelectContent>
-                {barbers.map((b) => {
+                {sortedBarbers.map((b) => {
                   const free = freeCounts[b.user_id];
                   const knownCount = !freeCountsLoading && free !== undefined;
                   return (
