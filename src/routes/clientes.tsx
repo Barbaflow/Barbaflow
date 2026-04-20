@@ -867,6 +867,140 @@ function ClientesPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Notes dialog (internal — staff only) */}
+      <Dialog open={Boolean(notesTarget)} onOpenChange={(o) => !o && setNotesTarget(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <StickyNote className="w-5 h-5 text-primary" />
+              Anotações de {notesTarget?.client_name}
+            </DialogTitle>
+            <DialogDescription>
+              Visíveis apenas para a equipe da barbearia. O cliente nunca vê estas anotações.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* New note */}
+          <div className="space-y-2">
+            <Label htmlFor="new-note" className="text-xs">
+              Nova anotação
+            </Label>
+            <Textarea
+              id="new-note"
+              value={newNote}
+              onChange={(e) => setNewNote(e.target.value.slice(0, 2000))}
+              placeholder="Ex: prefere corte na máquina 2, alérgico a fragrâncias fortes, paga sempre em PIX..."
+              rows={3}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-muted-foreground">{newNote.length}/2000</span>
+              <Button size="sm" onClick={handleSaveNote} disabled={savingNote || !newNote.trim()}>
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar
+              </Button>
+            </div>
+          </div>
+
+          {/* Existing notes */}
+          <div className="max-h-[50vh] overflow-y-auto space-y-2 border-t border-border pt-3">
+            {notesLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : notes.length === 0 ? (
+              <p className="text-center text-sm text-muted-foreground py-6">
+                Nenhuma anotação ainda. Adicione a primeira acima.
+              </p>
+            ) : (
+              notes.map((n) => {
+                const isEditing = editingNoteId === n.id;
+                const author = authorNames[n.created_by] || "Equipe";
+                const edited = n.updated_at && n.updated_at !== n.created_at;
+                return (
+                  <div
+                    key={n.id}
+                    className="rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                  >
+                    {isEditing ? (
+                      <>
+                        <Textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value.slice(0, 2000))}
+                          rows={3}
+                          autoFocus
+                        />
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-[11px] text-muted-foreground">
+                            {editingText.length}/2000
+                          </span>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setEditingNoteId(null);
+                                setEditingText("");
+                              }}
+                              disabled={savingNote}
+                            >
+                              Cancelar
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => handleUpdateNote(n.id)}
+                              disabled={savingNote || !editingText.trim()}
+                            >
+                              <Save className="w-3.5 h-3.5" />
+                              Salvar
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                          {n.note}
+                        </p>
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                          <span className="truncate">
+                            {author} ·{" "}
+                            {format(new Date(n.created_at), "dd/MM/yyyy 'às' HH:mm", {
+                              locale: ptBR,
+                            })}
+                            {edited && " · editado"}
+                          </span>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2"
+                              onClick={() => {
+                                setEditingNoteId(n.id);
+                                setEditingText(n.note);
+                              }}
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 px-2 text-destructive hover:text-destructive"
+                              onClick={() => handleDeleteNote(n.id)}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
