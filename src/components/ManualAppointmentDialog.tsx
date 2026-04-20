@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -21,10 +23,28 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Loader2, Check, AlertCircle, Clock } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Search,
+  User,
+  Loader2,
+  Check,
+  AlertCircle,
+  Clock,
+  CalendarIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { displayBRPhone } from "@/lib/phone";
+
+// Local YYYY-MM-DD (avoids timezone shift from toISOString)
+const dateToISO = (d: Date) =>
+  `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
+    .getDate()
+    .toString()
+    .padStart(2, "0")}`;
+const isoToDate = (iso: string) => new Date(`${iso}T12:00:00`);
 
 interface Client {
   user_id: string;
