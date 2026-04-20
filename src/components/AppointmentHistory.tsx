@@ -68,6 +68,17 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
   const [reviewing, setReviewing] = useState<Appointment | null>(null);
+  const [clientPhone, setClientPhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("profiles")
+      .select("phone")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => setClientPhone((data as any)?.phone || null));
+  }, [user]);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
