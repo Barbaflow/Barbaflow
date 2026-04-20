@@ -357,11 +357,23 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   </Label>
                 </div>
               )}
-              {!logoUrl && (
-                <p className="text-xs text-muted-foreground italic">
-                  Envie um logo acima para incluí-lo no centro do QR Code.
-                </p>
-              )}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tamanho do QR Code</Label>
+                <div className="flex gap-1.5 justify-center sm:justify-start">
+                  {(["small", "medium", "large"] as const).map((s) => (
+                    <Button
+                      key={s}
+                      type="button"
+                      size="sm"
+                      variant={qrSize === s ? "gold" : "outline"}
+                      onClick={() => setQrSize(s)}
+                      className="flex-1 sm:flex-none"
+                    >
+                      {sizeMap[s].label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
                   <Download className="w-4 h-4" />
