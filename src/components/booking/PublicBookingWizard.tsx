@@ -654,6 +654,27 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             )}
           </div>
 
+          {noshowBlock?.blocked && (
+            <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-4 flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 text-sm">
+                <p className="font-semibold text-destructive">
+                  Agendamento online temporariamente bloqueado
+                </p>
+                <p className="text-foreground/80 leading-relaxed">
+                  Você acumulou {noshowBlock.noshow_count} {noshowBlock.noshow_count === 1 ? "falta" : "faltas"} nos últimos 30 dias
+                  nesta barbearia. Por isso, novos agendamentos por aqui estão pausados
+                  {noshowBlock.unblock_at && (
+                    <> até <strong>{new Date(noshowBlock.unblock_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}</strong></>
+                  )}.
+                </p>
+                <p className="text-muted-foreground text-xs pt-1">
+                  Entre em contato direto com a barbearia se quiser remarcar — eles podem encaixar você manualmente.
+                </p>
+              </div>
+            </div>
+          )}
+
           <DateSelector selectedDate={selectedDate} onDateChange={setSelectedDate} />
 
           <TimeSlotGrid
@@ -664,7 +685,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             error={null}
           />
 
-          {selectedSlot && selectedService && (
+          {selectedSlot && selectedService && !noshowBlock?.blocked && (
             <BookingConfirmation
               slot={selectedSlot}
               service={selectedService}
@@ -677,7 +698,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             />
           )}
 
-          {selectedSlot && selectedService && (
+          {selectedSlot && selectedService && !noshowBlock?.blocked && (
             <div className="h-36 md:hidden" />
           )}
         </div>
