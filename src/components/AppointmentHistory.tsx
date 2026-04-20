@@ -63,6 +63,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [error, setError] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [reviewedIds, setReviewedIds] = useState<Set<string>>(new Set());
+  const [reviewing, setReviewing] = useState<Appointment | null>(null);
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
