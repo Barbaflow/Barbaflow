@@ -838,13 +838,12 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                           </button>
                         </div>
                       )}
-                  <DraggableCard
-                    key={apt.id}
-                    id={apt.id}
-                    enabled={isScheduled}
-                    isDragging={isDragging}
-                    onActivate={() => setEditingAppt(apt)}
-                  >
+                      <DraggableCard
+                        id={apt.id}
+                        enabled={isScheduled}
+                        isDragging={isDragging}
+                        onActivate={() => setEditingAppt(apt)}
+                      >
                     <CardContent className="p-0">
                       <div className="flex">
                         <div className="relative flex flex-col items-center justify-center px-4 py-3 bg-secondary/50 min-w-[72px]">
@@ -950,8 +949,10 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                     </CardContent>
                   </DraggableCard>
-                );
-              })}
+                    </div>
+                  );
+                });
+              })()}
             </DroppableList>
             <DragOverlay dropAnimation={null}>
               {draggingId ? (
