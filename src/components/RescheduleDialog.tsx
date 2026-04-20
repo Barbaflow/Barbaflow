@@ -76,6 +76,8 @@ export function RescheduleDialog({
   const [selectedBarberId, setSelectedBarberId] = useState<string>("");
   const [barbers, setBarbers] = useState<Array<{ user_id: string; display: BarberDisplay }>>([]);
   const [barbersLoading, setBarbersLoading] = useState(false);
+  const [freeCounts, setFreeCounts] = useState<Record<string, number>>({});
+  const [freeCountsLoading, setFreeCountsLoading] = useState(false);
 
   const currentTime = appointment ? appointment.start_time.slice(0, 5) : "";
   const originalBarberId = appointment?.barber_id ?? "";
@@ -111,6 +113,97 @@ export function RescheduleDialog({
       setBarbersLoading(false);
     })();
   }, [open, appointment]);
+
+  // For each barber in the list, compute how many free slots exist on the
+  // target day, given the appointment duration. Mirrors the slot-generation
+  // logic but aggregates a count per barber for the dropdown summary.
+  useEffect(() => {
+    if (!open || !appointment || barbers.length === 0) {
+      setFreeCounts({});
+      return;
+    }
+    let cancelled = false;
+    setFreeCountsLoading(true);
+    (async () => {
+      const dow = new Date(`${appointment.date}T12:00:00`).getDay();
+      const barberIds = barbers.map((b) => b.user_id);
+      const [weeklyRes, apptRes, blockRes] = await Promise.all([
+        supabase
+          .from("weekly_schedule")
+          .select("barber_id, start_time, end_time")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("day_of_week", dow)
+          .eq("is_active", true),
+        supabase
+          .from("appointments")
+          .select("id, barber_id, start_time, end_time, status")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("date", appointment.date)
+          .neq("status", "cancelled"),
+        supabase
+          .from("schedule_blocks")
+          .select("barber_id")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("block_date", appointment.date),
+      ]);
+      if (cancelled) return;
+
+      const today = new Date();
+      const isToday =
+        appointment.date ===
+        `${today.getFullYear()}-${(today.getMonth() + 1)
+          .toString()
+          .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+      const nowMin = today.getHours() * 60 + today.getMinutes();
+      const dur = appointment.duration_minutes;
+      const blocked = new Set((blockRes.data ?? []).map((b) => b.barber_id));
+
+      const windowsByBarber: Record<string, Array<{ s: number; e: number }>> = {};
+      (weeklyRes.data ?? []).forEach((w) => {
+        (windowsByBarber[w.barber_id] ??= []).push({
+          s: toMin(w.start_time),
+          e: toMin(w.end_time),
+        });
+      });
+      const busyByBarber: Record<string, Array<{ s: number; e: number }>> = {};
+      (apptRes.data ?? []).forEach((a) => {
+        // Same barber as the original appointment: ignore the slot we're moving.
+        if (a.barber_id === originalBarberId && a.id === appointment.id) return;
+        (busyByBarber[a.barber_id] ??= []).push({
+          s: toMin(a.start_time),
+          e: toMin(a.end_time),
+        });
+      });
+
+      const counts: Record<string, number> = {};
+      for (const id of barberIds) {
+        if (blocked.has(id)) {
+          counts[id] = 0;
+          continue;
+        }
+        const windows = windowsByBarber[id] ?? [];
+        const busy = busyByBarber[id] ?? [];
+        let free = 0;
+        for (const w of windows) {
+          for (let t = w.s; t + dur <= w.e; t += dur) {
+            const slotEnd = t + dur;
+            if (busy.some((b) => t < b.e && slotEnd > b.s)) continue;
+            if (isToday && t <= nowMin) continue;
+            free += 1;
+          }
+        }
+        counts[id] = free;
+      }
+      setFreeCounts(counts);
+      setFreeCountsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, appointment, barbers, originalBarberId]);
 
   useEffect(() => {
     if (!open || !appointment || !selectedBarberId) {
@@ -297,24 +390,39 @@ export function RescheduleDialog({
                 <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
               </SelectTrigger>
               <SelectContent>
-                {barbers.map((b) => (
-                  <SelectItem key={b.user_id} value={b.user_id}>
-                    <div className="flex items-center gap-2">
-                      <Avatar className="w-5 h-5">
-                        {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
-                        <AvatarFallback className="text-[9px]">
-                          {b.display.display_name.slice(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="text-sm">
-                        {b.display.display_name}
-                        {b.user_id === originalBarberId && (
-                          <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
-                        )}
-                      </span>
-                    </div>
-                  </SelectItem>
-                ))}
+                {barbers.map((b) => {
+                  const free = freeCounts[b.user_id];
+                  const knownCount = !freeCountsLoading && free !== undefined;
+                  return (
+                    <SelectItem key={b.user_id} value={b.user_id}>
+                      <div className="flex items-center gap-2 w-full">
+                        <Avatar className="w-5 h-5">
+                          {b.display.avatar_url && <AvatarImage src={b.display.avatar_url} />}
+                          <AvatarFallback className="text-[9px]">
+                            {b.display.display_name.slice(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm flex-1">
+                          {b.display.display_name}
+                          {b.user_id === originalBarberId && (
+                            <span className="ml-1.5 text-[10px] text-muted-foreground">(atual)</span>
+                          )}
+                        </span>
+                        <span
+                          className={cn(
+                            "ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full border",
+                            knownCount && free === 0 && "bg-muted/40 text-muted-foreground border-transparent",
+                            knownCount && free > 0 && free <= 2 && "bg-secondary text-foreground border-border",
+                            knownCount && free > 2 && "bg-primary/10 text-primary border-primary/30",
+                            !knownCount && "bg-muted/40 text-muted-foreground border-transparent"
+                          )}
+                        >
+                          {knownCount ? `${free} ${free === 1 ? "slot" : "slots"}` : "…"}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
