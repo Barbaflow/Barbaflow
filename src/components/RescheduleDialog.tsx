@@ -99,6 +99,13 @@ export function RescheduleDialog({
     });
   }, [barbers, freeCounts, originalBarberId]);
 
+  // True only when we have at least one barber, all counts have been
+  // computed, and every single barber has zero free slots on the chosen day.
+  const allFull =
+    barbers.length > 0 &&
+    !freeCountsLoading &&
+    barbers.every((b) => freeCounts[b.user_id] === 0);
+
   // Load barbers list when dialog opens
   useEffect(() => {
     if (!open || !appointment) {
