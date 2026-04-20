@@ -111,9 +111,79 @@ function BarbeariasPage() {
         (b) => b.subdomain !== "_system",
       );
 
+      // Buscar últimas reviews (com comentário) para cada barbearia
+      if (list.length > 0) {
+        const ids = list.map((b) => b.id);
+        const { data: reviews } = await supabase
+          .from("reviews")
+          .select("barbershop_id, rating, comment, created_at, client_id")
+          .in("barbershop_id", ids)
+          .not("comment", "is", null)
+          .order("created_at", { ascending: false });
+
+        // Pegar a primeira (mais recente) review por barbearia
+        const latestByShop = new Map<string, typeof reviews extends (infer T)[] | null ? T : never>();
+        (reviews || []).forEach((r) => {
+          if (!latestByShop.has(r.barbershop_id) && r.comment && r.comment.trim()) {
+            latestByShop.set(r.barbershop_id, r);
+          }
+        });
+
+        // Buscar nomes dos clientes
+        const clientIds = Array.from(
+          new Set(Array.from(latestByShop.values()).map((r: any) => r.client_id)),
+        );
+        let nameMap = new Map<string, string>();
+        if (clientIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("user_id, full_name")
+            .in("user_id", clientIds);
+          (profiles || []).forEach((p) => {
+            const n = (p.full_name || "").trim();
+            if (n) nameMap.set(p.user_id, n);
+          });
+        }
+
+        list.forEach((b) => {
+          const r: any = latestByShop.get(b.id);
+          if (r) {
+            b.lastReview = {
+              rating: r.rating,
+              comment: r.comment,
+              client_name: nameMap.get(r.client_id) || "Cliente",
+            };
+          }
+        });
+      }
+
+      if (cancelled) return;
+
       // Em DEV (preview/local), se não houver barbearias reais, mostra mocks para preencher visualmente
       if (list.length === 0 && import.meta.env.DEV) {
-        setBarbearias(MOCK_BARBEARIAS);
+        setBarbearias(
+          MOCK_BARBEARIAS.map((b, i) => ({
+            ...b,
+            lastReview:
+              i === 0
+                ? {
+                    rating: 5,
+                    comment: "Atendimento impecável e ambiente top. Voltarei sempre!",
+                    client_name: "Lucas M.",
+                  }
+                : i === 1
+                  ? {
+                      rating: 5,
+                      comment: "Corte perfeito, profissional super atencioso.",
+                      client_name: "Rafael S.",
+                    }
+                  : {
+                      rating: 4,
+                      comment: "Bom atendimento, recomendo.",
+                      client_name: "André P.",
+                    },
+          })),
+        );
       } else {
         setBarbearias(list);
       }
