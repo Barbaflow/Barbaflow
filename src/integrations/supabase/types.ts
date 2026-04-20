@@ -140,6 +140,9 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          noshow_block_days: number
+          noshow_max_count: number
+          noshow_policy_enabled: boolean
           owner_id: string | null
           pdf_slogan: string | null
           pdf_template: string | null
@@ -162,6 +165,9 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          noshow_block_days?: number
+          noshow_max_count?: number
+          noshow_policy_enabled?: boolean
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
@@ -184,6 +190,9 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          noshow_block_days?: number
+          noshow_max_count?: number
+          noshow_policy_enabled?: boolean
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
@@ -868,6 +877,10 @@ export type Database = {
         Returns: boolean
       }
       check_barber_limit: { Args: { _barbershop_id: string }; Returns: boolean }
+      check_client_noshow_block: {
+        Args: { _barbershop_id: string; _client_id: string }
+        Returns: Json
+      }
       generate_availability_from_schedule: {
         Args: {
           _barber_id: string
