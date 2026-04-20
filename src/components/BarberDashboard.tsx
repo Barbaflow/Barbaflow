@@ -62,6 +62,7 @@ import {
   X,
   MessageCircle,
   GripVertical,
+  ShieldAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -414,6 +415,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [clientBlockMap, setClientBlockMap] = useState<
+    Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }>
+  >({});
   const [showDragHint, setShowDragHint] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
@@ -578,6 +582,29 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
       // Barbers: standardized RPC
       const barberMap = await fetchBarberDisplayNames(barberIds);
+
+      // No-show block status per client (only for this barbershop)
+      const blockMap: Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }> = {};
+      if (clientIds.length > 0 && barbershopId) {
+        const blockResults = await Promise.all(
+          clientIds.map(async (cid) => {
+            const { data } = await supabase.rpc("check_client_noshow_block", {
+              _client_id: cid,
+              _barbershop_id: barbershopId,
+            });
+            return [cid, data] as const;
+          })
+        );
+        for (const [cid, data] of blockResults) {
+          const d = (data ?? {}) as { blocked?: boolean; noshow_count?: number; unblock_at?: string | null };
+          blockMap[cid] = {
+            blocked: !!d.blocked,
+            noshow_count: d.noshow_count ?? 0,
+            unblock_at: d.unblock_at ?? null,
+          };
+        }
+      }
+      setClientBlockMap(blockMap);
 
       setAppointments(
         (data || []).map((a) => ({
@@ -1164,6 +1191,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               <span className="text-sm font-medium text-foreground truncate">
                                 {apt.client_profile?.full_name || "Cliente"}
                               </span>
+                              {clientBlockMap[apt.client_id]?.blocked && (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-md border border-destructive/40 bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
+                                  title={`Cliente bloqueado por no-show — ${clientBlockMap[apt.client_id].noshow_count} faltas nos últimos 30 dias${clientBlockMap[apt.client_id].unblock_at ? ` · desbloqueia em ${new Date(clientBlockMap[apt.client_id].unblock_at!).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}` : ""}`}
+                                >
+                                  <ShieldAlert className="w-3 h-3" />
+                                  Bloqueado
+                                </span>
+                              )}
                               {apt.client_profile?.phone && (
                                 <a
                                   href={whatsappUrl(apt.client_profile.phone) || "#"}
