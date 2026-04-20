@@ -46,6 +46,7 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [pdfTemplate, setPdfTemplate] = useState<"minimal" | "colorful" | "vintage">("minimal");
   const [waMessage, setWaMessage] = useState(DEFAULT_WA_TEMPLATE);
   const [savingWa, setSavingWa] = useState(false);
+  const [savingPrint, setSavingPrint] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
