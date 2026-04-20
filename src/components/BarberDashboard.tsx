@@ -828,7 +828,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         <Card className="bg-card border-border">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-1">
-              <Calendar className="w-4 h-4 text-primary" />
+              <CalendarIcon className="w-4 h-4 text-primary" />
               <span className="text-xs text-muted-foreground">Hoje</span>
             </div>
             <p className="text-2xl font-display font-bold text-foreground">{metrics.total}</p>
@@ -896,7 +896,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           <Card className="bg-card border-border">
             <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
               <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center">
-                <Calendar className="w-6 h-6 text-muted-foreground" />
+                <CalendarIcon className="w-6 h-6 text-muted-foreground" />
               </div>
               <p className="text-sm text-muted-foreground font-medium">
                 Nenhum agendamento para este dia.
