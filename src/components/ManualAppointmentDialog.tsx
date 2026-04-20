@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -21,10 +23,28 @@ import {
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Search, User, Loader2, Check, AlertCircle, Clock } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Search,
+  User,
+  Loader2,
+  Check,
+  AlertCircle,
+  Clock,
+  CalendarIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { displayBRPhone } from "@/lib/phone";
+
+// Local YYYY-MM-DD (avoids timezone shift from toISOString)
+const dateToISO = (d: Date) =>
+  `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
+    .getDate()
+    .toString()
+    .padStart(2, "0")}`;
+const isoToDate = (iso: string) => new Date(`${iso}T12:00:00`);
 
 interface Client {
   user_id: string;
@@ -95,6 +115,9 @@ export function ManualAppointmentDialog({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
+  const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
+  const [datePickerOpen, setDatePickerOpen] = useState(false);
 
   // Reset on open
   useEffect(() => {
@@ -154,6 +177,39 @@ export function ManualAppointmentDialog({
         setServices(list);
         setSelectedService((prev) => (list.find((s) => s.id === prev) ? prev : list[0]?.id ?? ""));
       });
+  }, [selectedBarber, barbershopId]);
+
+  // Load active weekdays + blocked dates whenever barber changes (powers the calendar)
+  useEffect(() => {
+    if (!selectedBarber) {
+      setActiveWeekdays(new Set());
+      setBlockedDates(new Set());
+      return;
+    }
+    (async () => {
+      const today = new Date();
+      const horizon = new Date();
+      horizon.setMonth(horizon.getMonth() + 6);
+
+      const [wkRes, blkRes] = await Promise.all([
+        supabase
+          .from("weekly_schedule")
+          .select("day_of_week, is_active")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .eq("is_active", true),
+        supabase
+          .from("schedule_blocks")
+          .select("block_date")
+          .eq("barbershop_id", barbershopId)
+          .eq("barber_id", selectedBarber)
+          .gte("block_date", dateToISO(today))
+          .lte("block_date", dateToISO(horizon)),
+      ]);
+
+      setActiveWeekdays(new Set((wkRes.data ?? []).map((w) => w.day_of_week as number)));
+      setBlockedDates(new Set((blkRes.data ?? []).map((b) => b.block_date as string)));
+    })();
   }, [selectedBarber, barbershopId]);
 
   const filteredClients = useMemo(() => {
@@ -418,13 +474,73 @@ export function ManualAppointmentDialog({
 
           {/* Date */}
           <div className="space-y-2">
-            <Label htmlFor="ma-date">Data</Label>
-            <Input
-              id="ma-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <Label>Data</Label>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={!selectedBarber}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date
+                    ? format(isoToDate(date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                    : "Selecione uma data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  locale={ptBR}
+                  selected={date ? isoToDate(date) : undefined}
+                  onSelect={(d) => {
+                    if (d) {
+                      setDate(dateToISO(d));
+                      setDatePickerOpen(false);
+                    }
+                  }}
+                  disabled={(d) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (d < today) return true;
+                    if (activeWeekdays.size > 0 && !activeWeekdays.has(d.getDay())) return true;
+                    if (blockedDates.has(dateToISO(d))) return true;
+                    return false;
+                  }}
+                  modifiers={{
+                    blocked: (d) => blockedDates.has(dateToISO(d)),
+                    closed: (d) =>
+                      activeWeekdays.size > 0 && !activeWeekdays.has(d.getDay()),
+                  }}
+                  modifiersClassNames={{
+                    blocked:
+                      "relative text-destructive line-through opacity-60 after:absolute after:inset-x-2 after:bottom-1 after:h-0.5 after:bg-destructive/60 after:rounded-full",
+                    closed: "text-muted-foreground/50 italic",
+                  }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="px-3 pb-3 pt-0 flex flex-wrap gap-3 text-[11px] text-muted-foreground border-t border-border/40">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary/70" /> Disponível
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="italic">Ter</span> Sem expediente
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="line-through text-destructive">15</span> Bloqueado
+                  </span>
+                </div>
+              </PopoverContent>
+            </Popover>
+            {!selectedBarber && (
+              <p className="text-xs text-muted-foreground">
+                Selecione um barbeiro para ver os dias disponíveis.
+              </p>
+            )}
           </div>
 
           {/* Time slots grid */}
