@@ -248,7 +248,7 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {reviews.map((r) => (
+        {displayedReviews.map((r) => (
           <ReviewCard
             key={r.id}
             review={r}
