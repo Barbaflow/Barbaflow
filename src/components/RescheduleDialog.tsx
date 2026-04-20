@@ -390,7 +390,7 @@ export function RescheduleDialog({
                 <SelectValue placeholder={barbersLoading ? "Carregando..." : "Selecione"} />
               </SelectTrigger>
               <SelectContent>
-                {barbers.map((b) => {
+                {sortedBarbers.map((b) => {
                   const free = freeCounts[b.user_id];
                   const knownCount = !freeCountsLoading && free !== undefined;
                   return (
