@@ -137,18 +137,21 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       });
       setAppointments(finalAppointments);
 
-      // Fetch per-barbershop reschedule_min_hours setting (one query for all shops)
+      // Fetch per-barbershop reschedule/cancel min-hours settings (one query for all shops)
       const shopIds = Array.from(new Set(finalAppointments.map((a) => a.barbershop_id)));
       if (shopIds.length > 0) {
         const { data: shops } = await supabase
           .from("barbershops")
-          .select("id, reschedule_min_hours")
+          .select("id, reschedule_min_hours, cancel_min_hours")
           .in("id", shopIds);
-        const map: Record<string, number> = {};
+        const rMap: Record<string, number> = {};
+        const cMap: Record<string, number> = {};
         (shops || []).forEach((s: any) => {
-          map[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
+          rMap[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
+          cMap[s.id] = typeof s.cancel_min_hours === "number" ? s.cancel_min_hours : 2;
         });
-        setRescheduleMinHoursMap(map);
+        setRescheduleMinHoursMap(rMap);
+        setCancelMinHoursMap(cMap);
       }
 
       // Fetch reviews already made by this user for these appointments
