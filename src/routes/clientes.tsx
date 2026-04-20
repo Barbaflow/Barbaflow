@@ -981,6 +981,14 @@ function ClientesPage() {
             </DialogTitle>
             <DialogDescription>
               Visíveis apenas para a equipe da barbearia. O cliente nunca vê estas anotações.
+              {notes.length > 0 && (
+                <>
+                  {" "}
+                  <span className="text-foreground/80">
+                    Fixadas: {notes.filter((n) => n.pinned).length}/3
+                  </span>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
 
@@ -1084,23 +1092,36 @@ function ClientesPage() {
                             {edited && " · editado"}
                           </span>
                           <div className="flex gap-1 flex-shrink-0">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className={
-                                n.pinned
-                                  ? "h-7 px-2 text-primary hover:text-primary"
-                                  : "h-7 px-2"
-                              }
-                              onClick={() => handleTogglePin(n)}
-                              title={n.pinned ? "Desfixar" : "Fixar no topo"}
-                            >
-                              {n.pinned ? (
-                                <PinOff className="w-3 h-3" />
-                              ) : (
-                                <Pin className="w-3 h-3" />
-                              )}
-                            </Button>
+                            {(() => {
+                              const pinnedCount = notes.filter((x) => x.pinned).length;
+                              const limitReached = !n.pinned && pinnedCount >= 3;
+                              return (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className={
+                                    n.pinned
+                                      ? "h-7 px-2 text-primary hover:text-primary"
+                                      : "h-7 px-2"
+                                  }
+                                  onClick={() => handleTogglePin(n)}
+                                  disabled={limitReached}
+                                  title={
+                                    n.pinned
+                                      ? "Desfixar"
+                                      : limitReached
+                                        ? "Limite de 3 anotações fixadas atingido"
+                                        : "Fixar no topo"
+                                  }
+                                >
+                                  {n.pinned ? (
+                                    <PinOff className="w-3 h-3" />
+                                  ) : (
+                                    <Pin className="w-3 h-3" />
+                                  )}
+                                </Button>
+                              );
+                            })()}
                             <Button
                               size="sm"
                               variant="ghost"
