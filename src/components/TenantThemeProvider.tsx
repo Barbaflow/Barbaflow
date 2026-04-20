@@ -39,27 +39,45 @@ function generateThemeVars(primary: string, secondary: string): Record<string, s
 }
 
 /**
+ * Applies branding CSS variables to :root from explicit primary/secondary colors.
+ * Use this when the barbershop is loaded outside the BarbershopProvider context
+ * (e.g. on path-based public pages like /agendar/$slug).
+ */
+export function TenantThemeColors({
+  primary,
+  secondary,
+}: {
+  primary?: string | null;
+  secondary?: string | null;
+}) {
+  useEffect(() => {
+    if (!primary || !secondary) return;
+    const vars = generateThemeVars(primary, secondary);
+    const root = document.documentElement;
+    Object.entries(vars).forEach(([key, value]) => {
+      root.style.setProperty(key, value);
+    });
+    return () => {
+      Object.keys(vars).forEach((key) => {
+        root.style.removeProperty(key);
+      });
+    };
+  }, [primary, secondary]);
+
+  return null;
+}
+
+/**
  * Reads branding from BarbershopContext and applies CSS variables to :root.
  * Must be rendered inside <BarbershopProvider>.
  */
 export function TenantThemeApplier() {
   const { barbershop } = useBarbershop();
 
-  useEffect(() => {
-    if (!barbershop) return;
-
-    const vars = generateThemeVars(barbershop.primary_color, barbershop.secondary_color);
-    const root = document.documentElement;
-    Object.entries(vars).forEach(([key, value]) => {
-      root.style.setProperty(key, value);
-    });
-
-    return () => {
-      Object.keys(vars).forEach((key) => {
-        root.style.removeProperty(key);
-      });
-    };
-  }, [barbershop?.primary_color, barbershop?.secondary_color]);
-
-  return null;
+  return (
+    <TenantThemeColors
+      primary={barbershop?.primary_color}
+      secondary={barbershop?.secondary_color}
+    />
+  );
 }
