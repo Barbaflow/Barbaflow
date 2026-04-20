@@ -356,6 +356,18 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [showDragHint, setShowDragHint] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
+  });
+  const dismissDragHint = useCallback(() => {
+    setShowDragHint(false);
+    try {
+      localStorage.setItem("barbaflow:drag-hint-dismissed", "1");
+    } catch {
+      /* ignore quota errors */
+    }
+  }, []);
 
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
