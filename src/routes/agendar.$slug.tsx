@@ -5,6 +5,7 @@ import { ReviewsShowcase } from "@/components/ReviewsShowcase";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
+import { TenantThemeColors } from "@/components/TenantThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
