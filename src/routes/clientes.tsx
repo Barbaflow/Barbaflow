@@ -44,6 +44,8 @@ import {
   Pencil,
   Trash2,
   Plus,
+  Pin,
+  PinOff,
   Save,
   Phone,
   MessageCircle,
@@ -94,6 +96,7 @@ interface AppointmentHistoryRow {
 interface NoteRow {
   id: string;
   note: string;
+  pinned: boolean;
   created_by: string;
   updated_by: string | null;
   created_at: string;
@@ -417,9 +420,10 @@ function ClientesPage() {
     setEditingNoteId(null);
     setEditingText("");
     const { data, error } = await (supabase.from as any)("client_notes")
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .eq("barbershop_id", barbershopId)
       .eq("client_id", row.client_id)
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     setNotesLoading(false);
     if (error) {
@@ -450,7 +454,7 @@ function ClientesPage() {
         note: text,
         created_by: user.id,
       })
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .single();
     setSavingNote(false);
     if (error) {
@@ -482,7 +486,7 @@ function ClientesPage() {
     const { data, error } = await (supabase.from as any)("client_notes")
       .update({ note: text, updated_by: user.id })
       .eq("id", noteId)
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .single();
     setSavingNote(false);
     if (error) {
