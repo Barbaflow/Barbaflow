@@ -38,6 +38,42 @@ export type Database = {
         }
         Relationships: []
       }
+      account_deletions: {
+        Row: {
+          cancelled_at: string | null
+          created_at: string
+          details: string | null
+          id: string
+          processed_at: string | null
+          reason: string | null
+          scheduled_for: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          processed_at?: string | null
+          reason?: string | null
+          scheduled_for: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          created_at?: string
+          details?: string | null
+          id?: string
+          processed_at?: string | null
+          reason?: string | null
+          scheduled_for?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           barber_id: string

@@ -22,7 +22,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, KeyRound, Loader2, LogOut, Scissors, Trash2, User as UserIcon } from "lucide-react";
+import { AlertTriangle, ArrowLeft, CalendarClock, KeyRound, Loader2, LogOut, RotateCcw, Scissors, Trash2, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
@@ -67,6 +67,67 @@ function PerfilPage() {
   const [details, setDetails] = useState<string>("");
   const requiredText = "EXCLUIR";
   const [sendingReset, setSendingReset] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<{ scheduled_for: string } | null>(null);
+  const [loadingPending, setLoadingPending] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    (async () => {
+      const { data } = await supabase
+        .from("account_deletions" as any)
+        .select("scheduled_for, cancelled_at, processed_at")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (!active) return;
+      if (data && !(data as any).cancelled_at && !(data as any).processed_at) {
+        setPendingDeletion({ scheduled_for: (data as any).scheduled_for });
+      } else {
+        setPendingDeletion(null);
+      }
+      setLoadingPending(false);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const handleCancelDeletion = async () => {
+    setCancelling(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("cancel-account-deletion", {
+        body: {},
+      });
+      if (error || (data && (data as any).error)) {
+        const message = (data as any)?.message || error?.message || "Não foi possível cancelar.";
+        toast.error(message);
+        return;
+      }
+      setPendingDeletion(null);
+      toast.success("Exclusão cancelada. Sua conta está ativa novamente.");
+    } catch {
+      toast.error("Erro ao cancelar exclusão.");
+    } finally {
+      setCancelling(false);
+    }
+  };
+
+  const formatScheduled = (iso: string) => {
+    const d = new Date(iso);
+    return d.toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const daysRemaining = (iso: string) => {
+    const diff = new Date(iso).getTime() - Date.now();
+    return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+  };
 
   const handlePasswordReset = async () => {
     if (!user?.email) return;
@@ -120,7 +181,10 @@ function PerfilPage() {
         setDeleting(false);
         return;
       }
-      await supabase.auth.signOut();
+      const scheduled = (data as any)?.scheduled_for as string | undefined;
+      if (scheduled) {
+        setPendingDeletion({ scheduled_for: scheduled });
+      }
       setDeletedEmail(emailSnapshot);
       setDeleteOpen(false);
       setDeleting(false);
@@ -133,7 +197,6 @@ function PerfilPage() {
 
   const handleSuccessClose = () => {
     setSuccessOpen(false);
-    navigate({ to: "/" });
   };
 
   if (loading || !user) {
@@ -181,6 +244,41 @@ function PerfilPage() {
           </p>
         </div>
 
+        {pendingDeletion && (
+          <div className="rounded-lg border-2 border-destructive bg-destructive/10 p-5 space-y-3">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+              <div className="space-y-1 min-w-0">
+                <h3 className="font-display font-semibold text-destructive">
+                  Sua conta será excluída em {daysRemaining(pendingDeletion.scheduled_for)} {daysRemaining(pendingDeletion.scheduled_for) === 1 ? "dia" : "dias"}
+                </h3>
+                <p className="text-sm text-foreground/80">
+                  Exclusão definitiva agendada para{" "}
+                  <span className="font-medium text-foreground">
+                    {formatScheduled(pendingDeletion.scheduled_for)}
+                  </span>
+                  . Você ainda pode cancelar e manter sua conta.
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCancelDeletion}
+                disabled={cancelling}
+                className="border-destructive/40"
+              >
+                {cancelling ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Cancelando...</>
+                ) : (
+                  <><RotateCcw className="w-4 h-4" /> Cancelar exclusão</>
+                )}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <ProfilePhotoUpload />
 
         <div className="rounded-lg border border-border bg-card p-5 space-y-3">
@@ -219,12 +317,14 @@ function PerfilPage() {
           </Button>
         </div>
 
+        {!pendingDeletion && !loadingPending && (
         <div className="rounded-lg border border-destructive/40 bg-destructive/5 p-5 space-y-4">
           <div>
             <h3 className="font-display font-semibold text-destructive">Excluir minha conta</h3>
             <p className="text-sm text-muted-foreground mt-1">
-              Esta ação é permanente. Seus dados pessoais (perfil, foto, telefone, notificações
-              e comentários de avaliações) serão removidos. Agendamentos futuros serão cancelados.
+              Sua conta entrará em período de carência de <strong className="text-foreground">30 dias</strong>.
+              Durante esse prazo você pode cancelar e voltar normalmente. Após 30 dias todos os
+              seus dados pessoais serão removidos permanentemente.
             </p>
           </div>
           <AlertDialog
@@ -246,13 +346,16 @@ function PerfilPage() {
             </AlertDialogTrigger>
             <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
               <AlertDialogHeader>
-                <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
+                <AlertDialogTitle>Agendar exclusão da conta?</AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-2 text-sm">
                     <p>
-                      Esta ação <strong className="text-destructive">não pode ser desfeita</strong>.
-                      Sua conta <span className="font-medium text-foreground">{user.email}</span> e todos os
-                      seus dados pessoais serão removidos permanentemente.
+                      Sua conta <span className="font-medium text-foreground">{user.email}</span> entrará
+                      em <strong className="text-foreground">período de carência de 30 dias</strong>.
+                      Você poderá cancelar a exclusão a qualquer momento durante esse prazo.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Atenção: seus agendamentos futuros serão cancelados imediatamente.
                     </p>
                   </div>
                 </AlertDialogDescription>
@@ -322,52 +425,61 @@ function PerfilPage() {
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {deleting ? (
-                    <><Loader2 className="w-4 h-4 animate-spin" /> Excluindo...</>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Agendando...</>
                   ) : (
-                    <><Trash2 className="w-4 h-4" /> Excluir definitivamente</>
+                    <><Trash2 className="w-4 h-4" /> Agendar exclusão</>
                   )}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        )}
 
         <AlertDialog open={successOpen} onOpenChange={(o) => { if (!o) handleSuccessClose(); }}>
           <AlertDialogContent>
             <AlertDialogHeader>
               <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-gold/15">
-                <CheckCircle2 className="h-8 w-8 text-gold" />
+                <CalendarClock className="h-8 w-8 text-gold" />
               </div>
               <AlertDialogTitle className="text-center font-display text-xl">
-                Conta excluída com sucesso
+                Exclusão agendada
               </AlertDialogTitle>
               <AlertDialogDescription asChild>
                 <div className="space-y-3 text-sm text-center">
                   <p>
                     {deletedEmail ? (
-                      <>A conta <span className="font-medium text-foreground">{deletedEmail}</span> foi removida permanentemente.</>
+                      <>A conta <span className="font-medium text-foreground">{deletedEmail}</span> será excluída em <strong className="text-foreground">30 dias</strong>.</>
                     ) : (
-                      <>Sua conta foi removida permanentemente.</>
+                      <>Sua conta será excluída em <strong className="text-foreground">30 dias</strong>.</>
                     )}
                   </p>
+                  {pendingDeletion && (
+                    <p className="text-xs text-muted-foreground">
+                      Data agendada: <span className="font-medium text-foreground">{formatScheduled(pendingDeletion.scheduled_for)}</span>
+                    </p>
+                  )}
                   <div className="rounded-md border border-border bg-muted/30 p-3 text-left space-y-1.5">
-                    <p className="font-medium text-foreground text-xs uppercase tracking-wide">O que foi removido:</p>
+                    <p className="font-medium text-foreground text-xs uppercase tracking-wide">Já foi feito agora:</p>
                     <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-                      <li>Perfil, foto e telefone</li>
-                      <li>Notificações e histórico de bloqueios</li>
-                      <li>Comentários das suas avaliações (notas mantidas anônimas)</li>
                       <li>Agendamentos futuros foram cancelados</li>
+                    </ul>
+                    <p className="font-medium text-foreground text-xs uppercase tracking-wide pt-2">Após 30 dias:</p>
+                    <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+                      <li>Perfil, foto e telefone serão removidos</li>
+                      <li>Notificações e bloqueios apagados</li>
+                      <li>Comentários de avaliações serão anonimizados</li>
                     </ul>
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Sentiremos sua falta. Você pode criar uma nova conta a qualquer momento.
+                    Mudou de ideia? Você pode cancelar a exclusão a qualquer momento durante os 30 dias, na sua página de perfil.
                   </p>
                 </div>
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogAction onClick={handleSuccessClose} className="w-full sm:w-auto">
-                Voltar à página inicial
+                Entendi
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

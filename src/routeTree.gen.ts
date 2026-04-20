@@ -29,6 +29,7 @@ import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendarIndexRouteImport } from './routes/agendar.index'
 import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
+import { Route as HooksProcessAccountDeletionsRouteImport } from './routes/hooks/process-account-deletions'
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
 
 const UpgradeRoute = UpgradeRouteImport.update({
@@ -132,6 +133,12 @@ const HooksResetMonthlyAppointmentsRoute =
     path: '/hooks/reset-monthly-appointments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const HooksProcessAccountDeletionsRoute =
+  HooksProcessAccountDeletionsRouteImport.update({
+    id: '/hooks/process-account-deletions',
+    path: '/hooks/process-account-deletions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const AgendarSlugRoute = AgendarSlugRouteImport.update({
   id: '/agendar/$slug',
   path: '/agendar/$slug',
@@ -158,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
+  '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
   '/agendar/': typeof AgendarIndexRoute
 }
@@ -181,6 +189,7 @@ export interface FileRoutesByTo {
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
+  '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
   '/agendar': typeof AgendarIndexRoute
 }
@@ -205,6 +214,7 @@ export interface FileRoutesById {
   '/sobre': typeof SobreRoute
   '/upgrade': typeof UpgradeRoute
   '/agendar/$slug': typeof AgendarSlugRoute
+  '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
   '/agendar/': typeof AgendarIndexRoute
 }
@@ -230,6 +240,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/upgrade'
     | '/agendar/$slug'
+    | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
     | '/agendar/'
   fileRoutesByTo: FileRoutesByTo
@@ -253,6 +264,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/upgrade'
     | '/agendar/$slug'
+    | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
     | '/agendar'
   id:
@@ -276,6 +288,7 @@ export interface FileRouteTypes {
     | '/sobre'
     | '/upgrade'
     | '/agendar/$slug'
+    | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
     | '/agendar/'
   fileRoutesById: FileRoutesById
@@ -300,6 +313,7 @@ export interface RootRouteChildren {
   SobreRoute: typeof SobreRoute
   UpgradeRoute: typeof UpgradeRoute
   AgendarSlugRoute: typeof AgendarSlugRoute
+  HooksProcessAccountDeletionsRoute: typeof HooksProcessAccountDeletionsRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
   AgendarIndexRoute: typeof AgendarIndexRoute
 }
@@ -446,6 +460,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof HooksResetMonthlyAppointmentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/hooks/process-account-deletions': {
+      id: '/hooks/process-account-deletions'
+      path: '/hooks/process-account-deletions'
+      fullPath: '/hooks/process-account-deletions'
+      preLoaderRoute: typeof HooksProcessAccountDeletionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/agendar/$slug': {
       id: '/agendar/$slug'
       path: '/agendar/$slug'
@@ -476,6 +497,7 @@ const rootRouteChildren: RootRouteChildren = {
   SobreRoute: SobreRoute,
   UpgradeRoute: UpgradeRoute,
   AgendarSlugRoute: AgendarSlugRoute,
+  HooksProcessAccountDeletionsRoute: HooksProcessAccountDeletionsRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,
   AgendarIndexRoute: AgendarIndexRoute,
 }
