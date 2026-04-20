@@ -169,6 +169,19 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {barbershop?.subdomain && barbershop.subdomain !== "_system" && (
+              <a
+                href={`/agendar/${barbershop.subdomain}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Ver minha página pública"
+              >
+                <Button variant="ghost" size="sm">
+                  <Globe className="w-4 h-4" />
+                  <span className="hidden md:inline">Ver página pública</span>
+                </Button>
+              </a>
+            )}
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
