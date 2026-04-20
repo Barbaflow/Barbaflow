@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { ReviewsShowcase } from "@/components/ReviewsShowcase";
@@ -31,7 +31,7 @@ export const Route = createFileRoute("/agendar/$slug")({
 function AgendarSlugPage() {
   const { slug } = Route.useParams();
   const { user, loading } = useAuth();
-  const navigate = useNavigate();
+  // navigate removed: admin/barber are not redirected away from their own public booking page
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
   const [planName, setPlanName] = useState<string | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
