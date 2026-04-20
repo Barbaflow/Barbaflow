@@ -44,6 +44,7 @@ import {
   Package,
   ImagePlus,
   X,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
+import { displayBRPhone, whatsappUrl } from "@/lib/phone";
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -82,7 +84,7 @@ interface Appointment {
   client_id: string;
   barber_id: string;
   service: { name: string; price: number; duration_minutes: number } | null;
-  client_profile: { full_name: string | null } | null;
+  client_profile: { full_name: string | null; phone: string | null } | null;
   barber_profile: { full_name: string | null; avatar_url: string | null } | null;
 }
 
@@ -281,15 +283,27 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       const clientIds = [...new Set((data || []).map((a) => a.client_id))];
       const barberIds = [...new Set((data || []).map((a) => a.barber_id))];
 
-      // Clients: profiles table (works because admin/barber can read profiles)
-      let clientMap: Record<string, { full_name: string | null }> = {};
+      // Clients: profiles table (name) + RPC for phone (RLS-safe)
+      let clientMap: Record<string, { full_name: string | null; phone: string | null }> = {};
       if (clientIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
           .select("user_id, full_name")
           .in("user_id", clientIds);
         if (profiles) {
-          clientMap = Object.fromEntries(profiles.map((p) => [p.user_id, { full_name: p.full_name }]));
+          clientMap = Object.fromEntries(
+            profiles.map((p) => [p.user_id, { full_name: p.full_name, phone: null as string | null }])
+          );
+        }
+        // Phone via SECURITY DEFINER (only returns if caller is barbeiro/admin of a barbershop the client booked at)
+        const phoneResults = await Promise.all(
+          clientIds.map(async (cid) => {
+            const { data } = await supabase.rpc("get_client_phone", { _client_id: cid });
+            return [cid, (data as string | null) ?? null] as const;
+          })
+        );
+        for (const [cid, phone] of phoneResults) {
+          clientMap[cid] = { ...(clientMap[cid] || { full_name: null, phone: null }), phone };
         }
       }
 
