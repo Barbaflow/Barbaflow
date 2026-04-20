@@ -25,15 +25,21 @@ export function useBookingData(barbershopId: string) {
       });
   }, [barbershopId]);
 
-  // Fetch barbers
+  // Fetch barbers (inclui admin/dono que também atende)
   useEffect(() => {
     supabase
       .from("user_roles")
       .select("user_id")
       .eq("barbershop_id", barbershopId)
-      .eq("role", "barbeiro")
+      .in("role", ["barbeiro", "admin_barbearia"])
       .then(({ data }) => {
-        if (data) setBarbers(data);
+        if (data) {
+          // Deduplica caso o admin tenha as duas roles
+          const unique = Array.from(new Set(data.map((r) => r.user_id))).map(
+            (user_id) => ({ user_id })
+          );
+          setBarbers(unique);
+        }
       });
   }, [barbershopId]);
 
