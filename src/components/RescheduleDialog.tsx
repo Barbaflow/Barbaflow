@@ -114,6 +114,97 @@ export function RescheduleDialog({
     })();
   }, [open, appointment]);
 
+  // For each barber in the list, compute how many free slots exist on the
+  // target day, given the appointment duration. Mirrors the slot-generation
+  // logic but aggregates a count per barber for the dropdown summary.
+  useEffect(() => {
+    if (!open || !appointment || barbers.length === 0) {
+      setFreeCounts({});
+      return;
+    }
+    let cancelled = false;
+    setFreeCountsLoading(true);
+    (async () => {
+      const dow = new Date(`${appointment.date}T12:00:00`).getDay();
+      const barberIds = barbers.map((b) => b.user_id);
+      const [weeklyRes, apptRes, blockRes] = await Promise.all([
+        supabase
+          .from("weekly_schedule")
+          .select("barber_id, start_time, end_time")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("day_of_week", dow)
+          .eq("is_active", true),
+        supabase
+          .from("appointments")
+          .select("id, barber_id, start_time, end_time, status")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("date", appointment.date)
+          .neq("status", "cancelled"),
+        supabase
+          .from("schedule_blocks")
+          .select("barber_id")
+          .eq("barbershop_id", appointment.barbershop_id)
+          .in("barber_id", barberIds)
+          .eq("block_date", appointment.date),
+      ]);
+      if (cancelled) return;
+
+      const today = new Date();
+      const isToday =
+        appointment.date ===
+        `${today.getFullYear()}-${(today.getMonth() + 1)
+          .toString()
+          .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+      const nowMin = today.getHours() * 60 + today.getMinutes();
+      const dur = appointment.duration_minutes;
+      const blocked = new Set((blockRes.data ?? []).map((b) => b.barber_id));
+
+      const windowsByBarber: Record<string, Array<{ s: number; e: number }>> = {};
+      (weeklyRes.data ?? []).forEach((w) => {
+        (windowsByBarber[w.barber_id] ??= []).push({
+          s: toMin(w.start_time),
+          e: toMin(w.end_time),
+        });
+      });
+      const busyByBarber: Record<string, Array<{ s: number; e: number }>> = {};
+      (apptRes.data ?? []).forEach((a) => {
+        // Same barber as the original appointment: ignore the slot we're moving.
+        if (a.barber_id === originalBarberId && a.id === appointment.id) return;
+        (busyByBarber[a.barber_id] ??= []).push({
+          s: toMin(a.start_time),
+          e: toMin(a.end_time),
+        });
+      });
+
+      const counts: Record<string, number> = {};
+      for (const id of barberIds) {
+        if (blocked.has(id)) {
+          counts[id] = 0;
+          continue;
+        }
+        const windows = windowsByBarber[id] ?? [];
+        const busy = busyByBarber[id] ?? [];
+        let free = 0;
+        for (const w of windows) {
+          for (let t = w.s; t + dur <= w.e; t += dur) {
+            const slotEnd = t + dur;
+            if (busy.some((b) => t < b.e && slotEnd > b.s)) continue;
+            if (isToday && t <= nowMin) continue;
+            free += 1;
+          }
+        }
+        counts[id] = free;
+      }
+      setFreeCounts(counts);
+      setFreeCountsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, appointment, barbers, originalBarberId]);
+
   useEffect(() => {
     if (!open || !appointment || !selectedBarberId) {
       setSlots([]);
