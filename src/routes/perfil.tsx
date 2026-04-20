@@ -3,6 +3,14 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +29,17 @@ import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+
+const DELETION_REASONS: { value: string; label: string }[] = [
+  { value: "no_use", label: "Não estou mais usando o app" },
+  { value: "found_alternative", label: "Encontrei uma alternativa melhor" },
+  { value: "too_expensive", label: "Achei o preço alto" },
+  { value: "missing_features", label: "Faltam funcionalidades que preciso" },
+  { value: "bad_experience", label: "Tive uma experiência ruim" },
+  { value: "privacy", label: "Preocupações com privacidade" },
+  { value: "temporary", label: "Pausa temporária — devo voltar" },
+  { value: "other", label: "Outro motivo" },
+];
 
 export const Route = createFileRoute("/perfil")({
   head: () => ({
@@ -44,6 +63,8 @@ function PerfilPage() {
   const [deleting, setDeleting] = useState(false);
   const [successOpen, setSuccessOpen] = useState(false);
   const [deletedEmail, setDeletedEmail] = useState<string | null>(null);
+  const [reason, setReason] = useState<string>("");
+  const [details, setDetails] = useState<string>("");
   const requiredText = "EXCLUIR";
   const [sendingReset, setSendingReset] = useState(false);
 
@@ -86,7 +107,13 @@ function PerfilPage() {
     setDeleting(true);
     try {
       const emailSnapshot = user?.email ?? null;
-      const { data, error } = await supabase.functions.invoke("delete-account");
+      const trimmedDetails = details.trim().slice(0, 500);
+      const { data, error } = await supabase.functions.invoke("delete-account", {
+        body: {
+          reason: reason || undefined,
+          details: trimmedDetails || undefined,
+        },
+      });
       if (error || (data && (data as any).error)) {
         const message = (data as any)?.message || error?.message || "Não foi possível excluir a conta.";
         toast.error(message);
@@ -200,14 +227,24 @@ function PerfilPage() {
               e comentários de avaliações) serão removidos. Agendamentos futuros serão cancelados.
             </p>
           </div>
-          <AlertDialog open={deleteOpen} onOpenChange={(o) => { setDeleteOpen(o); if (!o) setConfirmText(""); }}>
+          <AlertDialog
+            open={deleteOpen}
+            onOpenChange={(o) => {
+              setDeleteOpen(o);
+              if (!o) {
+                setConfirmText("");
+                setReason("");
+                setDetails("");
+              }
+            }}
+          >
             <AlertDialogTrigger asChild>
               <Button variant="destructive" size="sm">
                 <Trash2 className="w-4 h-4" />
                 Excluir conta
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent className="max-h-[90vh] overflow-y-auto">
               <AlertDialogHeader>
                 <AlertDialogTitle>Tem certeza absoluta?</AlertDialogTitle>
                 <AlertDialogDescription asChild>
@@ -217,24 +254,65 @@ function PerfilPage() {
                       Sua conta <span className="font-medium text-foreground">{user.email}</span> e todos os
                       seus dados pessoais serão removidos permanentemente.
                     </p>
-                    <p>
-                      Para confirmar, digite <strong className="text-foreground">{requiredText}</strong> abaixo:
-                    </p>
                   </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
-              <div className="space-y-2">
-                <Label htmlFor="confirm-delete" className="text-xs text-muted-foreground">
-                  Digite {requiredText} para liberar o botão
-                </Label>
-                <Input
-                  id="confirm-delete"
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  placeholder={requiredText}
-                  autoComplete="off"
-                  disabled={deleting}
-                />
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="reason" className="text-sm text-foreground">
+                    Antes de ir, qual o motivo? <span className="text-muted-foreground font-normal">(opcional)</span>
+                  </Label>
+                  <Select value={reason} onValueChange={setReason} disabled={deleting}>
+                    <SelectTrigger id="reason">
+                      <SelectValue placeholder="Selecione um motivo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELETION_REASONS.map((r) => (
+                        <SelectItem key={r.value} value={r.value}>
+                          {r.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Sua resposta é anônima e nos ajuda a melhorar o serviço.
+                  </p>
+                </div>
+
+                {reason && (
+                  <div className="space-y-2">
+                    <Label htmlFor="details" className="text-sm text-foreground">
+                      Quer contar mais? <span className="text-muted-foreground font-normal">(opcional)</span>
+                    </Label>
+                    <Textarea
+                      id="details"
+                      value={details}
+                      onChange={(e) => setDetails(e.target.value.slice(0, 500))}
+                      placeholder="Conte o que poderíamos ter feito melhor..."
+                      maxLength={500}
+                      rows={3}
+                      disabled={deleting}
+                    />
+                    <p className="text-[11px] text-muted-foreground text-right">
+                      {details.length}/500
+                    </p>
+                  </div>
+                )}
+
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <Label htmlFor="confirm-delete" className="text-xs text-muted-foreground">
+                    Para confirmar, digite <strong className="text-foreground">{requiredText}</strong>
+                  </Label>
+                  <Input
+                    id="confirm-delete"
+                    value={confirmText}
+                    onChange={(e) => setConfirmText(e.target.value)}
+                    placeholder={requiredText}
+                    autoComplete="off"
+                    disabled={deleting}
+                  />
+                </div>
               </div>
               <AlertDialogFooter>
                 <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>

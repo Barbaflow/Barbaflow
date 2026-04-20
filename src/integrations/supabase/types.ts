@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_deletion_feedback: {
+        Row: {
+          created_at: string
+          details: string | null
+          had_barbershop_role: boolean
+          id: string
+          reason: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          had_barbershop_role?: boolean
+          id?: string
+          reason: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          had_barbershop_role?: boolean
+          id?: string
+          reason?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           barber_id: string
