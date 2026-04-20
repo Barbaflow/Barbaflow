@@ -86,7 +86,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar, CalendarDayButton } from "@/components/ui/calendar";
 import { QRCodeSVG } from "qrcode.react";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
@@ -447,6 +447,47 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [dateCalendarOpen, setDateCalendarOpen] = useState(false);
   const dragForCalendarRef = useRef<string | null>(null);
 
+  // Per-day appointment counts for the calendar popover (current visible month).
+  // Re-fetched whenever the popover opens, the visible month changes, the
+  // tenant changes, or the admin barber filter changes. Keyed by YYYY-MM-DD.
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => new Date());
+  const [dayCounts, setDayCounts] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (!dateCalendarOpen || !barbershopId) return;
+    const y = calendarMonth.getFullYear();
+    const m = calendarMonth.getMonth();
+    const start = `${y}-${(m + 1).toString().padStart(2, "0")}-01`;
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const end = `${y}-${(m + 1).toString().padStart(2, "0")}-${lastDay
+      .toString()
+      .padStart(2, "0")}`;
+    let cancelled = false;
+    (async () => {
+      let q = supabase
+        .from("appointments")
+        .select("date, barber_id, status")
+        .eq("barbershop_id", barbershopId)
+        .gte("date", start)
+        .lte("date", end)
+        .neq("status", "cancelled");
+      if (isAdmin && selectedBarber !== "all") {
+        q = q.eq("barber_id", selectedBarber);
+      } else if (!isAdmin && user) {
+        q = q.eq("barber_id", user.id);
+      }
+      const { data } = await q;
+      if (cancelled) return;
+      const counts: Record<string, number> = {};
+      (data ?? []).forEach((row) => {
+        counts[row.date] = (counts[row.date] ?? 0) + 1;
+      });
+      setDayCounts(counts);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [dateCalendarOpen, calendarMonth, barbershopId, isAdmin, selectedBarber, user]);
+
   // dnd-kit sensors: pointer (mouse) + touch (mobile) + keyboard.
   // PointerSensor with distance:8 prevents accidental drag on simple click.
   // TouchSensor with delay:200 lets vertical scroll work normally on mobile;
@@ -763,8 +804,32 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   setSelectedDate(newDate);
                 }
               }}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
               initialFocus
               className="p-3 pointer-events-auto"
+              components={{
+                DayButton: (dayProps) => {
+                  const d = dayProps.day.date;
+                  const key = `${d.getFullYear()}-${(d.getMonth() + 1)
+                    .toString()
+                    .padStart(2, "0")}-${d.getDate().toString().padStart(2, "0")}`;
+                  const count = dayCounts[key] ?? 0;
+                  return (
+                    <div className="relative w-full h-full">
+                      <CalendarDayButton {...dayProps} />
+                      {count > 0 && (
+                        <span
+                          className="pointer-events-none absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] px-[3px] rounded-full bg-primary text-primary-foreground text-[9px] font-semibold leading-[14px] text-center shadow-sm"
+                          aria-label={`${count} agendamento${count > 1 ? "s" : ""}`}
+                        >
+                          {count > 9 ? "9+" : count}
+                        </span>
+                      )}
+                    </div>
+                  );
+                },
+              }}
             />
           </PopoverContent>
         </Popover>
