@@ -370,9 +370,17 @@ function ReviewCard({
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="font-body font-semibold text-foreground text-sm truncate">
-            {review.client_name}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-body font-semibold text-foreground text-sm truncate">
+              {review.client_name}
+            </p>
+            {review.reply && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-gold/40 bg-gold/10 px-2 py-0.5 text-[10px] font-body font-semibold uppercase tracking-wider text-gold">
+                <MessageSquareReply className="w-3 h-3" />
+                Respondida
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             <Stars value={review.rating} size="sm" />
             <span className="text-[11px] text-muted-foreground">{date}</span>
