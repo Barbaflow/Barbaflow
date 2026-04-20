@@ -100,6 +100,8 @@ function ConfiguracoesPage() {
             <TeamManager barbershopId={barbershopId} />
           </div>
         )}
+
+        {!isClientOnly && <NoShowReport barbershopId={barbershopId} />}
       </main>
     </div>
   );
