@@ -26,6 +26,7 @@ interface BarbershopData {
   pdf_slogan: string | null;
   qr_size: string | null;
   reschedule_min_hours: number | null;
+  cancel_min_hours: number | null;
 }
 
 const DEFAULT_WA_TEMPLATE =
@@ -50,6 +51,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [savingPrint, setSavingPrint] = useState(false);
   const [rescheduleMinHours, setRescheduleMinHours] = useState<number>(2);
   const [savingReschedule, setSavingReschedule] = useState(false);
+  const [cancelMinHours, setCancelMinHours] = useState<number>(2);
+  const [savingCancel, setSavingCancel] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -286,6 +289,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.reschedule_min_hours === "number") {
             setRescheduleMinHours(s.reschedule_min_hours);
           }
+          if (typeof s.cancel_min_hours === "number") {
+            setCancelMinHours(s.cancel_min_hours);
+          }
         }
       });
   }, [barbershopId]);
@@ -342,6 +348,21 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Limite de reagendamento salvo!");
     }
     setSavingReschedule(false);
+  };
+
+  const handleSaveCancel = async () => {
+    setSavingCancel(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({ cancel_min_hours: cancelMinHours } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar limite de cancelamento.");
+    } else {
+      toast.success("Limite de cancelamento salvo!");
+    }
+    setSavingCancel(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -762,6 +783,73 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               <Check className="w-4 h-4" />
             )}
             {savingReschedule ? "Salvando..." : "Salvar limite"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Cancel limit */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <CalendarClock className="w-5 h-5 text-gold" />
+            Limite para cancelamento do cliente
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Quanto tempo de antecedência o cliente precisa ter para cancelar sozinho pelo app.
+            Quando faltar menos do que isso, o botão "Cancelar" fica bloqueado e ele precisa
+            entrar em contato com a barbearia.
+          </p>
+
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Antecedência mínima</Label>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+              {[
+                { v: 0, label: "Sem limite" },
+                { v: 1, label: "1 hora" },
+                { v: 2, label: "2 horas" },
+                { v: 4, label: "4 horas" },
+                { v: 12, label: "12 horas" },
+                { v: 24, label: "24 horas" },
+              ].map((opt) => {
+                const selected = cancelMinHours === opt.v;
+                return (
+                  <Button
+                    key={opt.v}
+                    type="button"
+                    size="sm"
+                    variant={selected ? "gold" : "outline"}
+                    onClick={() => setCancelMinHours(opt.v)}
+                  >
+                    {opt.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="p-3 rounded-lg border border-border bg-secondary/50">
+            <p className="text-xs text-muted-foreground mb-1">Como o cliente verá:</p>
+            <p className="text-sm text-foreground">
+              {cancelMinHours === 0
+                ? "Cancelamento liberado a qualquer momento (até a hora do horário)."
+                : `Cancelamento bloqueado quando faltar menos de ${cancelMinHours}h para o atendimento.`}
+            </p>
+          </div>
+
+          <Button
+            onClick={handleSaveCancel}
+            disabled={savingCancel}
+            variant="gold"
+            className="w-full sm:w-auto"
+          >
+            {savingCancel ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
+            {savingCancel ? "Salvando..." : "Salvar limite"}
           </Button>
         </CardContent>
       </Card>

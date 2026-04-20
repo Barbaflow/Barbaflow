@@ -76,6 +76,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [clientPhone, setClientPhone] = useState<string | null>(null);
   // Per-barbershop reschedule minimum-hours limit (default 2)
   const [rescheduleMinHoursMap, setRescheduleMinHoursMap] = useState<Record<string, number>>({});
+  // Per-barbershop cancel minimum-hours limit (default 2)
+  const [cancelMinHoursMap, setCancelMinHoursMap] = useState<Record<string, number>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -135,18 +137,21 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       });
       setAppointments(finalAppointments);
 
-      // Fetch per-barbershop reschedule_min_hours setting (one query for all shops)
+      // Fetch per-barbershop reschedule/cancel min-hours settings (one query for all shops)
       const shopIds = Array.from(new Set(finalAppointments.map((a) => a.barbershop_id)));
       if (shopIds.length > 0) {
         const { data: shops } = await supabase
           .from("barbershops")
-          .select("id, reschedule_min_hours")
+          .select("id, reschedule_min_hours, cancel_min_hours")
           .in("id", shopIds);
-        const map: Record<string, number> = {};
+        const rMap: Record<string, number> = {};
+        const cMap: Record<string, number> = {};
         (shops || []).forEach((s: any) => {
-          map[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
+          rMap[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
+          cMap[s.id] = typeof s.cancel_min_hours === "number" ? s.cancel_min_hours : 2;
         });
-        setRescheduleMinHoursMap(map);
+        setRescheduleMinHoursMap(rMap);
+        setCancelMinHoursMap(cMap);
       }
 
       // Fetch reviews already made by this user for these appointments
@@ -348,14 +353,16 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           {appointments.map((apt) => {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
             const isPast = apt.date < new Date().toISOString().split("T")[0];
-            const canCancel = apt.status === "scheduled" && !isPast;
-            // Reschedule lock: block if less than the barbershop's configured min-hours
-            // (default 2h, 0 = no limit). Configurable in barbershop settings.
+            const isFutureScheduled = apt.status === "scheduled" && !isPast;
+            // Per-barbershop limits (default 2h, 0 = no limit). Configurable in settings.
             const minHours = rescheduleMinHoursMap[apt.barbershop_id] ?? 2;
+            const cancelMinHours = cancelMinHoursMap[apt.barbershop_id] ?? 2;
             const apptStart = new Date(`${apt.date}T${apt.start_time}`);
             const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
-            const canReschedule = canCancel && (minHours <= 0 || hoursUntil >= minHours);
-            const rescheduleLocked = canCancel && !canReschedule;
+            const canReschedule = isFutureScheduled && (minHours <= 0 || hoursUntil >= minHours);
+            const canCancel = isFutureScheduled && (cancelMinHours <= 0 || hoursUntil >= cancelMinHours);
+            const rescheduleLocked = isFutureScheduled && !canReschedule;
+            const cancelLocked = isFutureScheduled && !canCancel;
 
             return (
               <Card key={apt.id} className="bg-card border-border overflow-hidden">
@@ -446,7 +453,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                           </Button>
                         )
                       )}
-                      {canCancel && (
+                      {isFutureScheduled && (
                         <>
                           {rescheduleLocked ? (
                             <div
@@ -478,14 +485,24 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                               Reagendar
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleCancel(apt.id)}
-                          >
-                            Cancelar
-                          </Button>
+                          {cancelLocked ? (
+                            <div
+                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[160px] leading-tight"
+                              title={`Para cancelar com menos de ${cancelMinHours}h de antecedência, entre em contato com a barbearia.`}
+                            >
+                              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                              <span>Cancelamento bloqueado (menos de {cancelMinHours}h)</span>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleCancel(apt.id)}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>

@@ -135,6 +135,7 @@ export type Database = {
       barbershops: {
         Row: {
           appointments_this_month: number
+          cancel_min_hours: number
           created_at: string
           id: string
           logo_url: string | null
@@ -156,6 +157,7 @@ export type Database = {
         }
         Insert: {
           appointments_this_month?: number
+          cancel_min_hours?: number
           created_at?: string
           id?: string
           logo_url?: string | null
@@ -177,6 +179,7 @@ export type Database = {
         }
         Update: {
           appointments_this_month?: number
+          cancel_min_hours?: number
           created_at?: string
           id?: string
           logo_url?: string | null
