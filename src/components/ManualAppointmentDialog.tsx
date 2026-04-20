@@ -255,9 +255,9 @@ export function ManualAppointmentDialog({
 
   const service = services.find((s) => s.id === selectedService) ?? null;
 
-  // Generate slots from weekly_schedule, then mark conflicts with existing appointments + blocks
+  // Generate slots from weekly_schedule, then mark conflicts with existing appointments + blocks.
+  // Preserve the currently selected slot if it's still valid (esp. relevant when editing).
   useEffect(() => {
-    setSelectedTime("");
     setSlots([]);
     if (!selectedBarber || !service || !date) return;
     setLoadingSlots(true);
@@ -277,7 +277,7 @@ export function ManualAppointmentDialog({
           .eq("is_active", true),
         supabase
           .from("appointments")
-          .select("start_time, end_time, status")
+          .select("id, start_time, end_time, status")
           .eq("barbershop_id", barbershopId)
           .eq("barber_id", selectedBarber)
           .eq("date", date)
@@ -297,10 +297,13 @@ export function ManualAppointmentDialog({
         s: toMin(w.start_time),
         e: toMin(w.end_time),
       }));
-      const busy = (apptRes.data ?? []).map((a) => ({
-        s: toMin(a.start_time),
-        e: toMin(a.end_time),
-      }));
+      // Exclude the appointment being edited from "busy" so its own slot stays free
+      const busy = (apptRes.data ?? [])
+        .filter((a) => !editAppointment || a.id !== editAppointment.id)
+        .map((a) => ({
+          s: toMin(a.start_time),
+          e: toMin(a.end_time),
+        }));
 
       const today = new Date();
       const isToday =
@@ -327,11 +330,17 @@ export function ManualAppointmentDialog({
       }
 
       setSlots(generated);
+      // If current selection no longer exists/available, clear it
+      setSelectedTime((prev) => {
+        if (!prev) return prev;
+        const match = generated.find((s) => s.time === prev);
+        return match && match.available ? prev : "";
+      });
       setLoadingSlots(false);
     })();
 
     return () => ctrl.abort();
-  }, [selectedBarber, service, date, barbershopId]);
+  }, [selectedBarber, service, date, barbershopId, editAppointment]);
 
   const handleSubmit = async () => {
     if (!selectedClient || !selectedBarber || !service || !selectedTime) {
@@ -342,7 +351,7 @@ export function ManualAppointmentDialog({
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
-    const { error } = await supabase.from("appointments").insert({
+    const payload = {
       barbershop_id: barbershopId,
       client_id: selectedClient.user_id,
       barber_id: selectedBarber,
@@ -351,12 +360,16 @@ export function ManualAppointmentDialog({
       start_time: `${selectedTime}:00`,
       end_time: endTime,
       notes: notes.trim() || null,
-    });
+    };
+
+    const { error } = isEditing
+      ? await supabase.from("appointments").update(payload).eq("id", editAppointment!.id)
+      : await supabase.from("appointments").insert(payload);
 
     if (error) {
-      toast.error(error.message || "Erro ao criar agendamento.");
+      toast.error(error.message || (isEditing ? "Erro ao atualizar." : "Erro ao criar agendamento."));
     } else {
-      toast.success("Agendamento criado!");
+      toast.success(isEditing ? "Agendamento atualizado!" : "Agendamento criado!");
       onCreated();
       onOpenChange(false);
     }
