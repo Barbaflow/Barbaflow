@@ -39,6 +39,10 @@ function PerfilPage() {
   const { barbershop } = useBarbershop();
   const navigate = useNavigate();
   const name = barbershop?.name || "BarbaFlow";
+  const [confirmText, setConfirmText] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const requiredText = "EXCLUIR";
 
   useEffect(() => {
     if (!loading && !user) {
@@ -56,7 +60,25 @@ function PerfilPage() {
     }
   };
 
-  if (loading || !user) {
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("delete-account");
+      if (error || (data && (data as any).error)) {
+        const message = (data as any)?.message || error?.message || "Não foi possível excluir a conta.";
+        toast.error(message);
+        setDeleting(false);
+        return;
+      }
+      toast.success("Sua conta foi excluída.");
+      await supabase.auth.signOut();
+      setDeleteOpen(false);
+      navigate({ to: "/" });
+    } catch (e) {
+      toast.error("Erro ao excluir conta. Tente novamente.");
+      setDeleting(false);
+    }
+  };
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
