@@ -215,7 +215,7 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
     );
   }
 
-  if (reviews.length === 0) {
+  if (displayedReviews.length === 0) {
     return (
       <div className="text-center py-10 rounded-xl border border-border bg-card/40">
         <Star className="w-8 h-8 text-muted-foreground/40 mx-auto mb-2" />
