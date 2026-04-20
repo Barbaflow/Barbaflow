@@ -858,6 +858,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_client_phone: { Args: { _client_id: string }; Returns: string }
       get_public_barbers: {
         Args: { _barbershop_id: string }
         Returns: {
