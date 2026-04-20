@@ -84,18 +84,18 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       pdf.setFontSize(14);
       pdf.text("Agende seu horário online", pageWidth / 2, 62, { align: "center" });
 
-      // QR Code (centered, large)
+      // QR Code (centered)
       const qrDataUrl = canvas.toDataURL("image/png");
-      const qrSize = 110;
-      const qrX = (pageWidth - qrSize) / 2;
+      const qrMm = currentSize.pdfMm;
+      const qrX = (pageWidth - qrMm) / 2;
       const qrY = 78;
 
       // White card behind QR
       pdf.setFillColor(255, 255, 255);
       pdf.setDrawColor(200, 169, 110);
       pdf.setLineWidth(1);
-      pdf.roundedRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 4, 4, "FD");
-      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+      pdf.roundedRect(qrX - 8, qrY - 8, qrMm + 16, qrMm + 16, 4, 4, "FD");
+      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrMm, qrMm);
 
       // Instructions
       pdf.setTextColor(40, 40, 40);
