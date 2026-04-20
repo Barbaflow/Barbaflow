@@ -1,5 +1,6 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { supabase } from "@/integrations/supabase/client";
 
 function hexToOklch(hex: string): string {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -73,6 +74,24 @@ export function TenantThemeColors({
  */
 export function TenantThemeApplier() {
   const { barbershop } = useBarbershop();
+  const [canApply, setCanApply] = useState(false);
+
+  useEffect(() => {
+    if (!barbershop?.plan_id) {
+      setCanApply(false);
+      return;
+    }
+    supabase
+      .from("plans")
+      .select("name")
+      .eq("id", barbershop.plan_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCanApply(data?.name === "pro" || data?.name === "enterprise");
+      });
+  }, [barbershop?.plan_id]);
+
+  if (!canApply) return null;
 
   return (
     <TenantThemeColors

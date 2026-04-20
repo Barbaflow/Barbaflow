@@ -33,26 +33,38 @@ function AgendarSlugPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
+  const [planName, setPlanName] = useState<string | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const roleCheckDone = useRef(false);
 
   useEffect(() => {
-    supabase
-      .from("barbershops")
-      .select("*")
-      .eq("subdomain", slug)
-      .eq("status", "approved")
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          setBarbershop(data);
-        } else {
-          setNotFound(true);
+    (async () => {
+      const { data } = await supabase
+        .from("barbershops")
+        .select("*")
+        .eq("subdomain", slug)
+        .eq("status", "approved")
+        .maybeSingle();
+
+      if (data) {
+        setBarbershop(data);
+        if (data.plan_id) {
+          const { data: plan } = await supabase
+            .from("plans")
+            .select("name")
+            .eq("id", data.plan_id)
+            .maybeSingle();
+          setPlanName(plan?.name ?? null);
         }
-        setLoadingShop(false);
-      });
+      } else {
+        setNotFound(true);
+      }
+      setLoadingShop(false);
+    })();
   }, [slug]);
+
+  const canApplyBranding = planName === "pro" || planName === "enterprise";
 
   // Role-based redirect + auto-assign cliente role for path-based access
   useEffect(() => {
@@ -121,10 +133,12 @@ function AgendarSlugPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <TenantThemeColors
-        primary={barbershop?.primary_color}
-        secondary={barbershop?.secondary_color}
-      />
+      {canApplyBranding && (
+        <TenantThemeColors
+          primary={barbershop?.primary_color}
+          secondary={barbershop?.secondary_color}
+        />
+      )}
       <nav className="flex items-center justify-between px-6 py-5 md:px-12 border-b border-border">
         <div className="flex items-center gap-3">
           {barbershop?.logo_url ? (
