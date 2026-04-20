@@ -897,12 +897,16 @@ function StatCard({
 
 function ClientRowCard({
   row,
+  noteCount,
   onHistory,
+  onNotes,
   onBlock,
   onUnblock,
 }: {
   row: ClientRow;
+  noteCount: number;
   onHistory: () => void;
+  onNotes: () => void;
   onBlock: () => void;
   onUnblock: () => void;
 }) {
