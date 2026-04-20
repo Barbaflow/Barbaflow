@@ -650,18 +650,16 @@ function ClientRowCard({
 
           {/* Actions */}
           <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-            {row.client_phone && (
-              <a
-                href={whatsappUrl(row.client_phone)}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Abrir conversa no WhatsApp"
-              >
-                <Button size="sm" variant="ghost">
-                  <MessageCircle className="w-3.5 h-3.5" />
-                </Button>
-              </a>
-            )}
+            {(() => {
+              const wa = whatsappUrl(row.client_phone);
+              return wa ? (
+                <a href={wa} target="_blank" rel="noopener noreferrer" title="Abrir WhatsApp">
+                  <Button size="sm" variant="ghost">
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </Button>
+                </a>
+              ) : null;
+            })()}
             <Button size="sm" variant="ghost" onClick={onHistory} title="Ver histórico">
               <History className="w-3.5 h-3.5" />
               <span className="hidden md:inline">Histórico</span>
