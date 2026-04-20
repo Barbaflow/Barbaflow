@@ -780,6 +780,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             sensors={sensors}
             onDragStart={(e: DragStartEvent) => {
               setDraggingId(String(e.active.id));
+              dismissDragHint();
             }}
             onDragEnd={(e: DragEndEvent) => {
               const id = String(e.active.id);
@@ -806,13 +807,37 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                   Solte para escolher o novo horário
                 </div>
               )}
-              {appointments.map((apt) => {
-                const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
-                const StatusIcon = statusCfg.icon;
-                const isScheduled = apt.status === "scheduled";
-                const isDragging = draggingId === apt.id;
+              {(() => {
+                const firstScheduledId = appointments.find((a) => a.status === "scheduled")?.id;
+                return appointments.map((apt) => {
+                  const statusCfg = STATUS_CONFIG[apt.status] || STATUS_CONFIG.scheduled;
+                  const StatusIcon = statusCfg.icon;
+                  const isScheduled = apt.status === "scheduled";
+                  const isDragging = draggingId === apt.id;
+                  const showHintHere =
+                    showDragHint && !draggingId && isScheduled && apt.id === firstScheduledId;
 
-                return (
+                  return (
+                    <div key={apt.id} className="space-y-2">
+                      {showHintHere && (
+                        <div
+                          className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-primary animate-in fade-in slide-in-from-top-1"
+                          role="status"
+                        >
+                          <GripVertical className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+                          <span className="flex-1">
+                            Dica: arraste o card para reagendar para outro horário
+                          </span>
+                          <button
+                            type="button"
+                            onClick={dismissDragHint}
+                            className="flex-shrink-0 rounded p-0.5 text-primary/70 hover:text-primary hover:bg-primary/10 transition-colors"
+                            aria-label="Dispensar dica"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
                   <DraggableCard
                     key={apt.id}
                     id={apt.id}
