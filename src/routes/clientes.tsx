@@ -116,6 +116,18 @@ function ClientesPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortKey, setSortKey] = useState<SortKey>("last");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      const def = SORT_OPTIONS.find((o) => o.key === key)?.defaultDir ?? "asc";
+      setSortKey(key);
+      setSortDir(def);
+    }
+  };
 
   // Block dialog state
   const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
