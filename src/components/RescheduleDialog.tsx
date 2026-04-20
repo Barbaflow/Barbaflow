@@ -22,13 +22,16 @@ interface Slot {
 
 export interface RescheduleTarget {
   id: string;
-  date: string; // YYYY-MM-DD
-  start_time: string; // HH:MM:SS
+  date: string; // YYYY-MM-DD — the day to show available slots for
+  start_time: string; // HH:MM:SS — original start time
   barber_id: string;
   barbershop_id: string;
   duration_minutes: number;
   client_name: string | null;
   service_name: string | null;
+  // Optional: original date when rescheduling across days. When omitted,
+  // assumes same-day reschedule (date === original_date).
+  original_date?: string;
 }
 
 interface RescheduleDialogProps {
@@ -116,10 +119,11 @@ export function RescheduleDialog({
           .toString()
           .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
       const nowMin = today.getHours() * 60 + today.getMinutes();
-      // Only mark a slot as "atual" when reviewing the SAME day as the
-      // original appointment — on cross-day reschedules the same time on
-      // another day is a perfectly valid target.
-      const sameDay = appointment.date === appointment.date; // placeholder, see below
+      // The "atual" badge only applies when reviewing the SAME day as the
+      // original appointment — on cross-day reschedules the same clock time
+      // on another day is a perfectly valid target.
+      const isSameDay =
+        !appointment.original_date || appointment.original_date === appointment.date;
       const currentMin = toMin(currentTime);
       const dur = appointment.duration_minutes;
 
