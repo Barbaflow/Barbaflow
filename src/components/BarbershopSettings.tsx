@@ -789,3 +789,112 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     </div>
   );
 }
+
+function TemplateThumbnail({
+  template,
+  primaryColor,
+  secondaryColor,
+}: {
+  template: "minimal" | "colorful" | "vintage";
+  primaryColor: string;
+  secondaryColor: string;
+}) {
+  // SVG miniature of an A4 portrait page (ratio ~1:1.41)
+  const w = 70;
+  const h = 99;
+
+  if (template === "minimal") {
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="rounded shadow-sm">
+        <rect width={w} height={h} fill="#ffffff" />
+        <line x1="10" y1="14" x2={w - 10} y2="14" stroke="#C8A96E" strokeWidth="0.4" />
+        <rect x="14" y="22" width={w - 28} height="3" fill="#1a1a1a" rx="0.5" />
+        <rect x="20" y="28" width={w - 40} height="1.5" fill="#999" rx="0.5" />
+        {/* QR placeholder */}
+        <rect x={w / 2 - 14} y="38" width="28" height="28" fill="#1a1a1a" />
+        <rect x={w / 2 - 11} y="41" width="22" height="22" fill="#fff" />
+        <rect x={w / 2 - 8} y="44" width="16" height="16" fill="#1a1a1a" />
+        <rect x={w / 2 - 5} y="47" width="10" height="10" fill="#fff" />
+        <rect x="20" y="72" width={w - 40} height="1.5" fill="#666" rx="0.5" />
+        <line x1="10" y1={h - 14} x2={w - 10} y2={h - 14} stroke="#C8A96E" strokeWidth="0.4" />
+      </svg>
+    );
+  }
+
+  if (template === "colorful") {
+    return (
+      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="rounded shadow-sm">
+        <rect width={w} height={h} fill={secondaryColor} />
+        <rect width={w} height="22" fill={primaryColor} />
+        <polygon points={`0,22 26,22 0,38`} fill={primaryColor} />
+        <rect x="12" y="9" width={w - 24} height="3" fill="#fff" rx="0.5" />
+        <rect x="20" y="15" width={w - 40} height="1.5" fill="#fff" opacity="0.8" rx="0.5" />
+        {/* QR card with shadow */}
+        <rect x={w / 2 - 15} y="44" width="30" height="30" fill="#000" opacity="0.3" rx="2" />
+        <rect x={w / 2 - 16} y="43" width="30" height="30" fill="#fff" rx="2" />
+        <rect x={w / 2 - 13} y="46" width="24" height="24" fill="#1a1a1a" />
+        <rect x={w / 2 - 10} y="49" width="18" height="18" fill="#fff" />
+        <rect x={w / 2 - 7} y="52" width="12" height="12" fill="#1a1a1a" />
+        <rect x="14" y="80" width={w - 28} height="2.5" fill="#fff" rx="0.5" />
+        <rect x={0} y={h - 10} width={w} height="10" fill={primaryColor} />
+      </svg>
+    );
+  }
+
+  // vintage
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} className="rounded shadow-sm">
+      <rect width={w} height={h} fill="#f5ebd7" />
+      <rect
+        x="5"
+        y="5"
+        width={w - 10}
+        height={h - 10}
+        fill="none"
+        stroke="#502814"
+        strokeWidth="0.7"
+      />
+      <rect
+        x="7.5"
+        y="7.5"
+        width={w - 15}
+        height={h - 15}
+        fill="none"
+        stroke="#502814"
+        strokeWidth="0.2"
+      />
+      <text
+        x={w / 2}
+        y="18"
+        textAnchor="middle"
+        fontSize="5"
+        fill="#502814"
+        fontFamily="serif"
+        fontStyle="italic"
+      >
+        ~ ~ ~
+      </text>
+      <rect x="14" y="22" width={w - 28} height="3.5" fill="#3c1e0f" rx="0.3" />
+      <rect x="20" y="29" width={w - 40} height="1.5" fill="#78461e" rx="0.3" />
+      <rect x="22" y="33" width={w - 44} height="1" fill="#78461e" opacity="0.7" rx="0.3" />
+      {/* Framed QR */}
+      <rect x={w / 2 - 15} y="40" width="30" height="30" fill="#3c1e0f" />
+      <rect x={w / 2 - 13} y="42" width="26" height="26" fill="#fff" />
+      <rect x={w / 2 - 11} y="44" width="22" height="22" fill="#1a1a1a" />
+      <rect x={w / 2 - 8} y="47" width="16" height="16" fill="#fff" />
+      <rect x={w / 2 - 5} y="50" width="10" height="10" fill="#1a1a1a" />
+      <rect x="20" y="76" width={w - 40} height="1.5" fill="#3c1e0f" rx="0.3" />
+      <text
+        x={w / 2}
+        y={h - 8}
+        textAnchor="middle"
+        fontSize="5"
+        fill="#502814"
+        fontFamily="serif"
+        fontStyle="italic"
+      >
+        ~ ~ ~
+      </text>
+    </svg>
+  );
+}
