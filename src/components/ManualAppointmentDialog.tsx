@@ -383,9 +383,13 @@ export function ManualAppointmentDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display">Novo agendamento</DialogTitle>
+          <DialogTitle className="font-display">
+            {isEditing ? "Editar agendamento" : "Novo agendamento"}
+          </DialogTitle>
           <DialogDescription>
-            Selecione um cliente cadastrado e preencha os detalhes do agendamento.
+            {isEditing
+              ? "Altere data, hora, barbeiro ou serviço deste agendamento."
+              : "Selecione um cliente cadastrado e preencha os detalhes do agendamento."}
           </DialogDescription>
         </DialogHeader>
 
@@ -673,7 +677,7 @@ export function ManualAppointmentDialog({
           </Button>
           <Button onClick={handleSubmit} disabled={!canSubmit}>
             {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-            Criar agendamento
+            {isEditing ? "Salvar alterações" : "Criar agendamento"}
           </Button>
         </DialogFooter>
       </DialogContent>
