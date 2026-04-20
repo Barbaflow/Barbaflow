@@ -408,6 +408,7 @@ function ReviewCard({
       id={`review-${review.id}`}
       className={cn(
         "rounded-xl border border-border bg-card/60 backdrop-blur-sm p-5 transition-all hover:border-gold/30 scroll-mt-24",
+        isAuthor && "border-gold/40 bg-gold/[0.03] ring-1 ring-gold/10",
         highlight && "border-gold ring-2 ring-gold/40 shadow-lg shadow-gold/10",
       )}
     >
