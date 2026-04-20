@@ -453,7 +453,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                           </Button>
                         )
                       )}
-                      {canCancel && (
+                      {isFutureScheduled && (
                         <>
                           {rescheduleLocked ? (
                             <div
@@ -485,14 +485,24 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                               Reagendar
                             </Button>
                           )}
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                            onClick={() => handleCancel(apt.id)}
-                          >
-                            Cancelar
-                          </Button>
+                          {cancelLocked ? (
+                            <div
+                              className="text-[10px] text-amber-500 flex items-center gap-1 max-w-[160px] leading-tight"
+                              title={`Para cancelar com menos de ${cancelMinHours}h de antecedência, entre em contato com a barbearia.`}
+                            >
+                              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                              <span>Cancelamento bloqueado (menos de {cancelMinHours}h)</span>
+                            </div>
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => handleCancel(apt.id)}
+                            >
+                              Cancelar
+                            </Button>
+                          )}
                         </>
                       )}
                     </div>
