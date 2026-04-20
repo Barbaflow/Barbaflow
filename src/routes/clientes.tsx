@@ -201,12 +201,12 @@ function ClientesPage() {
     }
   };
 
-  const filtersActive =
-    search.trim() !== "" ||
-    statusFilter !== "all" ||
-    lastFilter !== "all" ||
-    sortKey !== "last" ||
-    sortDir !== "desc";
+  const activeFilterCount =
+    (search.trim() !== "" ? 1 : 0) +
+    (statusFilter !== "all" ? 1 : 0) +
+    (lastFilter !== "all" ? 1 : 0) +
+    (sortKey !== "last" || sortDir !== "desc" ? 1 : 0);
+  const filtersActive = activeFilterCount > 0;
 
   const clearFilters = () => {
     setSearch("");
@@ -805,7 +805,7 @@ function ClientesPage() {
               title="Limpar busca, filtro e ordenação"
             >
               <X className="w-4 h-4" />
-              Limpar filtros
+              Limpar filtros ({activeFilterCount})
             </Button>
           )}
         </div>
