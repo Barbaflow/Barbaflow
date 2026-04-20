@@ -474,13 +474,73 @@ export function ManualAppointmentDialog({
 
           {/* Date */}
           <div className="space-y-2">
-            <Label htmlFor="ma-date">Data</Label>
-            <Input
-              id="ma-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
+            <Label>Data</Label>
+            <Popover open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  disabled={!selectedBarber}
+                  className={cn(
+                    "w-full justify-start text-left font-normal",
+                    !date && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {date
+                    ? format(isoToDate(date), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })
+                    : "Selecione uma data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  locale={ptBR}
+                  selected={date ? isoToDate(date) : undefined}
+                  onSelect={(d) => {
+                    if (d) {
+                      setDate(dateToISO(d));
+                      setDatePickerOpen(false);
+                    }
+                  }}
+                  disabled={(d) => {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
+                    if (d < today) return true;
+                    if (activeWeekdays.size > 0 && !activeWeekdays.has(d.getDay())) return true;
+                    if (blockedDates.has(dateToISO(d))) return true;
+                    return false;
+                  }}
+                  modifiers={{
+                    blocked: (d) => blockedDates.has(dateToISO(d)),
+                    closed: (d) =>
+                      activeWeekdays.size > 0 && !activeWeekdays.has(d.getDay()),
+                  }}
+                  modifiersClassNames={{
+                    blocked:
+                      "relative text-destructive line-through opacity-60 after:absolute after:inset-x-2 after:bottom-1 after:h-0.5 after:bg-destructive/60 after:rounded-full",
+                    closed: "text-muted-foreground/50 italic",
+                  }}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+                <div className="px-3 pb-3 pt-0 flex flex-wrap gap-3 text-[11px] text-muted-foreground border-t border-border/40">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-full bg-primary/70" /> Disponível
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="italic">Ter</span> Sem expediente
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="line-through text-destructive">15</span> Bloqueado
+                  </span>
+                </div>
+              </PopoverContent>
+            </Popover>
+            {!selectedBarber && (
+              <p className="text-xs text-muted-foreground">
+                Selecione um barbeiro para ver os dias disponíveis.
+              </p>
+            )}
           </div>
 
           {/* Time slots grid */}
