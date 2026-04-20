@@ -170,17 +170,36 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
           </div>
           <div className="flex items-center gap-2">
             {barbershop?.subdomain && barbershop.subdomain !== "_system" && (
-              <a
-                href={`/agendar/${barbershop.subdomain}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Ver minha página pública"
-              >
-                <Button variant="ghost" size="sm">
-                  <Globe className="w-4 h-4" />
-                  <span className="hidden md:inline">Ver página pública</span>
+              <>
+                <a
+                  href={`/agendar/${barbershop.subdomain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="Ver minha página pública"
+                >
+                  <Button variant="ghost" size="sm">
+                    <Globe className="w-4 h-4" />
+                    <span className="hidden md:inline">Ver página pública</span>
+                  </Button>
+                </a>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  title="Copiar link público"
+                  onClick={async () => {
+                    const url = `${window.location.origin}/agendar/${barbershop.subdomain}`;
+                    try {
+                      await navigator.clipboard.writeText(url);
+                      toast.success("Link copiado!", { description: url });
+                    } catch {
+                      toast.error("Não foi possível copiar o link");
+                    }
+                  }}
+                >
+                  <Copy className="w-4 h-4" />
+                  <span className="hidden md:inline">Copiar link</span>
                 </Button>
-              </a>
+              </>
             )}
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
