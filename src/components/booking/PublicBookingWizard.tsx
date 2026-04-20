@@ -280,6 +280,27 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     setSelectedSlot(null);
   }, [selectedDate]);
 
+  // Check no-show block when client + barbershop are known
+  useEffect(() => {
+    if (!user || !selectedBarbershop) {
+      setNoshowBlock(null);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .rpc("check_client_noshow_block", {
+        _client_id: user.id,
+        _barbershop_id: selectedBarbershop.id,
+      })
+      .then(({ data, error: err }) => {
+        if (cancelled || err || !data) return;
+        setNoshowBlock(data as typeof noshowBlock);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, selectedBarbershop]);
+
   const handleSelectBarbershop = (bs: Barbershop) => {
     setSelectedBarbershop(bs);
     setSelectedBarber(null);
