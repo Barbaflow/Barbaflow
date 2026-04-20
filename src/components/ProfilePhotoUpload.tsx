@@ -221,16 +221,21 @@ export function ProfilePhotoUpload() {
             />
           </div>
           <div className="space-y-2">
-            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp</Label>
+            <Label className="text-xs text-muted-foreground">Telefone / WhatsApp <span className="text-muted-foreground/60">(opcional)</span></Label>
             <div className="relative">
               <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={(e) => setPhone(maskBRPhone(e.target.value))}
                 placeholder="(11) 99999-9999"
+                inputMode="tel"
+                maxLength={16}
                 className="bg-background border-border pl-9"
               />
             </div>
+            <p className="text-[11px] text-muted-foreground">
+              Permite que barbeiros entrem em contato pelo WhatsApp.
+            </p>
           </div>
           <Button
             size="sm"
