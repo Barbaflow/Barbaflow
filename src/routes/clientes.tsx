@@ -100,6 +100,8 @@ function ClientesPage() {
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Block dialog state
   const [blockTarget, setBlockTarget] = useState<ClientRow | null>(null);
