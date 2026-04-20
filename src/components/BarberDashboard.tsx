@@ -146,13 +146,14 @@ function formatDateFull(dateStr: string) {
   return `${weekdays[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
 }
 
-type AdminTab = "overview" | "services" | "products" | "team" | "schedule" | "settings";
+type AdminTab = "overview" | "services" | "products" | "team" | "clients" | "schedule" | "settings";
 
-const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
+const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard; href?: string }[] = [
   { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
   { id: "services", label: "Serviços", icon: Wrench },
   { id: "products", label: "Produtos", icon: Package },
   { id: "team", label: "Equipe", icon: UserCog },
+  { id: "clients", label: "Clientes", icon: Users, href: "/clientes" },
   { id: "schedule", label: "Horários", icon: CalendarCog },
   { id: "settings", label: "Configurações", icon: Settings },
 ];
