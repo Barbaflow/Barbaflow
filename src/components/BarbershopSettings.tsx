@@ -31,6 +31,22 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const qrRef = useRef<HTMLDivElement>(null);
+
+  const publicUrl =
+    typeof window !== "undefined" && data
+      ? `${window.location.origin}/agendar/${data.subdomain}`
+      : "";
+
+  const handleDownloadQR = () => {
+    const canvas = qrRef.current?.querySelector("canvas");
+    if (!canvas || !data) return;
+    const link = document.createElement("a");
+    link.download = `qrcode-${data.subdomain}.png`;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    toast.success("QR Code baixado!");
+  };
 
   useEffect(() => {
     supabase
