@@ -319,15 +319,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               {publicUrl && (
                 <QRCodeCanvas
                   value={publicUrl}
-                  size={160}
+                  size={currentSize.canvas}
                   level="H"
                   includeMargin={false}
+                  style={{
+                    width: currentSize.preview,
+                    height: currentSize.preview,
+                  }}
                   imageSettings={
                     qrWithLogo && logoUrl
                       ? {
                           src: logoUrl,
-                          height: 36,
-                          width: 36,
+                          height: currentSize.logo * (currentSize.canvas / currentSize.preview),
+                          width: currentSize.logo * (currentSize.canvas / currentSize.preview),
                           excavate: true,
                           crossOrigin: "anonymous",
                         }
