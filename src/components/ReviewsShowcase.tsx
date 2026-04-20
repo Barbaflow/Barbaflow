@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Star } from "lucide-react";
+import { Star, Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface ReviewItem {
@@ -15,36 +16,28 @@ interface ReviewItem {
 
 interface ReviewsShowcaseProps {
   barbershopId: string;
-  limit?: number;
+  pageSize?: number;
 }
 
-export function ReviewsShowcase({ barbershopId, limit = 6 }: ReviewsShowcaseProps) {
+export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseProps) {
   const [reviews, setReviews] = useState<ReviewItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [avg, setAvg] = useState(0);
   const [count, setCount] = useState(0);
 
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-
+  const fetchPage = useCallback(
+    async (offset: number): Promise<ReviewItem[]> => {
       const { data, error } = await supabase
         .from("reviews")
         .select("id, rating, comment, created_at, client_id")
         .eq("barbershop_id", barbershopId)
         .order("created_at", { ascending: false })
-        .limit(limit);
+        .range(offset, offset + pageSize - 1);
 
-      if (cancelled) return;
+      if (error || !data) return [];
 
-      if (error || !data) {
-        setReviews([]);
-        setLoading(false);
-        return;
-      }
-
-      // Buscar nomes/avatares dos clientes
       const clientIds = Array.from(new Set(data.map((r) => r.client_id)));
       const { data: profiles } = await supabase
         .from("profiles")
@@ -55,20 +48,27 @@ export function ReviewsShowcase({ barbershopId, limit = 6 }: ReviewsShowcaseProp
         (profiles || []).map((p) => [p.user_id, p]),
       );
 
-      const enriched: ReviewItem[] = data.map((r) => {
+      return data.map((r) => {
         const p = profileMap.get(r.client_id);
         return {
           ...r,
-          client_name:
-            (p?.full_name && p.full_name.trim()) || "Cliente",
+          client_name: (p?.full_name && p.full_name.trim()) || "Cliente",
           client_avatar: p?.avatar_url || null,
         };
       });
+    },
+    [barbershopId, pageSize],
+  );
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const first = await fetchPage(0);
       if (cancelled) return;
-      setReviews(enriched);
+      setReviews(first);
+      setHasMore(first.length === pageSize);
 
-      // Buscar média/total da view pública
       const { data: shop } = await (supabase as any)
         .from("barbearias_publicas")
         .select("rating_avg, rating_count")
@@ -85,7 +85,15 @@ export function ReviewsShowcase({ barbershopId, limit = 6 }: ReviewsShowcaseProp
     return () => {
       cancelled = true;
     };
-  }, [barbershopId, limit]);
+  }, [barbershopId, pageSize, fetchPage]);
+
+  const loadMore = async () => {
+    setLoadingMore(true);
+    const next = await fetchPage(reviews.length);
+    setReviews((prev) => [...prev, ...next]);
+    setHasMore(next.length === pageSize);
+    setLoadingMore(false);
+  };
 
   if (loading) {
     return (
