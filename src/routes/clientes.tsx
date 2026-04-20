@@ -364,6 +364,124 @@ function ClientesPage() {
     setHistory((data as unknown as AppointmentHistoryRow[]) || []);
   };
 
+  const loadAuthorNames = async (ids: string[]) => {
+    const missing = Array.from(new Set(ids.filter((id) => id && !authorNames[id])));
+    if (missing.length === 0) return;
+    const { data } = await supabase.rpc("get_barber_display_names", { _user_ids: missing });
+    if (data) {
+      setAuthorNames((prev) => {
+        const next = { ...prev };
+        for (const r of data as { user_id: string; display_name: string }[]) {
+          next[r.user_id] = r.display_name;
+        }
+        return next;
+      });
+    }
+  };
+
+  const openNotes = async (row: ClientRow) => {
+    setNotesTarget(row);
+    setNotesLoading(true);
+    setNotes([]);
+    setNewNote("");
+    setEditingNoteId(null);
+    setEditingText("");
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .eq("barbershop_id", barbershopId)
+      .eq("client_id", row.client_id)
+      .order("created_at", { ascending: false });
+    setNotesLoading(false);
+    if (error) {
+      toast.error("Erro ao carregar anotações");
+      return;
+    }
+    const list = (data as NoteRow[]) || [];
+    setNotes(list);
+    loadAuthorNames(list.flatMap((n) => [n.created_by, n.updated_by].filter(Boolean) as string[]));
+  };
+
+  const handleSaveNote = async () => {
+    if (!notesTarget || !user) return;
+    const text = newNote.trim();
+    if (!text) {
+      toast.error("Escreva algo antes de salvar");
+      return;
+    }
+    if (text.length > 2000) {
+      toast.error("Máximo 2000 caracteres");
+      return;
+    }
+    setSavingNote(true);
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .insert({
+        barbershop_id: barbershopId,
+        client_id: notesTarget.client_id,
+        note: text,
+        created_by: user.id,
+      })
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .single();
+    setSavingNote(false);
+    if (error) {
+      toast.error("Erro ao salvar anotação");
+      return;
+    }
+    setNotes((prev) => [data as NoteRow, ...prev]);
+    setNoteCounts((prev) => ({
+      ...prev,
+      [notesTarget.client_id]: (prev[notesTarget.client_id] ?? 0) + 1,
+    }));
+    setNewNote("");
+    loadAuthorNames([user.id]);
+    toast.success("Anotação adicionada");
+  };
+
+  const handleUpdateNote = async (noteId: string) => {
+    if (!user) return;
+    const text = editingText.trim();
+    if (!text) {
+      toast.error("A anotação não pode ficar vazia");
+      return;
+    }
+    if (text.length > 2000) {
+      toast.error("Máximo 2000 caracteres");
+      return;
+    }
+    setSavingNote(true);
+    const { data, error } = await (supabase.from as any)("client_notes")
+      .update({ note: text, updated_by: user.id })
+      .eq("id", noteId)
+      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .single();
+    setSavingNote(false);
+    if (error) {
+      toast.error("Erro ao atualizar anotação");
+      return;
+    }
+    setNotes((prev) => prev.map((n) => (n.id === noteId ? (data as NoteRow) : n)));
+    setEditingNoteId(null);
+    setEditingText("");
+    loadAuthorNames([user.id]);
+    toast.success("Anotação atualizada");
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    if (!notesTarget) return;
+    if (!confirm("Excluir esta anotação?")) return;
+    const { error } = await (supabase.from as any)("client_notes").delete().eq("id", noteId);
+    if (error) {
+      toast.error("Erro ao excluir");
+      return;
+    }
+    setNotes((prev) => prev.filter((n) => n.id !== noteId));
+    setNoteCounts((prev) => ({
+      ...prev,
+      [notesTarget.client_id]: Math.max(0, (prev[notesTarget.client_id] ?? 1) - 1),
+    }));
+    toast.success("Anotação excluída");
+  };
+
   const exportCSV = () => {
     if (filtered.length === 0) {
       toast.info("Nada para exportar");
