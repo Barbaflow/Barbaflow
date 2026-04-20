@@ -76,72 +76,184 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageWidth = 210;
       const pageHeight = 297;
-
-      // Background accent bar (top)
-      pdf.setFillColor(26, 26, 46); // secondary dark
-      pdf.rect(0, 0, pageWidth, 18, "F");
-
-      // Brand title
-      pdf.setTextColor(200, 169, 110); // gold
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(28);
-      pdf.text(data.name, pageWidth / 2, 50, { align: "center" });
-
-      // Subtitle
-      pdf.setTextColor(60, 60, 60);
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(14);
-      const slogan = (pdfSlogan || "").trim() || "Agende seu horário online";
-      pdf.text(slogan, pageWidth / 2, 62, { align: "center", maxWidth: pageWidth - 30 });
-
-      // QR Code (centered)
       const qrDataUrl = canvas.toDataURL("image/png");
       const qrMm = currentSize.pdfMm;
       const qrX = (pageWidth - qrMm) / 2;
-      const qrY = 78;
+      const slogan = (pdfSlogan || "").trim() || "Agende seu horário online";
 
-      // White card behind QR
-      pdf.setFillColor(255, 255, 255);
-      pdf.setDrawColor(200, 169, 110);
-      pdf.setLineWidth(1);
-      pdf.roundedRect(qrX - 8, qrY - 8, qrMm + 16, qrMm + 16, 4, 4, "FD");
-      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrMm, qrMm);
+      if (pdfTemplate === "minimal") {
+        // ===== MINIMALIST =====
+        // Clean white, thin gold rule, refined typography
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(0, 0, pageWidth, pageHeight, "F");
 
-      // Instructions
-      pdf.setTextColor(40, 40, 40);
-      pdf.setFont("helvetica", "bold");
-      pdf.setFontSize(16);
-      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrMm + 28, {
-        align: "center",
-      });
+        // Top thin gold line
+        pdf.setDrawColor(200, 169, 110);
+        pdf.setLineWidth(0.4);
+        pdf.line(30, 28, pageWidth - 30, 28);
 
-      pdf.setFont("helvetica", "normal");
-      pdf.setFontSize(12);
-      pdf.setTextColor(90, 90, 90);
-      pdf.text(
-        "Aponte a câmera para o código acima e toque no link que aparecer",
-        pageWidth / 2,
-        qrY + qrMm + 38,
-        { align: "center" }
-      );
+        pdf.setTextColor(20, 20, 20);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(26);
+        pdf.text(data.name.toUpperCase(), pageWidth / 2, 48, { align: "center" });
 
-      // URL footer
-      pdf.setFont("helvetica", "italic");
-      pdf.setFontSize(10);
-      pdf.setTextColor(120, 120, 120);
-      pdf.text(publicUrl, pageWidth / 2, qrY + qrMm + 50, { align: "center" });
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.setTextColor(110, 110, 110);
+        pdf.text(slogan, pageWidth / 2, 58, { align: "center", maxWidth: pageWidth - 40 });
 
-      // Bottom accent bar
-      pdf.setFillColor(200, 169, 110);
-      pdf.rect(0, pageHeight - 8, pageWidth, 8, "F");
+        const qrY = 78;
+        pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrMm, qrMm);
 
-      pdf.save(`qrcode-${data.subdomain}.pdf`);
+        pdf.setTextColor(40, 40, 40);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(13);
+        pdf.text("Escaneie para agendar", pageWidth / 2, qrY + qrMm + 20, { align: "center" });
+
+        pdf.setFont("helvetica", "italic");
+        pdf.setFontSize(9);
+        pdf.setTextColor(140, 140, 140);
+        pdf.text(publicUrl, pageWidth / 2, qrY + qrMm + 30, { align: "center" });
+
+        // Bottom thin gold line
+        pdf.setDrawColor(200, 169, 110);
+        pdf.setLineWidth(0.4);
+        pdf.line(30, pageHeight - 28, pageWidth - 30, pageHeight - 28);
+      } else if (pdfTemplate === "colorful") {
+        // ===== COLORFUL =====
+        // Vibrant gradient bands, bold colors using brand palette
+        const [pr, pg, pb] = hexToRgb(primaryColor);
+        const [sr, sg, sb] = hexToRgb(secondaryColor);
+
+        // Background
+        pdf.setFillColor(sr, sg, sb);
+        pdf.rect(0, 0, pageWidth, pageHeight, "F");
+
+        // Top color block
+        pdf.setFillColor(pr, pg, pb);
+        pdf.rect(0, 0, pageWidth, 50, "F");
+
+        // Diagonal accent
+        pdf.setFillColor(pr, pg, pb);
+        pdf.triangle(0, 50, 80, 50, 0, 90, "F");
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(32);
+        pdf.text(data.name, pageWidth / 2, 30, { align: "center" });
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(13);
+        pdf.text(slogan, pageWidth / 2, 42, { align: "center", maxWidth: pageWidth - 30 });
+
+        const qrY = 90;
+        // White card with shadow effect
+        pdf.setFillColor(0, 0, 0);
+        pdf.roundedRect(qrX - 9, qrY - 7, qrMm + 18, qrMm + 18, 6, 6, "F");
+        pdf.setFillColor(255, 255, 255);
+        pdf.roundedRect(qrX - 10, qrY - 8, qrMm + 18, qrMm + 18, 6, 6, "F");
+        pdf.addImage(qrDataUrl, "PNG", qrX - 1, qrY - 1, qrMm, qrMm);
+
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(18);
+        pdf.text("AGENDE AGORA!", pageWidth / 2, qrY + qrMm + 25, { align: "center" });
+
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(11);
+        pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrMm + 35, {
+          align: "center",
+        });
+
+        // Bottom color band
+        pdf.setFillColor(pr, pg, pb);
+        pdf.rect(0, pageHeight - 25, pageWidth, 25, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "italic");
+        pdf.setFontSize(10);
+        pdf.text(publicUrl, pageWidth / 2, pageHeight - 10, { align: "center" });
+      } else {
+        // ===== VINTAGE =====
+        // Cream paper, ornate borders, classic barbershop pole feel
+        pdf.setFillColor(245, 235, 215); // cream
+        pdf.rect(0, 0, pageWidth, pageHeight, "F");
+
+        // Outer ornate border
+        pdf.setDrawColor(80, 40, 20); // deep brown
+        pdf.setLineWidth(2);
+        pdf.rect(15, 15, pageWidth - 30, pageHeight - 30);
+        pdf.setLineWidth(0.4);
+        pdf.rect(20, 20, pageWidth - 40, pageHeight - 40);
+
+        // Decorative top scroll
+        pdf.setFontSize(20);
+        pdf.setTextColor(80, 40, 20);
+        pdf.setFont("times", "italic");
+        pdf.text("~ ~ ~", pageWidth / 2, 38, { align: "center" });
+
+        // Title
+        pdf.setFont("times", "bold");
+        pdf.setFontSize(32);
+        pdf.setTextColor(60, 30, 15);
+        pdf.text(data.name.toUpperCase(), pageWidth / 2, 58, { align: "center" });
+
+        // Subtitle in italic
+        pdf.setFont("times", "italic");
+        pdf.setFontSize(14);
+        pdf.setTextColor(120, 70, 30);
+        pdf.text(`— ${slogan} —`, pageWidth / 2, 70, {
+          align: "center",
+          maxWidth: pageWidth - 50,
+        });
+
+        // EST. line (decorative)
+        pdf.setFont("times", "normal");
+        pdf.setFontSize(10);
+        pdf.text("· BARBEARIA · TRADIÇÃO · ESTILO ·", pageWidth / 2, 80, { align: "center" });
+
+        const qrY = 92;
+        // Brown frame around QR
+        pdf.setFillColor(60, 30, 15);
+        pdf.rect(qrX - 6, qrY - 6, qrMm + 12, qrMm + 12, "F");
+        pdf.setFillColor(255, 255, 255);
+        pdf.rect(qrX - 3, qrY - 3, qrMm + 6, qrMm + 6, "F");
+        pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrMm, qrMm);
+
+        pdf.setFont("times", "bold");
+        pdf.setFontSize(16);
+        pdf.setTextColor(60, 30, 15);
+        pdf.text("Escaneie & Agende", pageWidth / 2, qrY + qrMm + 22, { align: "center" });
+
+        pdf.setFont("times", "italic");
+        pdf.setFontSize(11);
+        pdf.setTextColor(120, 70, 30);
+        pdf.text(publicUrl, pageWidth / 2, qrY + qrMm + 32, { align: "center" });
+
+        // Bottom decorative scroll
+        pdf.setFont("times", "italic");
+        pdf.setFontSize(20);
+        pdf.setTextColor(80, 40, 20);
+        pdf.text("~ ~ ~", pageWidth / 2, pageHeight - 30, { align: "center" });
+      }
+
+      pdf.save(`qrcode-${data.subdomain}-${pdfTemplate}.pdf`);
       toast.success("PDF baixado! Pronto para impressão A4.");
     } catch (err) {
       console.error(err);
       toast.error("Erro ao gerar PDF.");
     }
   };
+
+  const hexToRgb = (hex: string): [number, number, number] => {
+    const clean = hex.replace("#", "");
+    const full =
+      clean.length === 3
+        ? clean.split("").map((c) => c + c).join("")
+        : clean.padEnd(6, "0").slice(0, 6);
+    const num = parseInt(full, 16);
+    return [(num >> 16) & 255, (num >> 8) & 255, num & 255];
+  };
+
 
   useEffect(() => {
     supabase
