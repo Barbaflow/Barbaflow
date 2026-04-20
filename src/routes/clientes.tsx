@@ -44,6 +44,8 @@ import {
   Pencil,
   Trash2,
   Plus,
+  Pin,
+  PinOff,
   Save,
   Phone,
   MessageCircle,
@@ -94,6 +96,7 @@ interface AppointmentHistoryRow {
 interface NoteRow {
   id: string;
   note: string;
+  pinned: boolean;
   created_by: string;
   updated_by: string | null;
   created_at: string;
@@ -417,9 +420,10 @@ function ClientesPage() {
     setEditingNoteId(null);
     setEditingText("");
     const { data, error } = await (supabase.from as any)("client_notes")
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .eq("barbershop_id", barbershopId)
       .eq("client_id", row.client_id)
+      .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
     setNotesLoading(false);
     if (error) {
@@ -450,7 +454,7 @@ function ClientesPage() {
         note: text,
         created_by: user.id,
       })
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .single();
     setSavingNote(false);
     if (error) {
@@ -482,7 +486,7 @@ function ClientesPage() {
     const { data, error } = await (supabase.from as any)("client_notes")
       .update({ note: text, updated_by: user.id })
       .eq("id", noteId)
-      .select("id, note, created_by, updated_by, created_at, updated_at")
+      .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
       .single();
     setSavingNote(false);
     if (error) {
@@ -510,6 +514,35 @@ function ClientesPage() {
       [notesTarget.client_id]: Math.max(0, (prev[notesTarget.client_id] ?? 1) - 1),
     }));
     toast.success("Anotação excluída");
+  };
+
+  const handleTogglePin = async (note: NoteRow) => {
+    const next = !note.pinned;
+    // Optimistic update
+    setNotes((prev) => {
+      const updated = prev.map((n) => (n.id === note.id ? { ...n, pinned: next } : n));
+      // Re-sort: pinned first, then created_at desc
+      return updated.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+    });
+    const { error } = await (supabase.from as any)("client_notes")
+      .update({ pinned: next })
+      .eq("id", note.id);
+    if (error) {
+      // Revert on failure
+      setNotes((prev) => {
+        const reverted = prev.map((n) => (n.id === note.id ? { ...n, pinned: note.pinned } : n));
+        return reverted.sort((a, b) => {
+          if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        });
+      });
+      toast.error("Erro ao atualizar fixação");
+      return;
+    }
+    toast.success(next ? "Anotação fixada no topo" : "Anotação desfixada");
   };
 
   const exportCSV = () => {
@@ -950,8 +983,18 @@ function ClientesPage() {
                 return (
                   <div
                     key={n.id}
-                    className="rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                    className={
+                      n.pinned
+                        ? "rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-2"
+                        : "rounded-lg border border-border bg-background/40 p-3 space-y-2"
+                    }
                   >
+                    {n.pinned && !isEditing && (
+                      <div className="flex items-center gap-1 text-[11px] font-medium text-primary">
+                        <Pin className="w-3 h-3 fill-current" />
+                        Fixada
+                      </div>
+                    )}
                     {isEditing ? (
                       <>
                         <Textarea
@@ -1001,6 +1044,23 @@ function ClientesPage() {
                             {edited && " · editado"}
                           </span>
                           <div className="flex gap-1 flex-shrink-0">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className={
+                                n.pinned
+                                  ? "h-7 px-2 text-primary hover:text-primary"
+                                  : "h-7 px-2"
+                              }
+                              onClick={() => handleTogglePin(n)}
+                              title={n.pinned ? "Desfixar" : "Fixar no topo"}
+                            >
+                              {n.pinned ? (
+                                <PinOff className="w-3 h-3" />
+                              ) : (
+                                <Pin className="w-3 h-3" />
+                              )}
+                            </Button>
                             <Button
                               size="sm"
                               variant="ghost"
