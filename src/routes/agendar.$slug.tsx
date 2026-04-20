@@ -3,7 +3,7 @@ import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { ReviewsShowcase } from "@/components/ReviewsShowcase";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Scissors } from "lucide-react";
+import { ArrowLeft, Eye, LayoutDashboard, Scissors } from "lucide-react";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { TenantThemeColors } from "@/components/TenantThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
@@ -36,6 +36,7 @@ function AgendarSlugPage() {
   const [planName, setPlanName] = useState<string | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [isStaff, setIsStaff] = useState(false); // admin/barber/super_admin viewing their own page
   const roleCheckDone = useRef(false);
 
   useEffect(() => {
@@ -66,13 +67,18 @@ function AgendarSlugPage() {
 
   const canApplyBranding = planName === "pro" || planName === "enterprise";
 
+  // Detect staff (admin/barber/super_admin) for preview banner.
   // Auto-assign 'cliente' role for path-based access if user has no role yet in this barbershop.
-  // Admins/barbers/super_admins can freely view their own public booking page (preview mode) — no forced redirect.
   useEffect(() => {
     if (!user || loading || loadingShop || !barbershop || roleCheckDone.current) return;
     roleCheckDone.current = true;
 
     (async () => {
+      const { data: isSuperAdmin } = await supabase.rpc("has_role", {
+        _user_id: user.id,
+        _role: "super_admin",
+      });
+
       const { data: roles } = await supabase
         .from("user_roles")
         .select("role")
@@ -80,9 +86,11 @@ function AgendarSlugPage() {
         .eq("barbershop_id", barbershop.id);
 
       const roleList = (roles || []).map((r) => r.role);
+      const staff = !!isSuperAdmin || roleList.includes("admin_barbearia") || roleList.includes("barbeiro");
+      setIsStaff(staff);
 
-      // No role yet in this barbershop → auto-assign cliente
-      if (roleList.length === 0) {
+      // No role yet in this barbershop → auto-assign cliente (only if not staff)
+      if (!staff && roleList.length === 0) {
         await supabase.from("user_roles").insert({
           user_id: user.id,
           barbershop_id: barbershop.id,
