@@ -52,6 +52,11 @@ function MeusAgendamentosPage() {
           {user && <InstallAppButton />}
           {user && <EnableNotificationsButton />}
           {user && <NotificationBell />}
+          {user && (
+            <Link to="/perfil">
+              <Button variant="ghost" size="sm">Perfil</Button>
+            </Link>
+          )}
           {!user && !loading && (
             <Link to="/login">
               <Button variant="gold" size="sm">Entrar</Button>
