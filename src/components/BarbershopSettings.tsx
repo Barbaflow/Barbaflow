@@ -51,6 +51,80 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     toast.success("QR Code baixado!");
   };
 
+  const handleDownloadPDF = () => {
+    const canvas = qrRef.current?.querySelector("canvas");
+    if (!canvas || !data) return;
+
+    try {
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWidth = 210;
+      const pageHeight = 297;
+
+      // Background accent bar (top)
+      pdf.setFillColor(26, 26, 46); // secondary dark
+      pdf.rect(0, 0, pageWidth, 18, "F");
+
+      // Brand title
+      pdf.setTextColor(200, 169, 110); // gold
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(28);
+      pdf.text(data.name, pageWidth / 2, 50, { align: "center" });
+
+      // Subtitle
+      pdf.setTextColor(60, 60, 60);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(14);
+      pdf.text("Agende seu horário online", pageWidth / 2, 62, { align: "center" });
+
+      // QR Code (centered, large)
+      const qrDataUrl = canvas.toDataURL("image/png");
+      const qrSize = 110;
+      const qrX = (pageWidth - qrSize) / 2;
+      const qrY = 78;
+
+      // White card behind QR
+      pdf.setFillColor(255, 255, 255);
+      pdf.setDrawColor(200, 169, 110);
+      pdf.setLineWidth(1);
+      pdf.roundedRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 4, 4, "FD");
+      pdf.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+      // Instructions
+      pdf.setTextColor(40, 40, 40);
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(16);
+      pdf.text("Escaneie com a câmera do celular", pageWidth / 2, qrY + qrSize + 28, {
+        align: "center",
+      });
+
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(12);
+      pdf.setTextColor(90, 90, 90);
+      pdf.text(
+        "Aponte a câmera para o código acima e toque no link que aparecer",
+        pageWidth / 2,
+        qrY + qrSize + 38,
+        { align: "center" }
+      );
+
+      // URL footer
+      pdf.setFont("helvetica", "italic");
+      pdf.setFontSize(10);
+      pdf.setTextColor(120, 120, 120);
+      pdf.text(publicUrl, pageWidth / 2, qrY + qrSize + 50, { align: "center" });
+
+      // Bottom accent bar
+      pdf.setFillColor(200, 169, 110);
+      pdf.rect(0, pageHeight - 8, pageWidth, 8, "F");
+
+      pdf.save(`qrcode-${data.subdomain}.pdf`);
+      toast.success("PDF baixado! Pronto para impressão A4.");
+    } catch (err) {
+      console.error(err);
+      toast.error("Erro ao gerar PDF.");
+    }
+  };
+
   useEffect(() => {
     supabase
       .from("barbershops")
