@@ -533,6 +533,29 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
                   className="text-sm"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Template do cartaz PDF</Label>
+                <div className="flex gap-1.5 justify-center sm:justify-start flex-wrap">
+                  {(
+                    [
+                      { id: "minimal", label: "Minimalista" },
+                      { id: "colorful", label: "Colorido" },
+                      { id: "vintage", label: "Vintage" },
+                    ] as const
+                  ).map((t) => (
+                    <Button
+                      key={t.id}
+                      type="button"
+                      size="sm"
+                      variant={pdfTemplate === t.id ? "gold" : "outline"}
+                      onClick={() => setPdfTemplate(t.id)}
+                      className="flex-1 sm:flex-none"
+                    >
+                      {t.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                 <Button variant="gold" onClick={handleDownloadQR} className="w-full sm:w-auto">
                   <Download className="w-4 h-4" />
