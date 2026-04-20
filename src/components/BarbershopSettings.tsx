@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText } from "lucide-react";
+import { Upload, Palette, Check, Loader2, ImageIcon, Lock, Info, ExternalLink, Copy, QrCode, Download, FileText, MessageCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
@@ -518,6 +518,19 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
             >
               <Copy className="w-4 h-4" />
               Copiar link
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => {
+                const url = `${window.location.origin}/agendar/${data.subdomain}`;
+                const message = `Olá! 💈 Agende seu horário na *${data.name}* de forma rápida e fácil pelo link: ${url}`;
+                const waUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                window.open(waUrl, "_blank", "noopener,noreferrer");
+              }}
+            >
+              <MessageCircle className="w-4 h-4" />
+              Compartilhar no WhatsApp
             </Button>
           </div>
         </CardContent>
