@@ -589,11 +589,24 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                       </div>
                       <div className="flex-1 p-3 flex flex-col sm:flex-row sm:items-center gap-2">
                         <div className="flex-1 min-w-0 space-y-0.5">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <Users className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
                             <span className="text-sm font-medium text-foreground truncate">
                               {apt.client_profile?.full_name || "Cliente"}
                             </span>
+                            {apt.client_profile?.phone && (
+                              <a
+                                href={whatsappUrl(apt.client_profile.phone) || "#"}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1 text-[11px] text-green-500 hover:text-green-400 hover:underline"
+                                title={`Chamar no WhatsApp: ${displayBRPhone(apt.client_profile.phone)}`}
+                              >
+                                <MessageCircle className="w-3 h-3" />
+                                {displayBRPhone(apt.client_profile.phone)}
+                              </a>
+                            )}
                           </div>
                           {apt.service && (
                             <div className="flex items-center gap-2">
