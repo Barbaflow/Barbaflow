@@ -19,6 +19,7 @@ import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
+import { CloseTicketDialog } from "@/components/CloseTicketDialog";
 import {
   DndContext,
   type DragEndEvent,
