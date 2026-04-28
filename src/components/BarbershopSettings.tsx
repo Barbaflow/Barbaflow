@@ -1168,6 +1168,108 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Personalização do recibo de atendimento */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            Personalização do recibo
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Personalize o título, rodapé e mensagens do recibo de atendimento (PDF e WhatsApp). O nome da barbearia e os itens são preenchidos automaticamente.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="receipt-title">Título do recibo</Label>
+              <Input
+                id="receipt-title"
+                value={receiptTitle}
+                onChange={(e) => setReceiptTitle(e.target.value)}
+                placeholder={DEFAULT_RECEIPT_TITLE}
+                maxLength={60}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="receipt-subtitle">Subtítulo (opcional)</Label>
+              <Input
+                id="receipt-subtitle"
+                value={receiptSubtitle}
+                onChange={(e) => setReceiptSubtitle(e.target.value)}
+                placeholder="Ex.: Estilo & tradição desde 2020"
+                maxLength={80}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-thanks">Mensagem de agradecimento</Label>
+            <Input
+              id="receipt-thanks"
+              value={receiptThanks}
+              onChange={(e) => setReceiptThanks(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_THANKS}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-footer">Rodapé do recibo</Label>
+            <Input
+              id="receipt-footer"
+              value={receiptFooter}
+              onChange={(e) => setReceiptFooter(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_FOOTER}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-wa">Mensagem de introdução do WhatsApp</Label>
+            <Textarea
+              id="receipt-wa"
+              value={receiptWaIntro}
+              onChange={(e) => setReceiptWaIntro(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_WA_INTRO}
+              rows={2}
+              maxLength={240}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use <code className="px-1 py-0.5 rounded bg-muted text-foreground">{"{cliente}"}</code> para incluir o nome do cliente automaticamente.
+            </p>
+          </div>
+
+          {/* Pré-visualização */}
+          <div className="rounded-lg border border-border bg-background/40 p-4">
+            <p className="text-xs text-muted-foreground mb-2">Pré-visualização</p>
+            <div className="mx-auto max-w-[260px] bg-white text-black rounded-md p-4 font-mono text-[11px] leading-tight shadow-sm">
+              <p className="text-center font-bold text-sm">{data?.name || "Sua Barbearia"}</p>
+              <p className="text-center text-[10px]">{(receiptTitle || DEFAULT_RECEIPT_TITLE)}</p>
+              {receiptSubtitle && <p className="text-center text-[9px] italic">{receiptSubtitle}</p>}
+              <p className="text-center text-[9px] my-1">— — — — — — — —</p>
+              <p>Cliente: João Silva</p>
+              <p>Atendente: Carlos</p>
+              <p className="my-1">— — — — — — — —</p>
+              <div className="flex justify-between"><span>1x Corte</span><span>R$ 50,00</span></div>
+              <div className="flex justify-between"><span>1x Barba</span><span>R$ 30,00</span></div>
+              <p className="my-1">— — — — — — — —</p>
+              <div className="flex justify-between font-bold"><span>TOTAL</span><span>R$ 80,00</span></div>
+              <p className="my-1">— — — — — — — —</p>
+              <p className="text-center font-bold text-[10px] mt-1">{receiptThanks || DEFAULT_RECEIPT_THANKS}</p>
+              <p className="text-center text-[9px]">{receiptFooter || DEFAULT_RECEIPT_FOOTER}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSaveReceipt} disabled={savingReceipt} variant="gold">
+              {savingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Salvar personalização
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
