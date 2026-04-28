@@ -43,6 +43,13 @@ interface BarbershopData {
   receipt_footer: string | null;
   receipt_thank_you_message: string | null;
   receipt_whatsapp_intro: string | null;
+  cep: string | null;
+  state: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
 }
 
 const DEFAULT_RECEIPT_TITLE = "Recibo de atendimento";
@@ -85,6 +92,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [receiptThanks, setReceiptThanks] = useState(DEFAULT_RECEIPT_THANKS);
   const [receiptWaIntro, setReceiptWaIntro] = useState(DEFAULT_RECEIPT_WA_INTRO);
   const [savingReceipt, setSavingReceipt] = useState(false);
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
+  const [savingAddress, setSavingAddress] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -338,6 +347,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (s.receipt_footer) setReceiptFooter(s.receipt_footer);
           if (s.receipt_thank_you_message) setReceiptThanks(s.receipt_thank_you_message);
           if (s.receipt_whatsapp_intro) setReceiptWaIntro(s.receipt_whatsapp_intro);
+          setAddress({
+            cep: s.cep ?? "",
+            state: s.state ?? "",
+            city: s.city ?? "",
+            neighborhood: s.neighborhood ?? "",
+            street: s.street ?? "",
+            number: s.number ?? "",
+            complement: s.complement ?? "",
+          });
         }
       });
   }, [barbershopId]);
