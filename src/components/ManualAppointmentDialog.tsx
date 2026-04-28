@@ -193,6 +193,7 @@ export function ManualAppointmentDialog({
     setShowQuickAdd(false);
     setNewClientName("");
     setNewClientPhone("");
+    setLastWalkinId(null);
   }, [open, defaultDate, barbers, editAppointment]);
 
   // Load clients with prior appointments at this barbershop
