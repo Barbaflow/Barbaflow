@@ -409,7 +409,7 @@ export function ManualAppointmentDialog({
     const { data: newId, error } = await supabase.rpc("create_walkin_client", {
       _barbershop_id: barbershopId,
       _full_name: name,
-      _phone: phoneRaw ? toStorageBRPhone(phoneRaw) : null,
+      _phone: phoneRaw ? toStorageBRPhone(phoneRaw) : undefined,
     });
     if (error || !newId) {
       const msg = error?.message ?? "";
