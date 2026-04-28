@@ -256,8 +256,19 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         .eq("id", appointment.id);
       if (aErr) throw aErr;
 
+      // 5) Buscar dados para o recibo (barbearia + cliente)
+      const [shopRes, profRes, phoneRes] = await Promise.all([
+        supabase.from("barbershops").select("name").eq("id", appointment.barbershop_id).maybeSingle(),
+        supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
+        supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
+      ]);
+
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
       setSummary({
+        ticketId: ticket.id,
+        shopName: shopRes.data?.name || "Barbearia",
+        clientName: profRes.data?.full_name || "Cliente",
+        clientPhone: (phoneRes.data as string | null) || null,
         items: items.map((it) => ({ ...it })),
         payments: payments.map((p) => ({ ...p })),
         subtotal,
