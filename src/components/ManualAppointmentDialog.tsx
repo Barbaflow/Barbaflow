@@ -201,6 +201,15 @@ export function ManualAppointmentDialog({
     if (!open) return;
     setLoadingClients(true);
     setBlockMap(new Map());
+    // Load barbershop name + subdomain for the WhatsApp invite link
+    supabase
+      .from("barbershops")
+      .select("name, subdomain")
+      .eq("id", barbershopId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setShopInfo({ name: data.name, subdomain: data.subdomain ?? null });
+      });
     (async () => {
       const { data: appts } = await supabase
         .from("appointments")
