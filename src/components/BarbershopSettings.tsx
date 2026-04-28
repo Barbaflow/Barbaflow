@@ -30,7 +30,18 @@ interface BarbershopData {
   noshow_policy_enabled: boolean | null;
   noshow_max_count: number | null;
   noshow_block_days: number | null;
+  receipt_title: string | null;
+  receipt_subtitle: string | null;
+  receipt_footer: string | null;
+  receipt_thank_you_message: string | null;
+  receipt_whatsapp_intro: string | null;
 }
+
+const DEFAULT_RECEIPT_TITLE = "Recibo de atendimento";
+const DEFAULT_RECEIPT_SUBTITLE = "";
+const DEFAULT_RECEIPT_FOOTER = "Volte sempre 💈";
+const DEFAULT_RECEIPT_THANKS = "Obrigado pela preferência!";
+const DEFAULT_RECEIPT_WA_INTRO = "Olá, {cliente}! Segue o resumo do seu atendimento:";
 
 const DEFAULT_WA_TEMPLATE =
   "Olá! 💈 Agende seu horário na *{nome}* de forma rápida e fácil pelo link: {link}";
