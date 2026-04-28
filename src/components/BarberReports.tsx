@@ -117,11 +117,32 @@ export function BarberReports() {
       .order("date", { ascending: true });
 
     if (!error && data) {
+      const apptIds = data.map((a) => a.id);
+      // Fetch tickets for these appointments to use the actual closed total
+      // (which includes extra services/products and discount).
+      const ticketMap: Record<string, number> = {};
+      if (apptIds.length > 0) {
+        const { data: tks } = await supabase
+          .from("tickets")
+          .select("appointment_id, total")
+          .in("appointment_id", apptIds);
+        if (tks) {
+          for (const t of tks) {
+            if (t.appointment_id) ticketMap[t.appointment_id] = Number(t.total) || 0;
+          }
+        }
+      }
+
       setAppointments(
-        data.map((a) => ({
-          ...a,
-          service: Array.isArray(a.service) ? a.service[0] || null : a.service,
-        })) as MonthlyAppointment[]
+        data.map((a) => {
+          const service = Array.isArray(a.service) ? a.service[0] || null : a.service;
+          const ticketTotal = ticketMap[a.id];
+          const revenue =
+            a.status === "completed"
+              ? (ticketTotal !== undefined ? ticketTotal : Number(service?.price ?? 0))
+              : 0;
+          return { ...a, service, revenue } as MonthlyAppointment;
+        })
       );
     }
     setLoading(false);
