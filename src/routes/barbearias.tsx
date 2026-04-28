@@ -1,9 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CalendarClock, Scissors, ShieldAlert, Star, Store, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ArrowLeft,
+  CalendarClock,
+  MapPin,
+  Scissors,
+  ShieldAlert,
+  Star,
+  Store,
+  XCircle,
+} from "lucide-react";
 
 interface PublicBarbershop {
   id: string;
@@ -15,6 +32,13 @@ interface PublicBarbershop {
   rating_avg: number;
   rating_count: number;
   created_at: string;
+  cep?: string | null;
+  state?: string | null;
+  city?: string | null;
+  neighborhood?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
   reschedule_min_hours?: number;
   cancel_min_hours?: number;
   noshow_policy_enabled?: boolean;
@@ -27,6 +51,8 @@ interface PublicBarbershop {
     client_name: string;
   } | null;
 }
+
+const ALL = "__all__";
 
 function formatHoursShort(h: number) {
   if (h <= 0) return "—";
