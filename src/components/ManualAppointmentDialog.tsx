@@ -151,6 +151,11 @@ export function ManualAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // Quick-add walk-in client form
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
   // Map clientId -> noshow block info (loaded after clients load)
   const [blockMap, setBlockMap] = useState<Map<string, { blocked: boolean; unblock_at: string | null; noshow_count: number; max_count: number }>>(new Map());
 
