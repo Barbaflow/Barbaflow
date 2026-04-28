@@ -10,11 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as UpgradeRouteImport } from './routes/upgrade'
+import { Route as TermosRouteImport } from './routes/termos'
 import { Route as SobreRouteImport } from './routes/sobre'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as ServicosRouteImport } from './routes/servicos'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as RelatoriosRouteImport } from './routes/relatorios'
+import { Route as ReembolsoRouteImport } from './routes/reembolso'
+import { Route as PrivacidadeRouteImport } from './routes/privacidade'
 import { Route as PerfilRouteImport } from './routes/perfil'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as MeusAgendamentosRouteImport } from './routes/meus-agendamentos'
@@ -37,6 +40,11 @@ import { Route as AdminChurnRouteImport } from './routes/admin.churn'
 const UpgradeRoute = UpgradeRouteImport.update({
   id: '/upgrade',
   path: '/upgrade',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermosRoute = TermosRouteImport.update({
+  id: '/termos',
+  path: '/termos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SobreRoute = SobreRouteImport.update({
@@ -62,6 +70,16 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReembolsoRoute = ReembolsoRouteImport.update({
+  id: '/reembolso',
+  path: '/reembolso',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadeRoute = PrivacidadeRouteImport.update({
+  id: '/privacidade',
+  path: '/privacidade',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PerfilRoute = PerfilRouteImport.update({
@@ -171,11 +189,14 @@ export interface FileRoutesByFullPath {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/perfil': typeof PerfilRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/reembolso': typeof ReembolsoRoute
   '/relatorios': typeof RelatoriosRoute
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
@@ -197,11 +218,14 @@ export interface FileRoutesByTo {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/perfil': typeof PerfilRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/reembolso': typeof ReembolsoRoute
   '/relatorios': typeof RelatoriosRoute
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
@@ -224,11 +248,14 @@ export interface FileRoutesById {
   '/meus-agendamentos': typeof MeusAgendamentosRoute
   '/onboarding': typeof OnboardingRoute
   '/perfil': typeof PerfilRoute
+  '/privacidade': typeof PrivacidadeRoute
+  '/reembolso': typeof ReembolsoRoute
   '/relatorios': typeof RelatoriosRoute
   '/reset-password': typeof ResetPasswordRoute
   '/servicos': typeof ServicosRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/sobre': typeof SobreRoute
+  '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
   '/agendar/$slug': typeof AgendarSlugRoute
@@ -252,11 +279,14 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/perfil'
+    | '/privacidade'
+    | '/reembolso'
     | '/relatorios'
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
     | '/sobre'
+    | '/termos'
     | '/upgrade'
     | '/admin/churn'
     | '/agendar/$slug'
@@ -278,11 +308,14 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/perfil'
+    | '/privacidade'
+    | '/reembolso'
     | '/relatorios'
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
     | '/sobre'
+    | '/termos'
     | '/upgrade'
     | '/admin/churn'
     | '/agendar/$slug'
@@ -304,11 +337,14 @@ export interface FileRouteTypes {
     | '/meus-agendamentos'
     | '/onboarding'
     | '/perfil'
+    | '/privacidade'
+    | '/reembolso'
     | '/relatorios'
     | '/reset-password'
     | '/servicos'
     | '/sitemap.xml'
     | '/sobre'
+    | '/termos'
     | '/upgrade'
     | '/admin/churn'
     | '/agendar/$slug'
@@ -331,11 +367,14 @@ export interface RootRouteChildren {
   MeusAgendamentosRoute: typeof MeusAgendamentosRoute
   OnboardingRoute: typeof OnboardingRoute
   PerfilRoute: typeof PerfilRoute
+  PrivacidadeRoute: typeof PrivacidadeRoute
+  ReembolsoRoute: typeof ReembolsoRoute
   RelatoriosRoute: typeof RelatoriosRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ServicosRoute: typeof ServicosRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   SobreRoute: typeof SobreRoute
+  TermosRoute: typeof TermosRoute
   UpgradeRoute: typeof UpgradeRoute
   AdminChurnRoute: typeof AdminChurnRoute
   AgendarSlugRoute: typeof AgendarSlugRoute
@@ -351,6 +390,13 @@ declare module '@tanstack/react-router' {
       path: '/upgrade'
       fullPath: '/upgrade'
       preLoaderRoute: typeof UpgradeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/termos': {
+      id: '/termos'
+      path: '/termos'
+      fullPath: '/termos'
+      preLoaderRoute: typeof TermosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/sobre': {
@@ -386,6 +432,20 @@ declare module '@tanstack/react-router' {
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof RelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reembolso': {
+      id: '/reembolso'
+      path: '/reembolso'
+      fullPath: '/reembolso'
+      preLoaderRoute: typeof ReembolsoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidade': {
+      id: '/privacidade'
+      path: '/privacidade'
+      fullPath: '/privacidade'
+      preLoaderRoute: typeof PrivacidadeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/perfil': {
@@ -531,11 +591,14 @@ const rootRouteChildren: RootRouteChildren = {
   MeusAgendamentosRoute: MeusAgendamentosRoute,
   OnboardingRoute: OnboardingRoute,
   PerfilRoute: PerfilRoute,
+  PrivacidadeRoute: PrivacidadeRoute,
+  ReembolsoRoute: ReembolsoRoute,
   RelatoriosRoute: RelatoriosRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ServicosRoute: ServicosRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   SobreRoute: SobreRoute,
+  TermosRoute: TermosRoute,
   UpgradeRoute: UpgradeRoute,
   AdminChurnRoute: AdminChurnRoute,
   AgendarSlugRoute: AgendarSlugRoute,

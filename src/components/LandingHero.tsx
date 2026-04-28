@@ -1,6 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Scissors, Calendar, Store, UserPlus, Palette, CalendarCheck, Rocket, Check, Zap, Crown } from "lucide-react";
+import { SiteFooter } from "@/components/SiteFooter";
 
 interface LandingHeroProps {
   barbershopName?: string;
@@ -255,6 +256,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
             </div>
           </div>
         </div>
+        <SiteFooter />
       </div>
     );
   }
