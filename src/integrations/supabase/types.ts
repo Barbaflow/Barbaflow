@@ -1169,36 +1169,57 @@ export type Database = {
     Views: {
       barbearias_publicas: {
         Row: {
+          cep: string | null
+          city: string | null
+          complement: string | null
           created_at: string | null
           id: string | null
           logo_url: string | null
           name: string | null
+          neighborhood: string | null
+          number: string | null
           primary_color: string | null
           rating_avg: number | null
           rating_count: number | null
           secondary_color: string | null
+          state: string | null
+          street: string | null
           subdomain: string | null
         }
         Insert: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string | null
           id?: string | null
           logo_url?: string | null
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           secondary_color?: string | null
+          state?: string | null
+          street?: string | null
           subdomain?: string | null
         }
         Update: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string | null
           id?: string | null
           logo_url?: string | null
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           secondary_color?: string | null
+          state?: string | null
+          street?: string | null
           subdomain?: string | null
         }
         Relationships: []
