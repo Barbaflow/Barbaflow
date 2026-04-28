@@ -634,6 +634,29 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             : null,
         })) as Appointment[]
       );
+
+      // Tickets (comandas) for these appointments
+      const apptIds = (data || []).map((a) => a.id);
+      const newTicketMap: Record<string, { state: "open" | "partial" | "paid"; total: number; paid: number }> = {};
+      if (apptIds.length > 0) {
+        const { data: tks } = await supabase
+          .from("tickets")
+          .select("id, appointment_id, total, ticket_payments(amount)")
+          .in("appointment_id", apptIds);
+        for (const t of tks || []) {
+          const total = Number(t.total ?? 0);
+          const paid = (t.ticket_payments || []).reduce(
+            (s: number, p: { amount: number | string }) => s + Number(p.amount ?? 0),
+            0
+          );
+          let state: "open" | "partial" | "paid" = "open";
+          if (paid <= 0) state = "open";
+          else if (paid + 0.001 < total) state = "partial";
+          else state = "paid";
+          newTicketMap[t.appointment_id] = { state, total, paid };
+        }
+      }
+      setTicketStatusMap(newTicketMap);
     }
     setLoading(false);
   }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
