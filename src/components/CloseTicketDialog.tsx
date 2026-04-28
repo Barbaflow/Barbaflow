@@ -63,7 +63,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const [items, setItems] = useState<DraftItem[]>([]);
   const [payments, setPayments] = useState<DraftPayment[]>([]);
   const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountInput, setDiscountInput] = useState<string>("");
+  const discountAmount = Math.max(0, parseFloat(discountInput.replace(",", ".")) || 0);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<null | {
@@ -93,7 +94,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   useEffect(() => {
     if (!open) return;
     setDiscountType("fixed");
-    setDiscountAmount(0);
+    setDiscountInput("");
     setNotes("");
     setPayments([]);
     // Pre-popula com o serviço do agendamento
@@ -537,11 +538,14 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
                 </SelectContent>
               </Select>
               <Input
-                type="number"
-                step="0.01"
-                min={0}
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                value={discountInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^\d.,]/g, "");
+                  setDiscountInput(v);
+                }}
                 className="bg-input h-9"
               />
             </div>
