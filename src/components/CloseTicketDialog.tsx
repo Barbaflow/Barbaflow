@@ -652,7 +652,13 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
           </div>
         )}
 
-        <div className="flex justify-end pt-2">
+        <div className="flex flex-wrap gap-2 justify-end pt-2">
+          <Button variant="outline" onClick={downloadPdf}>
+            <Download className="w-4 h-4" /> Baixar PDF
+          </Button>
+          <Button variant="outline" onClick={sendWhatsapp}>
+            <MessageCircle className="w-4 h-4" /> WhatsApp
+          </Button>
           <Button variant="gold" onClick={() => { setSummary(null); onOpenChange(false); }}>
             Concluir
           </Button>
