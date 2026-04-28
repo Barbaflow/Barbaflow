@@ -46,6 +46,9 @@ interface MonthlyAppointment {
   date: string;
   status: "scheduled" | "completed" | "cancelled" | "no_show";
   service: { name: string; price: number } | null;
+  // Effective revenue for this appointment (ticket total when closed,
+  // otherwise the service price as a fallback for legacy completions).
+  revenue: number;
 }
 
 interface DailyData {
