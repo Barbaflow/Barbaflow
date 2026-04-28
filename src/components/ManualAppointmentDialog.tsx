@@ -394,6 +394,48 @@ export function ManualAppointmentDialog({
     return () => ctrl.abort();
   }, [selectedBarber, service, date, barbershopId, editAppointment]);
 
+  const handleCreateClient = async () => {
+    const name = newClientName.trim();
+    if (!name) {
+      toast.error("Informe o nome do cliente.");
+      return;
+    }
+    const phoneRaw = newClientPhone.trim();
+    if (phoneRaw && !isValidBRPhone(phoneRaw)) {
+      toast.error("Telefone inválido. Use o formato (11) 91234-5678.");
+      return;
+    }
+    setCreatingClient(true);
+    const { data: newId, error } = await supabase.rpc("create_walkin_client", {
+      _barbershop_id: barbershopId,
+      _full_name: name,
+      _phone: phoneRaw ? toStorageBRPhone(phoneRaw) : null,
+    });
+    if (error || !newId) {
+      const msg = error?.message ?? "";
+      if (msg.includes("forbidden")) toast.error("Você não tem permissão para cadastrar clientes nesta barbearia.");
+      else if (msg.includes("name_required")) toast.error("Nome é obrigatório.");
+      else if (msg.includes("name_too_long")) toast.error("Nome muito longo (máximo 120 caracteres).");
+      else if (msg.includes("phone_too_long")) toast.error("Telefone muito longo.");
+      else toast.error(msg || "Erro ao cadastrar cliente.");
+      setCreatingClient(false);
+      return;
+    }
+    const created: Client = {
+      user_id: newId as string,
+      full_name: name,
+      phone: phoneRaw ? toStorageBRPhone(phoneRaw) : null,
+      avatar_url: null,
+    };
+    setClients((prev) => [created, ...prev]);
+    setSelectedClient(created);
+    setShowQuickAdd(false);
+    setNewClientName("");
+    setNewClientPhone("");
+    setCreatingClient(false);
+    toast.success("Cliente cadastrado!");
+  };
+
   const handleSubmit = async () => {
     if (!selectedClient || !selectedBarber || !service || !selectedTime) {
       toast.error("Preencha todos os campos.");
