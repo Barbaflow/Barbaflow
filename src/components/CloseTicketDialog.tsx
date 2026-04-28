@@ -62,6 +62,17 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [summary, setSummary] = useState<null | {
+    items: DraftItem[];
+    payments: DraftPayment[];
+    subtotal: number;
+    discountType: "fixed" | "percent";
+    discountAmount: number;
+    discountValue: number;
+    total: number;
+    notes: string;
+    closedAt: Date;
+  }>(null);
 
   // Reset / load when opening
   useEffect(() => {
