@@ -193,7 +193,7 @@ export function BarberReports() {
         agendamentos: dayAppts.length,
         receita: dayAppts
           .filter((a) => a.status === "completed")
-          .reduce((sum, a) => sum + (a.service?.price ?? 0), 0),
+          .reduce((sum, a) => sum + (a.revenue ?? 0), 0),
       });
     }
     return days;
