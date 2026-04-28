@@ -21,6 +21,9 @@ interface Props {
     client_id: string;
     barber_id: string;
     service_id: string;
+    date?: string;          // YYYY-MM-DD
+    start_time?: string;    // HH:MM[:SS]
+    barber_name?: string | null;
     service: { name: string; price: number } | null;
   };
   onClosed?: () => void;
@@ -68,6 +71,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     shopName: string;
     clientName: string;
     clientPhone: string | null;
+    barberName: string;
+    startedAt: Date | null;
     items: DraftItem[];
     payments: DraftPayment[];
     subtotal: number;
@@ -256,12 +261,28 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         .eq("id", appointment.id);
       if (aErr) throw aErr;
 
-      // 5) Buscar dados para o recibo (barbearia + cliente)
-      const [shopRes, profRes, phoneRes] = await Promise.all([
+      // 5) Buscar dados para o recibo (barbearia + cliente + barbeiro se necessário)
+      const needsBarberFetch = !appointment.barber_name;
+      const [shopRes, profRes, phoneRes, barberRes] = await Promise.all([
         supabase.from("barbershops").select("name").eq("id", appointment.barbershop_id).maybeSingle(),
         supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
+        needsBarberFetch
+          ? supabase.from("profiles").select("full_name").eq("user_id", appointment.barber_id).maybeSingle()
+          : Promise.resolve({ data: null } as any),
       ]);
+
+      const barberName =
+        appointment.barber_name ||
+        (barberRes?.data as { full_name?: string } | null)?.full_name ||
+        "Barbeiro";
+
+      let startedAt: Date | null = null;
+      if (appointment.date && appointment.start_time) {
+        const t = appointment.start_time.length === 5 ? `${appointment.start_time}:00` : appointment.start_time;
+        const d = new Date(`${appointment.date}T${t}`);
+        if (!isNaN(d.getTime())) startedAt = d;
+      }
 
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
       setSummary({
@@ -269,6 +290,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         shopName: shopRes.data?.name || "Barbearia",
         clientName: profRes.data?.full_name || "Cliente",
         clientPhone: (phoneRes.data as string | null) || null,
+        barberName,
+        startedAt,
         items: items.map((it) => ({ ...it })),
         payments: payments.map((p) => ({ ...p })),
         subtotal,
@@ -316,10 +339,14 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
 
     line(s.shopName, { size: 12, bold: true, align: "center", gap: 5 });
     line("Recibo de atendimento", { size: 8, align: "center", gap: 3 });
-    line(s.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), { size: 8, align: "center" });
+    if (s.startedAt) {
+      line(`Início: ${s.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
+    }
+    line(`Fechamento: ${s.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
     line(`Comanda: ${s.ticketId.slice(0, 8).toUpperCase()}`, { size: 8, align: "center" });
     sep();
     line(`Cliente: ${s.clientName}`, { size: 9 });
+    line(`Atendente: ${s.barberName}`, { size: 9 });
     sep();
     line("Itens", { size: 9, bold: true });
     s.items.forEach((it) => {
@@ -361,10 +388,15 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       `*${summary.shopName}* — Recibo`,
       `Olá, ${summary.clientName}! Segue o resumo do seu atendimento:`,
       "",
-      ...summary.items.map((it) => `• ${it.quantity}x ${it.description} — ${fmt(it.unit_price * it.quantity)}`),
-      "",
-      `Subtotal: ${fmt(summary.subtotal)}`,
+      `Atendente: ${summary.barberName}`,
     ];
+    if (summary.startedAt) {
+      lines.push(`Início: ${summary.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`);
+    }
+    lines.push("");
+    summary.items.forEach((it) => lines.push(`• ${it.quantity}x ${it.description} — ${fmt(it.unit_price * it.quantity)}`));
+    lines.push("");
+    lines.push(`Subtotal: ${fmt(summary.subtotal)}`);
     if (summary.discountValue > 0) lines.push(`Desconto: - ${fmt(summary.discountValue)}`);
     lines.push(`*Total: ${fmt(summary.total)}*`);
     lines.push("");
@@ -598,6 +630,12 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
 
         {summary && (
           <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>Atendente: <span className="text-foreground font-medium">{summary.barberName}</span></span>
+              {summary.startedAt && (
+                <span>Início: <span className="text-foreground font-medium">{summary.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span></span>
+              )}
+            </div>
             <div>
               <Label className="text-xs text-muted-foreground">Itens</Label>
               <div className="mt-1 space-y-1">

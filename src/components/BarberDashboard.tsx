@@ -1052,6 +1052,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             client_id: closeTicketTarget.client_id,
             barber_id: closeTicketTarget.barber_id,
             service_id: closeTicketTarget.service_id,
+            date: closeTicketTarget.date,
+            start_time: closeTicketTarget.start_time,
+            barber_name: closeTicketTarget.barber_profile?.full_name || null,
             service: closeTicketTarget.service
               ? { name: closeTicketTarget.service.name, price: closeTicketTarget.service.price }
               : null,
