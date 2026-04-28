@@ -39,7 +39,7 @@ function PrivacidadePage() {
           <div className="space-y-6 text-muted-foreground leading-relaxed">
             <section>
               <h2 className="font-display text-2xl text-foreground mb-2">1. Controlador de Dados</h2>
-              <p>O <strong>BarbaFlow</strong> ("nós") atua como <strong>controlador</strong> dos dados pessoais coletados por meio da plataforma. Esta Política descreve como tratamos suas informações em conformidade com a LGPD (Lei 13.709/2018) e o GDPR, quando aplicável.</p>
+              <p>A <strong>NETS OPERAÇÕES E SUPORTE EM TI LTDA</strong>, inscrita no CNPJ sob nº <strong>29.068.773/0001-91</strong>, operadora da plataforma <strong>BarbaFlow</strong> ("nós"), atua como <strong>controladora</strong> dos dados pessoais coletados por meio da plataforma. Esta Política descreve como tratamos suas informações em conformidade com a LGPD (Lei 13.709/2018) e o GDPR, quando aplicável.</p>
             </section>
 
             <section>

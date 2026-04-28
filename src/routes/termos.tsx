@@ -39,7 +39,7 @@ function TermosPage() {
           <div className="space-y-6 text-muted-foreground leading-relaxed">
             <section>
               <h2 className="font-display text-2xl text-foreground mb-2">1. Identificação do Vendedor</h2>
-              <p>Estes Termos regem o uso da plataforma <strong>BarbaFlow</strong> ("Serviço"), operada por <strong>BarbaFlow</strong> ("nós", "nosso"). Ao usar o Serviço, você ("Usuário") celebra um contrato com a BarbaFlow.</p>
+              <p>Estes Termos regem o uso da plataforma <strong>BarbaFlow</strong> ("Serviço"), operada por <strong>NETS OPERAÇÕES E SUPORTE EM TI LTDA</strong>, inscrita no CNPJ sob nº <strong>29.068.773/0001-91</strong> ("BarbaFlow", "nós", "nosso"). Ao usar o Serviço, você ("Usuário") celebra um contrato com a NETS OPERAÇÕES E SUPORTE EM TI LTDA.</p>
             </section>
 
             <section>
