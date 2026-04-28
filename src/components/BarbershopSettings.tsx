@@ -13,6 +13,14 @@ import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { QRCodeCanvas } from "qrcode.react";
 import jsPDF from "jspdf";
+import {
+  AddressFields,
+  EMPTY_ADDRESS,
+  addressForDb,
+  isAddressComplete,
+  type AddressValue,
+} from "@/components/AddressFields";
+import { MapPin } from "lucide-react";
 
 interface BarbershopData {
   id: string;
