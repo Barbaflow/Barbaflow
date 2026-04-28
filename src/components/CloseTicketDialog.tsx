@@ -252,7 +252,17 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       if (aErr) throw aErr;
 
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
-      onOpenChange(false);
+      setSummary({
+        items: items.map((it) => ({ ...it })),
+        payments: payments.map((p) => ({ ...p })),
+        subtotal,
+        discountType,
+        discountAmount,
+        discountValue,
+        total,
+        notes: notes.trim(),
+        closedAt: new Date(),
+      });
       onClosed?.();
     } catch (e: any) {
       console.error(e);
