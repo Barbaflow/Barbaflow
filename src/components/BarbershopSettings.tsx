@@ -325,6 +325,11 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.noshow_block_days === "number" && s.noshow_block_days > 0) {
             setNoshowBlockDays(s.noshow_block_days);
           }
+          if (s.receipt_title) setReceiptTitle(s.receipt_title);
+          if (s.receipt_subtitle) setReceiptSubtitle(s.receipt_subtitle);
+          if (s.receipt_footer) setReceiptFooter(s.receipt_footer);
+          if (s.receipt_thank_you_message) setReceiptThanks(s.receipt_thank_you_message);
+          if (s.receipt_whatsapp_intro) setReceiptWaIntro(s.receipt_whatsapp_intro);
         }
       });
   }, [barbershopId]);
