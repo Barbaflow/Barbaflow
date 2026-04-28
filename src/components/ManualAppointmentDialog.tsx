@@ -156,6 +156,9 @@ export function ManualAppointmentDialog({
   const [newClientName, setNewClientName] = useState("");
   const [newClientPhone, setNewClientPhone] = useState("");
   const [creatingClient, setCreatingClient] = useState(false);
+  // Track the most recently created walk-in client (to show "Invite via WhatsApp" CTA)
+  const [lastWalkinId, setLastWalkinId] = useState<string | null>(null);
+  const [shopInfo, setShopInfo] = useState<{ name: string; subdomain: string | null } | null>(null);
   // Map clientId -> noshow block info (loaded after clients load)
   const [blockMap, setBlockMap] = useState<Map<string, { blocked: boolean; unblock_at: string | null; noshow_count: number; max_count: number }>>(new Map());
 
