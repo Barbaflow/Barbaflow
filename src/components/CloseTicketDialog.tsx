@@ -269,7 +269,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       // 5) Buscar dados para o recibo (barbearia + cliente + barbeiro se necessário)
       const needsBarberFetch = !appointment.barber_name;
       const [shopRes, profRes, phoneRes, barberRes] = await Promise.all([
-        supabase.from("barbershops").select("name").eq("id", appointment.barbershop_id).maybeSingle(),
+        supabase
+          .from("barbershops")
+          .select("name,receipt_title,receipt_subtitle,receipt_footer,receipt_thank_you_message,receipt_whatsapp_intro")
+          .eq("id", appointment.barbershop_id)
+          .maybeSingle(),
         supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
         needsBarberFetch
@@ -289,10 +293,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         if (!isNaN(d.getTime())) startedAt = d;
       }
 
+      const shop = (shopRes.data as any) || {};
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
       setSummary({
         ticketId: ticket.id,
-        shopName: shopRes.data?.name || "Barbearia",
+        shopName: shop.name || "Barbearia",
         clientName: profRes.data?.full_name || "Cliente",
         clientPhone: (phoneRes.data as string | null) || null,
         barberName,
@@ -306,6 +311,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         total,
         notes: notes.trim(),
         closedAt: new Date(),
+        receiptTitle: shop.receipt_title || "Recibo de atendimento",
+        receiptSubtitle: shop.receipt_subtitle || "",
+        receiptFooter: shop.receipt_footer || "Volte sempre 💈",
+        receiptThanks: shop.receipt_thank_you_message || "Obrigado pela preferência!",
+        receiptWaIntro: shop.receipt_whatsapp_intro || "Olá, {cliente}! Segue o resumo do seu atendimento:",
       });
       onClosed?.();
     } catch (e: any) {
