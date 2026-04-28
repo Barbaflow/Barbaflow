@@ -430,6 +430,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [clientBlockMap, setClientBlockMap] = useState<
     Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }>
   >({});
+  const [ticketStatusMap, setTicketStatusMap] = useState<
+    Record<string, { state: "open" | "partial" | "paid"; total: number; paid: number }>
+  >({});
   const [showDragHint, setShowDragHint] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
