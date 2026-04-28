@@ -581,6 +581,53 @@ export function ManualAppointmentDialog({
                     </div>
                   );
                 })()}
+
+                {/* WhatsApp invite for newly-created walk-in clients */}
+                {selectedClient.user_id === lastWalkinId && shopInfo && (() => {
+                  const shopName = shopInfo.name;
+                  const link = shopInfo.subdomain
+                    ? `https://${shopInfo.subdomain}.barbaflow.pro`
+                    : `https://barbaflow.pro`;
+                  const greeting = selectedClient.full_name?.split(" ")[0] || "Olá";
+                  const message =
+                    `Olá, ${greeting}! 👋\n\n` +
+                    `Você foi cadastrado(a) na *${shopName}*. ` +
+                    `Baixe o app para acompanhar seus agendamentos, receber lembretes e avaliar seus atendimentos:\n\n` +
+                    `${link}\n\n` +
+                    `Até breve! ✂️`;
+                  const phoneDigits = (selectedClient.phone ?? "").replace(/\D/g, "");
+                  const waNumber = phoneDigits
+                    ? phoneDigits.startsWith("55")
+                      ? phoneDigits
+                      : `55${phoneDigits}`
+                    : "";
+                  const url = waNumber
+                    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`
+                    : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                  return (
+                    <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
+                      <MessageCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+                      <div className="flex-1 min-w-0 space-y-2">
+                        <p className="text-xs text-foreground leading-relaxed">
+                          <span className="font-medium">Cliente cadastrado!</span>{" "}
+                          {selectedClient.phone
+                            ? "Envie o link do app para ele acompanhar os agendamentos."
+                            : "Sem telefone cadastrado — você pode copiar a mensagem e enviar manualmente."}
+                        </p>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs border-primary/40 hover:bg-primary/10"
+                          onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
+                        >
+                          <MessageCircle className="w-3 h-3 mr-1.5" />
+                          Convidar para baixar o app
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : showQuickAdd ? (
               <div className="space-y-3 border border-border rounded-lg p-4 bg-secondary/30">
