@@ -71,6 +71,12 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [noshowMaxCount, setNoshowMaxCount] = useState<number>(3);
   const [noshowBlockDays, setNoshowBlockDays] = useState<number>(15);
   const [savingNoshow, setSavingNoshow] = useState(false);
+  const [receiptTitle, setReceiptTitle] = useState(DEFAULT_RECEIPT_TITLE);
+  const [receiptSubtitle, setReceiptSubtitle] = useState(DEFAULT_RECEIPT_SUBTITLE);
+  const [receiptFooter, setReceiptFooter] = useState(DEFAULT_RECEIPT_FOOTER);
+  const [receiptThanks, setReceiptThanks] = useState(DEFAULT_RECEIPT_THANKS);
+  const [receiptWaIntro, setReceiptWaIntro] = useState(DEFAULT_RECEIPT_WA_INTRO);
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
