@@ -469,6 +469,25 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     setSavingReceipt(false);
   };
 
+  const handleSaveAddress = async () => {
+    if (!isAddressComplete(address)) {
+      toast.error("Preencha CEP, estado, cidade, bairro e rua.");
+      return;
+    }
+    setSavingAddress(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update(addressForDb(address) as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar endereço.");
+    } else {
+      toast.success("Endereço salvo!");
+    }
+    setSavingAddress(false);
+  };
+
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
