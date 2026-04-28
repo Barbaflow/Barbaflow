@@ -641,6 +641,37 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
         </CardContent>
       </Card>
 
+      {/* Endereço */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-gold" />
+            Endereço da barbearia
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            O endereço é exibido publicamente e usado pelos clientes para filtrar
+            barbearias por estado, cidade, bairro e rua.
+          </p>
+          <AddressFields value={address} onChange={setAddress} idPrefix="settings" />
+          <div className="flex justify-end">
+            <Button
+              variant="gold"
+              onClick={handleSaveAddress}
+              disabled={savingAddress || !isAddressComplete(address)}
+            >
+              {savingAddress ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {savingAddress ? "Salvando..." : "Salvar endereço"}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* QR Code */}
       <Card className="border-border bg-card">
         <CardHeader>
