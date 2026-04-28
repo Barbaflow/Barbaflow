@@ -30,7 +30,18 @@ interface BarbershopData {
   noshow_policy_enabled: boolean | null;
   noshow_max_count: number | null;
   noshow_block_days: number | null;
+  receipt_title: string | null;
+  receipt_subtitle: string | null;
+  receipt_footer: string | null;
+  receipt_thank_you_message: string | null;
+  receipt_whatsapp_intro: string | null;
 }
+
+const DEFAULT_RECEIPT_TITLE = "Recibo de atendimento";
+const DEFAULT_RECEIPT_SUBTITLE = "";
+const DEFAULT_RECEIPT_FOOTER = "Volte sempre 💈";
+const DEFAULT_RECEIPT_THANKS = "Obrigado pela preferência!";
+const DEFAULT_RECEIPT_WA_INTRO = "Olá, {cliente}! Segue o resumo do seu atendimento:";
 
 const DEFAULT_WA_TEMPLATE =
   "Olá! 💈 Agende seu horário na *{nome}* de forma rápida e fácil pelo link: {link}";
@@ -60,6 +71,12 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [noshowMaxCount, setNoshowMaxCount] = useState<number>(3);
   const [noshowBlockDays, setNoshowBlockDays] = useState<number>(15);
   const [savingNoshow, setSavingNoshow] = useState(false);
+  const [receiptTitle, setReceiptTitle] = useState(DEFAULT_RECEIPT_TITLE);
+  const [receiptSubtitle, setReceiptSubtitle] = useState(DEFAULT_RECEIPT_SUBTITLE);
+  const [receiptFooter, setReceiptFooter] = useState(DEFAULT_RECEIPT_FOOTER);
+  const [receiptThanks, setReceiptThanks] = useState(DEFAULT_RECEIPT_THANKS);
+  const [receiptWaIntro, setReceiptWaIntro] = useState(DEFAULT_RECEIPT_WA_INTRO);
+  const [savingReceipt, setSavingReceipt] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -308,6 +325,11 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (typeof s.noshow_block_days === "number" && s.noshow_block_days > 0) {
             setNoshowBlockDays(s.noshow_block_days);
           }
+          if (s.receipt_title) setReceiptTitle(s.receipt_title);
+          if (s.receipt_subtitle) setReceiptSubtitle(s.receipt_subtitle);
+          if (s.receipt_footer) setReceiptFooter(s.receipt_footer);
+          if (s.receipt_thank_you_message) setReceiptThanks(s.receipt_thank_you_message);
+          if (s.receipt_whatsapp_intro) setReceiptWaIntro(s.receipt_whatsapp_intro);
         }
       });
   }, [barbershopId]);
@@ -398,6 +420,27 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Política de no-show salva!");
     }
     setSavingNoshow(false);
+  };
+
+  const handleSaveReceipt = async () => {
+    setSavingReceipt(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({
+        receipt_title: receiptTitle.trim() || null,
+        receipt_subtitle: receiptSubtitle.trim() || null,
+        receipt_footer: receiptFooter.trim() || null,
+        receipt_thank_you_message: receiptThanks.trim() || null,
+        receipt_whatsapp_intro: receiptWaIntro.trim() || null,
+      } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar personalização do recibo.");
+    } else {
+      toast.success("Personalização do recibo salva!");
+    }
+    setSavingReceipt(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1121,6 +1164,108 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
             >
               <MessageCircle className="w-4 h-4" />
               Compartilhar no WhatsApp
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Personalização do recibo de atendimento */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <FileText className="w-5 h-5 text-primary" />
+            Personalização do recibo
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            Personalize o título, rodapé e mensagens do recibo de atendimento (PDF e WhatsApp). O nome da barbearia e os itens são preenchidos automaticamente.
+          </p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="receipt-title">Título do recibo</Label>
+              <Input
+                id="receipt-title"
+                value={receiptTitle}
+                onChange={(e) => setReceiptTitle(e.target.value)}
+                placeholder={DEFAULT_RECEIPT_TITLE}
+                maxLength={60}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="receipt-subtitle">Subtítulo (opcional)</Label>
+              <Input
+                id="receipt-subtitle"
+                value={receiptSubtitle}
+                onChange={(e) => setReceiptSubtitle(e.target.value)}
+                placeholder="Ex.: Estilo & tradição desde 2020"
+                maxLength={80}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-thanks">Mensagem de agradecimento</Label>
+            <Input
+              id="receipt-thanks"
+              value={receiptThanks}
+              onChange={(e) => setReceiptThanks(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_THANKS}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-footer">Rodapé do recibo</Label>
+            <Input
+              id="receipt-footer"
+              value={receiptFooter}
+              onChange={(e) => setReceiptFooter(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_FOOTER}
+              maxLength={100}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="receipt-wa">Mensagem de introdução do WhatsApp</Label>
+            <Textarea
+              id="receipt-wa"
+              value={receiptWaIntro}
+              onChange={(e) => setReceiptWaIntro(e.target.value)}
+              placeholder={DEFAULT_RECEIPT_WA_INTRO}
+              rows={2}
+              maxLength={240}
+            />
+            <p className="text-xs text-muted-foreground">
+              Use <code className="px-1 py-0.5 rounded bg-muted text-foreground">{"{cliente}"}</code> para incluir o nome do cliente automaticamente.
+            </p>
+          </div>
+
+          {/* Pré-visualização */}
+          <div className="rounded-lg border border-border bg-background/40 p-4">
+            <p className="text-xs text-muted-foreground mb-2">Pré-visualização</p>
+            <div className="mx-auto max-w-[260px] bg-white text-black rounded-md p-4 font-mono text-[11px] leading-tight shadow-sm">
+              <p className="text-center font-bold text-sm">{data?.name || "Sua Barbearia"}</p>
+              <p className="text-center text-[10px]">{(receiptTitle || DEFAULT_RECEIPT_TITLE)}</p>
+              {receiptSubtitle && <p className="text-center text-[9px] italic">{receiptSubtitle}</p>}
+              <p className="text-center text-[9px] my-1">— — — — — — — —</p>
+              <p>Cliente: João Silva</p>
+              <p>Atendente: Carlos</p>
+              <p className="my-1">— — — — — — — —</p>
+              <div className="flex justify-between"><span>1x Corte</span><span>R$ 50,00</span></div>
+              <div className="flex justify-between"><span>1x Barba</span><span>R$ 30,00</span></div>
+              <p className="my-1">— — — — — — — —</p>
+              <div className="flex justify-between font-bold"><span>TOTAL</span><span>R$ 80,00</span></div>
+              <p className="my-1">— — — — — — — —</p>
+              <p className="text-center font-bold text-[10px] mt-1">{receiptThanks || DEFAULT_RECEIPT_THANKS}</p>
+              <p className="text-center text-[9px]">{receiptFooter || DEFAULT_RECEIPT_FOOTER}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSaveReceipt} disabled={savingReceipt} variant="gold">
+              {savingReceipt ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              Salvar personalização
             </Button>
           </div>
         </CardContent>

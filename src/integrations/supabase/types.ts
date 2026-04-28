@@ -211,6 +211,11 @@ export type Database = {
           qr_size: string | null
           rating_avg: number
           rating_count: number
+          receipt_footer: string | null
+          receipt_subtitle: string | null
+          receipt_thank_you_message: string | null
+          receipt_title: string | null
+          receipt_whatsapp_intro: string | null
           reschedule_min_hours: number
           secondary_color: string
           status: Database["public"]["Enums"]["approval_status"]
@@ -236,6 +241,11 @@ export type Database = {
           qr_size?: string | null
           rating_avg?: number
           rating_count?: number
+          receipt_footer?: string | null
+          receipt_subtitle?: string | null
+          receipt_thank_you_message?: string | null
+          receipt_title?: string | null
+          receipt_whatsapp_intro?: string | null
           reschedule_min_hours?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]
@@ -261,6 +271,11 @@ export type Database = {
           qr_size?: string | null
           rating_avg?: number
           rating_count?: number
+          receipt_footer?: string | null
+          receipt_subtitle?: string | null
+          receipt_thank_you_message?: string | null
+          receipt_title?: string | null
+          receipt_whatsapp_intro?: string | null
           reschedule_min_hours?: number
           secondary_color?: string
           status?: Database["public"]["Enums"]["approval_status"]

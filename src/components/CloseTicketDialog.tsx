@@ -82,6 +82,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     total: number;
     notes: string;
     closedAt: Date;
+    receiptTitle: string;
+    receiptSubtitle: string;
+    receiptFooter: string;
+    receiptThanks: string;
+    receiptWaIntro: string;
   }>(null);
 
   // Reset / load when opening
@@ -264,7 +269,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       // 5) Buscar dados para o recibo (barbearia + cliente + barbeiro se necessário)
       const needsBarberFetch = !appointment.barber_name;
       const [shopRes, profRes, phoneRes, barberRes] = await Promise.all([
-        supabase.from("barbershops").select("name").eq("id", appointment.barbershop_id).maybeSingle(),
+        supabase
+          .from("barbershops")
+          .select("name,receipt_title,receipt_subtitle,receipt_footer,receipt_thank_you_message,receipt_whatsapp_intro")
+          .eq("id", appointment.barbershop_id)
+          .maybeSingle(),
         supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
         needsBarberFetch
@@ -284,10 +293,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         if (!isNaN(d.getTime())) startedAt = d;
       }
 
+      const shop = (shopRes.data as any) || {};
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
       setSummary({
         ticketId: ticket.id,
-        shopName: shopRes.data?.name || "Barbearia",
+        shopName: shop.name || "Barbearia",
         clientName: profRes.data?.full_name || "Cliente",
         clientPhone: (phoneRes.data as string | null) || null,
         barberName,
@@ -301,6 +311,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         total,
         notes: notes.trim(),
         closedAt: new Date(),
+        receiptTitle: shop.receipt_title || "Recibo de atendimento",
+        receiptSubtitle: shop.receipt_subtitle || "",
+        receiptFooter: shop.receipt_footer || "Volte sempre 💈",
+        receiptThanks: shop.receipt_thank_you_message || "Obrigado pela preferência!",
+        receiptWaIntro: shop.receipt_whatsapp_intro || "Olá, {cliente}! Segue o resumo do seu atendimento:",
       });
       onClosed?.();
     } catch (e: any) {
@@ -338,7 +353,10 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     };
 
     line(s.shopName, { size: 12, bold: true, align: "center", gap: 5 });
-    line("Recibo de atendimento", { size: 8, align: "center", gap: 3 });
+    line(s.receiptTitle, { size: 8, align: "center", gap: 3 });
+    if (s.receiptSubtitle) {
+      line(s.receiptSubtitle, { size: 8, align: "center", gap: 3 });
+    }
     if (s.startedAt) {
       line(`Início: ${s.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
     }
@@ -367,8 +385,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       line("Obs.: " + s.notes, { size: 8 });
     }
     sep();
-    line("Obrigado pela preferência!", { size: 9, align: "center", bold: true, gap: 4 });
-    line("Volte sempre 💈", { size: 8, align: "center" });
+    line(s.receiptThanks, { size: 9, align: "center", bold: true, gap: 4 });
+    if (s.receiptFooter) line(s.receiptFooter, { size: 8, align: "center" });
     return doc;
   };
 
@@ -384,9 +402,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     // 1) Baixa o PDF para o cliente anexar
     downloadPdf();
     // 2) Monta texto resumo
+    const intro = (summary.receiptWaIntro || "Olá, {cliente}! Segue o resumo do seu atendimento:")
+      .replace(/\{cliente\}/gi, summary.clientName);
     const lines: string[] = [
-      `*${summary.shopName}* — Recibo`,
-      `Olá, ${summary.clientName}! Segue o resumo do seu atendimento:`,
+      `*${summary.shopName}* — ${summary.receiptTitle}`,
+      intro,
       "",
       `Atendente: ${summary.barberName}`,
     ];
@@ -402,7 +422,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     lines.push("");
     lines.push("Pagamento: " + summary.payments.map((p) => `${p.method_name} (${fmt(p.amount)})`).join(", "));
     lines.push("");
-    lines.push("Obrigado pela preferência! 💈");
+    lines.push(summary.receiptThanks + (summary.receiptFooter ? ` ${summary.receiptFooter}` : ""));
     const text = encodeURIComponent(lines.join("\n"));
     const url = phone
       ? `https://wa.me/${phone.startsWith("55") ? phone : "55" + phone}?text=${text}`
