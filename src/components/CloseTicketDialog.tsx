@@ -64,6 +64,10 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<null | {
+    ticketId: string;
+    shopName: string;
+    clientName: string;
+    clientPhone: string | null;
     items: DraftItem[];
     payments: DraftPayment[];
     subtotal: number;
