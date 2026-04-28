@@ -430,6 +430,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [clientBlockMap, setClientBlockMap] = useState<
     Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }>
   >({});
+  const [ticketStatusMap, setTicketStatusMap] = useState<
+    Record<string, { state: "open" | "partial" | "paid"; total: number; paid: number }>
+  >({});
   const [showDragHint, setShowDragHint] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
@@ -631,6 +634,29 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             : null,
         })) as Appointment[]
       );
+
+      // Tickets (comandas) for these appointments
+      const apptIds = (data || []).map((a) => a.id);
+      const newTicketMap: Record<string, { state: "open" | "partial" | "paid"; total: number; paid: number }> = {};
+      if (apptIds.length > 0) {
+        const { data: tks } = await supabase
+          .from("tickets")
+          .select("id, appointment_id, total, ticket_payments(amount)")
+          .in("appointment_id", apptIds);
+        for (const t of tks || []) {
+          const total = Number(t.total ?? 0);
+          const paid = (t.ticket_payments || []).reduce(
+            (s: number, p: { amount: number | string }) => s + Number(p.amount ?? 0),
+            0
+          );
+          let state: "open" | "partial" | "paid" = "open";
+          if (paid <= 0) state = "open";
+          else if (paid + 0.001 < total) state = "partial";
+          else state = "paid";
+          newTicketMap[t.appointment_id] = { state, total, paid };
+        }
+      }
+      setTicketStatusMap(newTicketMap);
     }
     setLoading(false);
   }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
@@ -1257,11 +1283,26 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                                 </span>
                               </div>
                             )}
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-3 flex-wrap">
                               <div className="flex items-center gap-1.5">
                                 <StatusIcon className={`w-3 h-3 ${statusCfg.color}`} />
                                 <span className={`text-[10px] ${statusCfg.color}`}>{statusCfg.label}</span>
                               </div>
+                              {(() => {
+                                const ts = ticketStatusMap[apt.id];
+                                if (!ts) return null;
+                                const cfg =
+                                  ts.state === "paid"
+                                    ? { label: "Comanda paga", cls: "border-green-500/40 bg-green-500/10 text-green-500" }
+                                    : ts.state === "partial"
+                                      ? { label: `Parcial R$ ${ts.paid.toFixed(2)}/${ts.total.toFixed(2)}`, cls: "border-yellow-500/40 bg-yellow-500/10 text-yellow-500" }
+                                      : { label: "Comanda aberta", cls: "border-primary/40 bg-primary/10 text-primary" };
+                                return (
+                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${cfg.cls}`}>
+                                    {cfg.label}
+                                  </span>
+                                );
+                              })()}
                               {isAdmin && apt.barber_profile && (
                                 <div className="flex items-center gap-1.5">
                                   <Avatar className="w-4 h-4">
