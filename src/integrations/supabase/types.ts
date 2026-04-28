@@ -1194,6 +1194,10 @@ export type Database = {
         Args: { _barbershop_id: string; _client_id: string }
         Returns: Json
       }
+      create_walkin_client: {
+        Args: { _barbershop_id: string; _full_name: string; _phone?: string }
+        Returns: string
+      }
       generate_availability_from_schedule: {
         Args: {
           _barber_id: string

@@ -45,10 +45,13 @@ import {
   CalendarIcon,
   Ban,
   ShieldAlert,
+  UserPlus,
+  ArrowLeft,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { displayBRPhone } from "@/lib/phone";
+import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
 const dateToISO = (d: Date) =>
@@ -148,6 +151,11 @@ export function ManualAppointmentDialog({
   const [datePickerOpen, setDatePickerOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  // Quick-add walk-in client form
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [newClientName, setNewClientName] = useState("");
+  const [newClientPhone, setNewClientPhone] = useState("");
+  const [creatingClient, setCreatingClient] = useState(false);
   // Map clientId -> noshow block info (loaded after clients load)
   const [blockMap, setBlockMap] = useState<Map<string, { blocked: boolean; unblock_at: string | null; noshow_count: number; max_count: number }>>(new Map());
 
@@ -178,6 +186,10 @@ export function ManualAppointmentDialog({
       setNotes("");
       setSlots([]);
     }
+    // Reset quick-add form whenever dialog opens
+    setShowQuickAdd(false);
+    setNewClientName("");
+    setNewClientPhone("");
   }, [open, defaultDate, barbers, editAppointment]);
 
   // Load clients with prior appointments at this barbershop
@@ -382,6 +394,48 @@ export function ManualAppointmentDialog({
     return () => ctrl.abort();
   }, [selectedBarber, service, date, barbershopId, editAppointment]);
 
+  const handleCreateClient = async () => {
+    const name = newClientName.trim();
+    if (!name) {
+      toast.error("Informe o nome do cliente.");
+      return;
+    }
+    const phoneRaw = newClientPhone.trim();
+    if (phoneRaw && !isValidBRPhone(phoneRaw)) {
+      toast.error("Telefone inválido. Use o formato (11) 91234-5678.");
+      return;
+    }
+    setCreatingClient(true);
+    const { data: newId, error } = await supabase.rpc("create_walkin_client", {
+      _barbershop_id: barbershopId,
+      _full_name: name,
+      _phone: phoneRaw ? toStorageBRPhone(phoneRaw) : undefined,
+    });
+    if (error || !newId) {
+      const msg = error?.message ?? "";
+      if (msg.includes("forbidden")) toast.error("Você não tem permissão para cadastrar clientes nesta barbearia.");
+      else if (msg.includes("name_required")) toast.error("Nome é obrigatório.");
+      else if (msg.includes("name_too_long")) toast.error("Nome muito longo (máximo 120 caracteres).");
+      else if (msg.includes("phone_too_long")) toast.error("Telefone muito longo.");
+      else toast.error(msg || "Erro ao cadastrar cliente.");
+      setCreatingClient(false);
+      return;
+    }
+    const created: Client = {
+      user_id: newId as string,
+      full_name: name,
+      phone: phoneRaw ? toStorageBRPhone(phoneRaw) : null,
+      avatar_url: null,
+    };
+    setClients((prev) => [created, ...prev]);
+    setSelectedClient(created);
+    setShowQuickAdd(false);
+    setNewClientName("");
+    setNewClientPhone("");
+    setCreatingClient(false);
+    toast.success("Cliente cadastrado!");
+  };
+
   const handleSubmit = async () => {
     if (!selectedClient || !selectedBarber || !service || !selectedTime) {
       toast.error("Preencha todos os campos.");
@@ -514,16 +568,101 @@ export function ManualAppointmentDialog({
                   );
                 })()}
               </div>
+            ) : showQuickAdd ? (
+              <div className="space-y-3 border border-border rounded-lg p-4 bg-secondary/30">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <UserPlus className="w-4 h-4 text-primary" />
+                    Cadastrar novo cliente
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    onClick={() => {
+                      setShowQuickAdd(false);
+                      setNewClientName("");
+                      setNewClientPhone("");
+                    }}
+                    disabled={creatingClient}
+                  >
+                    <ArrowLeft className="w-3 h-3 mr-1" />
+                    Voltar
+                  </Button>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-name" className="text-xs">
+                    Nome <span className="text-destructive">*</span>
+                  </Label>
+                  <Input
+                    id="new-client-name"
+                    placeholder="Ex: João Silva"
+                    value={newClientName}
+                    onChange={(e) => setNewClientName(e.target.value)}
+                    maxLength={120}
+                    autoFocus
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="new-client-phone" className="text-xs">
+                    Telefone (opcional)
+                  </Label>
+                  <Input
+                    id="new-client-phone"
+                    placeholder="(11) 91234-5678"
+                    value={newClientPhone}
+                    onChange={(e) => setNewClientPhone(maskBRPhone(e.target.value))}
+                    inputMode="tel"
+                  />
+                </div>
+                <div className="rounded-md bg-muted/50 border border-border p-2 text-[11px] text-muted-foreground leading-relaxed">
+                  Cliente presencial (sem login). Você poderá enviar o link da
+                  barbearia por WhatsApp depois para ele criar a conta e
+                  acompanhar os agendamentos pelo app.
+                </div>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="w-full"
+                  onClick={handleCreateClient}
+                  disabled={creatingClient || !newClientName.trim()}
+                >
+                  {creatingClient ? (
+                    <>
+                      <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+                      Cadastrando...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3 h-3 mr-2" />
+                      Cadastrar e selecionar
+                    </>
+                  )}
+                </Button>
+              </div>
             ) : (
               <>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar por nome ou telefone..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9"
-                  />
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar por nome ou telefone..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowQuickAdd(true)}
+                    className="flex-shrink-0"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    <span className="hidden sm:inline ml-1">Novo</span>
+                  </Button>
                 </div>
                 <div className="border border-border rounded-lg max-h-56 overflow-y-auto divide-y divide-border">
                   {loadingClients ? (
@@ -532,10 +671,27 @@ export function ManualAppointmentDialog({
                       Carregando clientes...
                     </div>
                   ) : filteredClients.length === 0 ? (
-                    <div className="p-6 text-center text-sm text-muted-foreground">
-                      {clients.length === 0
-                        ? "Nenhum cliente cadastrado ainda."
-                        : "Nenhum cliente corresponde à busca."}
+                    <div className="p-6 text-center text-sm text-muted-foreground space-y-2">
+                      <p>
+                        {clients.length === 0
+                          ? "Nenhum cliente cadastrado ainda."
+                          : "Nenhum cliente corresponde à busca."}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setShowQuickAdd(true);
+                          // Pré-preenche com o termo buscado se parecer com nome
+                          if (search.trim() && !/\d/.test(search)) {
+                            setNewClientName(search.trim());
+                          }
+                        }}
+                      >
+                        <UserPlus className="w-3 h-3 mr-1" />
+                        Cadastrar novo cliente
+                      </Button>
                     </div>
                   ) : (
                     filteredClients.slice(0, 50).map((c) => {
