@@ -170,7 +170,7 @@ function ChurnReportPage() {
             <p className="text-sm text-muted-foreground">
               Esta página é restrita a administradores do sistema.
             </p>
-            <Link to="/dashboard" search={{}}>
+            <Link to="/dashboard" search={{ checkout: undefined }}>
               <Button variant="secondary" className="w-full">
                 Voltar ao painel
               </Button>
@@ -186,7 +186,7 @@ function ChurnReportPage() {
       <header className="border-b border-border px-4 py-4 md:px-8">
         <div className="max-w-5xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <Link to="/dashboard" search={{}}>
+            <Link to="/dashboard" search={{ checkout: undefined }}>
               <Button variant="ghost" size="sm">
                 <ArrowLeft className="w-4 h-4" />
                 <span className="hidden sm:inline">Voltar</span>
