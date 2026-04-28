@@ -62,6 +62,17 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const [discountAmount, setDiscountAmount] = useState<number>(0);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [summary, setSummary] = useState<null | {
+    items: DraftItem[];
+    payments: DraftPayment[];
+    subtotal: number;
+    discountType: "fixed" | "percent";
+    discountAmount: number;
+    discountValue: number;
+    total: number;
+    notes: string;
+    closedAt: Date;
+  }>(null);
 
   // Reset / load when opening
   useEffect(() => {
@@ -241,7 +252,17 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       if (aErr) throw aErr;
 
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
-      onOpenChange(false);
+      setSummary({
+        items: items.map((it) => ({ ...it })),
+        payments: payments.map((p) => ({ ...p })),
+        subtotal,
+        discountType,
+        discountAmount,
+        discountValue,
+        total,
+        notes: notes.trim(),
+        closedAt: new Date(),
+      });
       onClosed?.();
     } catch (e: any) {
       console.error(e);
@@ -252,7 +273,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+    <Dialog open={open && !summary} onOpenChange={(v) => { if (!v && summary) return; onOpenChange(v); }}>
       <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display flex items-center gap-2">
@@ -455,5 +477,81 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         </div>
       </DialogContent>
     </Dialog>
+
+    <Dialog open={!!summary} onOpenChange={(v) => { if (!v) { setSummary(null); onOpenChange(false); } }}>
+      <DialogContent className="bg-card border-border max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-display flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" /> Comanda finalizada
+          </DialogTitle>
+          <DialogDescription>
+            {summary && `Fechada em ${summary.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`}
+          </DialogDescription>
+        </DialogHeader>
+
+        {summary && (
+          <div className="space-y-4 text-sm">
+            <div>
+              <Label className="text-xs text-muted-foreground">Itens</Label>
+              <div className="mt-1 space-y-1">
+                {summary.items.map((it) => (
+                  <div key={it.key} className="flex items-center justify-between gap-2 py-1 border-b border-border/40">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Badge variant="outline" className="shrink-0">
+                        {it.item_type === "service" ? <Scissors className="w-3 h-3" /> : it.item_type === "product" ? <Package className="w-3 h-3" /> : <Pencil className="w-3 h-3" />}
+                      </Badge>
+                      <span className="truncate">{it.description}</span>
+                      <span className="text-xs text-muted-foreground shrink-0">×{it.quantity}</span>
+                    </div>
+                    <span className="text-foreground shrink-0">{fmt(it.unit_price * it.quantity)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span><span>{fmt(summary.subtotal)}</span>
+              </div>
+              {summary.discountValue > 0 && (
+                <div className="flex justify-between text-yellow-500">
+                  <span>Desconto {summary.discountType === "percent" ? `(${summary.discountAmount}%)` : ""}</span>
+                  <span>- {fmt(summary.discountValue)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-base font-bold text-primary pt-1 border-t border-border/40">
+                <span>Total</span><span>{fmt(summary.total)}</span>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground">Pagamentos</Label>
+              <div className="mt-1 space-y-1">
+                {summary.payments.map((p) => (
+                  <div key={p.key} className="flex justify-between py-0.5">
+                    <span>{p.method_name}</span>
+                    <span className="text-foreground">{fmt(p.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {summary.notes && (
+              <div>
+                <Label className="text-xs text-muted-foreground">Observações</Label>
+                <p className="mt-1 text-sm text-foreground whitespace-pre-wrap">{summary.notes}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end pt-2">
+          <Button variant="gold" onClick={() => { setSummary(null); onOpenChange(false); }}>
+            Concluir
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }
