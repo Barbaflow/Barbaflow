@@ -630,6 +630,12 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
 
         {summary && (
           <div className="space-y-4 text-sm">
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>Atendente: <span className="text-foreground font-medium">{summary.barberName}</span></span>
+              {summary.startedAt && (
+                <span>Início: <span className="text-foreground font-medium">{summary.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</span></span>
+              )}
+            </div>
             <div>
               <Label className="text-xs text-muted-foreground">Itens</Label>
               <div className="mt-1 space-y-1">
