@@ -286,6 +286,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     } finally {
       setSaving(false);
     }
+  };
 
   // ===== Recibo PDF =====
   const buildReceiptPdf = (s: NonNullable<typeof summary>): jsPDF => {
