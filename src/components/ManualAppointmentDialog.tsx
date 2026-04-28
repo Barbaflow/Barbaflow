@@ -186,6 +186,10 @@ export function ManualAppointmentDialog({
       setNotes("");
       setSlots([]);
     }
+    // Reset quick-add form whenever dialog opens
+    setShowQuickAdd(false);
+    setNewClientName("");
+    setNewClientPhone("");
   }, [open, defaultDate, barbers, editAppointment]);
 
   // Load clients with prior appointments at this barbershop
