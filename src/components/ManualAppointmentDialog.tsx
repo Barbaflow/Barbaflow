@@ -442,6 +442,7 @@ export function ManualAppointmentDialog({
     };
     setClients((prev) => [created, ...prev]);
     setSelectedClient(created);
+    setLastWalkinId(newId as string);
     setShowQuickAdd(false);
     setNewClientName("");
     setNewClientPhone("");
