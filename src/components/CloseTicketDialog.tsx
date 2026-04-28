@@ -353,7 +353,10 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     };
 
     line(s.shopName, { size: 12, bold: true, align: "center", gap: 5 });
-    line("Recibo de atendimento", { size: 8, align: "center", gap: 3 });
+    line(s.receiptTitle, { size: 8, align: "center", gap: 3 });
+    if (s.receiptSubtitle) {
+      line(s.receiptSubtitle, { size: 8, align: "center", gap: 3 });
+    }
     if (s.startedAt) {
       line(`Início: ${s.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
     }
@@ -382,8 +385,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       line("Obs.: " + s.notes, { size: 8 });
     }
     sep();
-    line("Obrigado pela preferência!", { size: 9, align: "center", bold: true, gap: 4 });
-    line("Volte sempre 💈", { size: 8, align: "center" });
+    line(s.receiptThanks, { size: 9, align: "center", bold: true, gap: 4 });
+    if (s.receiptFooter) line(s.receiptFooter, { size: 8, align: "center" });
     return doc;
   };
 
