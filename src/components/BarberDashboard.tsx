@@ -701,6 +701,27 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     fetchWeekMetrics();
   }, [fetchAppointments, fetchWeekMetrics]);
 
+  // Realtime: refresh ticket badges when tickets/payments change for this barbershop
+  useEffect(() => {
+    if (!barbershopId) return;
+    const channel = supabase
+      .channel(`tickets-realtime-${barbershopId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tickets", filter: `barbershop_id=eq.${barbershopId}` },
+        () => { fetchAppointments(); }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "ticket_payments", filter: `barbershop_id=eq.${barbershopId}` },
+        () => { fetchAppointments(); }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [barbershopId, fetchAppointments]);
+
   const shiftDate = (dir: number) => {
     const d = new Date(selectedDate + "T12:00:00");
     d.setDate(d.getDate() + dir);
