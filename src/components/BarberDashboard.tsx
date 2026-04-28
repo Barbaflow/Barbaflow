@@ -1060,7 +1060,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               : null,
           }}
           onClosed={() => {
-            setCloseTicketTarget(null);
+            // Don't clear target here — that would unmount the dialog and
+            // hide the summary screen (PDF/WhatsApp). The dialog clears
+            // itself via onOpenChange when the user clicks "Concluir".
             fetchAppointments();
             fetchWeekMetrics();
           }}
