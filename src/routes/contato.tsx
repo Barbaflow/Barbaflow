@@ -7,6 +7,7 @@ import { Scissors, ArrowLeft, Send, MapPin, Mail, Phone } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { SiteFooter } from "@/components/SiteFooter";
 
 export const Route = createFileRoute("/contato")({
   head: () => ({
@@ -238,17 +239,7 @@ function ContatoPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="relative z-10 border-t border-border px-6 py-6 md:px-12">
-        <div className="max-w-5xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-muted-foreground">
-          <span>© {new Date().getFullYear()} BarbaFlow. Todos os direitos reservados.</span>
-          <div className="flex gap-6">
-            <Link to="/" className="hover:text-foreground transition-colors">Início</Link>
-            <Link to="/sobre" className="hover:text-foreground transition-colors">Sobre</Link>
-            <Link to="/upgrade" className="hover:text-foreground transition-colors">Planos</Link>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }
