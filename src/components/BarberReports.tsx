@@ -172,7 +172,7 @@ export function BarberReports() {
     const scheduled = appointments.filter((a) => a.status === "scheduled").length;
     const revenue = appointments
       .filter((a) => a.status === "completed")
-      .reduce((sum, a) => sum + (a.service?.price ?? 0), 0);
+      .reduce((sum, a) => sum + (a.revenue ?? 0), 0);
     const avgTicket = completed > 0 ? revenue / completed : 0;
 
     return { total, completed, cancelled, noShow, scheduled, revenue, avgTicket };
