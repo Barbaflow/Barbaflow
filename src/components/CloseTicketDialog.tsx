@@ -538,11 +538,14 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
                 </SelectContent>
               </Select>
               <Input
-                type="number"
-                step="0.01"
-                min={0}
-                value={discountAmount}
-                onChange={(e) => setDiscountAmount(Math.max(0, parseFloat(e.target.value) || 0))}
+                type="text"
+                inputMode="decimal"
+                placeholder="0"
+                value={discountInput}
+                onChange={(e) => {
+                  const v = e.target.value.replace(/[^\d.,]/g, "");
+                  setDiscountInput(v);
+                }}
                 className="bg-input h-9"
               />
             </div>
