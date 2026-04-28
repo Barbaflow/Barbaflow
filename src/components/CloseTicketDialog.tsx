@@ -82,6 +82,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     total: number;
     notes: string;
     closedAt: Date;
+    receiptTitle: string;
+    receiptSubtitle: string;
+    receiptFooter: string;
+    receiptThanks: string;
+    receiptWaIntro: string;
   }>(null);
 
   // Reset / load when opening
