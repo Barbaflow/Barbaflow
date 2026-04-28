@@ -422,7 +422,27 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     setSavingNoshow(false);
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleSaveReceipt = async () => {
+    setSavingReceipt(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({
+        receipt_title: receiptTitle.trim() || null,
+        receipt_subtitle: receiptSubtitle.trim() || null,
+        receipt_footer: receiptFooter.trim() || null,
+        receipt_thank_you_message: receiptThanks.trim() || null,
+        receipt_whatsapp_intro: receiptWaIntro.trim() || null,
+      } as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar personalização do recibo.");
+    } else {
+      toast.success("Personalização do recibo salva!");
+    }
+    setSavingReceipt(false);
+  };
+
     const file = e.target.files?.[0];
     if (!file || !user) return;
 
