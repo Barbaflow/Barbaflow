@@ -141,7 +141,7 @@ function BarbeariasPage() {
       // View `barbearias_publicas` ainda não está nos tipos gerados — cast pontual
       const { data, error } = await (supabase as any)
         .from("barbearias_publicas")
-        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at")
+        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at, cep, state, city, neighborhood, street, number, complement")
         .order("rating_avg", { ascending: false })
         .order("created_at", { ascending: false });
 
