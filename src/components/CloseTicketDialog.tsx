@@ -63,7 +63,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const [items, setItems] = useState<DraftItem[]>([]);
   const [payments, setPayments] = useState<DraftPayment[]>([]);
   const [discountType, setDiscountType] = useState<"fixed" | "percent">("fixed");
-  const [discountAmount, setDiscountAmount] = useState<number>(0);
+  const [discountInput, setDiscountInput] = useState<string>("");
+  const discountAmount = Math.max(0, parseFloat(discountInput.replace(",", ".")) || 0);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [summary, setSummary] = useState<null | {
