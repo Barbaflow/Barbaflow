@@ -45,10 +45,13 @@ import {
   CalendarIcon,
   Ban,
   ShieldAlert,
+  UserPlus,
+  ArrowLeft,
+  MessageCircle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { displayBRPhone } from "@/lib/phone";
+import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
 const dateToISO = (d: Date) =>
