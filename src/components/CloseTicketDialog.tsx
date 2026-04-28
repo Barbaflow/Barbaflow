@@ -71,6 +71,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     shopName: string;
     clientName: string;
     clientPhone: string | null;
+    barberName: string;
+    startedAt: Date | null;
     items: DraftItem[];
     payments: DraftPayment[];
     subtotal: number;
