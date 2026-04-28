@@ -427,6 +427,9 @@ function Filters({
       )}
 
       {children(filtered)}
+    </div>
+  );
+}
 
 function BarbeariaCard({ b }: { b: PublicBarbershop }) {
   const initials = b.name
