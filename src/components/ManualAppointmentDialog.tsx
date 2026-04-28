@@ -595,24 +595,27 @@ export function ManualAppointmentDialog({
                     `Baixe o app para acompanhar seus agendamentos, receber lembretes e avaliar seus atendimentos:\n\n` +
                     `${link}\n\n` +
                     `Até breve! ✂️`;
-                  const phoneDigits = (selectedClient.phone ?? "").replace(/\D/g, "");
-                  const waNumber = phoneDigits
-                    ? phoneDigits.startsWith("55")
-                      ? phoneDigits
-                      : `55${phoneDigits}`
-                    : "";
-                  const url = waNumber
-                    ? `https://wa.me/${waNumber}?text=${encodeURIComponent(message)}`
-                    : `https://wa.me/?text=${encodeURIComponent(message)}`;
+                  // Normaliza qualquer formato salvo (com máscara, espaços, etc.) para "55DDDNUMERO"
+                  const waNumber = selectedClient.phone ? toStorageBRPhone(selectedClient.phone) : "";
+                  // Válido apenas com 12 (fixo) ou 13 (celular) dígitos incluindo DDI 55
+                  const isValidWa = waNumber.length === 12 || waNumber.length === 13;
+                  const encodedMessage = encodeURIComponent(message);
+                  // api.whatsapp.com/send abre a conversa com a mensagem pré-preenchida de forma confiável
+                  // tanto no mobile (deep link) quanto no desktop (WhatsApp Web)
+                  const url = isValidWa
+                    ? `https://api.whatsapp.com/send?phone=${waNumber}&text=${encodedMessage}`
+                    : `https://api.whatsapp.com/send?text=${encodedMessage}`;
                   return (
                     <div className="flex items-start gap-2 p-3 rounded-lg border border-primary/30 bg-primary/5">
                       <MessageCircle className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
                       <div className="flex-1 min-w-0 space-y-2">
                         <p className="text-xs text-foreground leading-relaxed">
                           <span className="font-medium">Cliente cadastrado!</span>{" "}
-                          {selectedClient.phone
+                          {isValidWa
                             ? "Envie o link do app para ele acompanhar os agendamentos."
-                            : "Sem telefone cadastrado — você pode copiar a mensagem e enviar manualmente."}
+                            : selectedClient.phone
+                              ? "Telefone inválido — abra o WhatsApp e envie a mensagem manualmente."
+                              : "Sem telefone cadastrado — você pode copiar a mensagem e enviar manualmente."}
                         </p>
                         <Button
                           type="button"
