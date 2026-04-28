@@ -273,7 +273,9 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+  return (
+    <>
+    <Dialog open={open && !summary} onOpenChange={(v) => { if (!v && summary) return; onOpenChange(v); }}>
       <DialogContent className="bg-card border-border max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="font-display flex items-center gap-2">
