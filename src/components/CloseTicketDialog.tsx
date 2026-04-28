@@ -402,9 +402,11 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     // 1) Baixa o PDF para o cliente anexar
     downloadPdf();
     // 2) Monta texto resumo
+    const intro = (summary.receiptWaIntro || "Olá, {cliente}! Segue o resumo do seu atendimento:")
+      .replace(/\{cliente\}/gi, summary.clientName);
     const lines: string[] = [
-      `*${summary.shopName}* — Recibo`,
-      `Olá, ${summary.clientName}! Segue o resumo do seu atendimento:`,
+      `*${summary.shopName}* — ${summary.receiptTitle}`,
+      intro,
       "",
       `Atendente: ${summary.barberName}`,
     ];
@@ -420,7 +422,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     lines.push("");
     lines.push("Pagamento: " + summary.payments.map((p) => `${p.method_name} (${fmt(p.amount)})`).join(", "));
     lines.push("");
-    lines.push("Obrigado pela preferência! 💈");
+    lines.push(summary.receiptThanks + (summary.receiptFooter ? ` ${summary.receiptFooter}` : ""));
     const text = encodeURIComponent(lines.join("\n"));
     const url = phone
       ? `https://wa.me/${phone.startsWith("55") ? phone : "55" + phone}?text=${text}`
