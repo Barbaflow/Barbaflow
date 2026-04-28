@@ -339,10 +339,14 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
 
     line(s.shopName, { size: 12, bold: true, align: "center", gap: 5 });
     line("Recibo de atendimento", { size: 8, align: "center", gap: 3 });
-    line(s.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), { size: 8, align: "center" });
+    if (s.startedAt) {
+      line(`Início: ${s.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
+    }
+    line(`Fechamento: ${s.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`, { size: 8, align: "center" });
     line(`Comanda: ${s.ticketId.slice(0, 8).toUpperCase()}`, { size: 8, align: "center" });
     sep();
     line(`Cliente: ${s.clientName}`, { size: 9 });
+    line(`Atendente: ${s.barberName}`, { size: 9 });
     sep();
     line("Itens", { size: 9, bold: true });
     s.items.forEach((it) => {
