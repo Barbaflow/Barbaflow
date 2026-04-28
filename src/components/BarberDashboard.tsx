@@ -19,6 +19,7 @@ import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
+import { CloseTicketDialog } from "@/components/CloseTicketDialog";
 import {
   DndContext,
   type DragEndEvent,
@@ -424,6 +425,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [showNewAppt, setShowNewAppt] = useState(false);
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
   const [reschedTarget, setReschedTarget] = useState<RescheduleTarget | null>(null);
+  const [closeTicketTarget, setCloseTicketTarget] = useState<Appointment | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [clientBlockMap, setClientBlockMap] = useState<
     Record<string, { blocked: boolean; noshow_count: number; unblock_at: string | null }>
@@ -993,6 +995,28 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         }}
       />
 
+      {closeTicketTarget && barbershopId && (
+        <CloseTicketDialog
+          open={!!closeTicketTarget}
+          onOpenChange={(o) => { if (!o) setCloseTicketTarget(null); }}
+          appointment={{
+            id: closeTicketTarget.id,
+            barbershop_id: barbershopId,
+            client_id: closeTicketTarget.client_id,
+            barber_id: closeTicketTarget.barber_id,
+            service_id: closeTicketTarget.service_id,
+            service: closeTicketTarget.service
+              ? { name: closeTicketTarget.service.name, price: closeTicketTarget.service.price }
+              : null,
+          }}
+          onClosed={() => {
+            setCloseTicketTarget(null);
+            fetchAppointments();
+            fetchWeekMetrics();
+          }}
+        />
+      )}
+
       {/* Barber filter (admin only) */}
       {isAdmin && barbers.length > 0 && (
         <div className="flex items-center gap-3">
@@ -1268,7 +1292,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                                 className="text-green-500 hover:text-green-400 hover:bg-green-500/10 text-xs h-8"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleStatusChange(apt.id, "completed");
+                                  setCloseTicketTarget(apt);
                                 }}
                               >
                                 <CheckCircle className="w-3.5 h-3.5" />

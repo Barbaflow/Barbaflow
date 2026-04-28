@@ -432,6 +432,36 @@ export type Database = {
           },
         ]
       }
+      payment_methods: {
+        Row: {
+          active: boolean
+          barbershop_id: string
+          created_at: string
+          id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          barbershop_id: string
+          created_at?: string
+          id?: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          barbershop_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       plan_change_logs: {
         Row: {
           barbershop_id: string
@@ -869,6 +899,145 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ticket_items: {
+        Row: {
+          barbershop_id: string
+          created_at: string
+          description: string
+          id: string
+          item_type: string
+          product_id: string | null
+          quantity: number
+          service_id: string | null
+          ticket_id: string
+          total: number
+          unit_price: number
+        }
+        Insert: {
+          barbershop_id: string
+          created_at?: string
+          description: string
+          id?: string
+          item_type: string
+          product_id?: string | null
+          quantity?: number
+          service_id?: string | null
+          ticket_id: string
+          total?: number
+          unit_price?: number
+        }
+        Update: {
+          barbershop_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          item_type?: string
+          product_id?: string | null
+          quantity?: number
+          service_id?: string | null
+          ticket_id?: string
+          total?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_items_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ticket_payments: {
+        Row: {
+          amount: number
+          barbershop_id: string
+          created_at: string
+          id: string
+          method_name: string
+          payment_method_id: string | null
+          ticket_id: string
+        }
+        Insert: {
+          amount: number
+          barbershop_id: string
+          created_at?: string
+          id?: string
+          method_name: string
+          payment_method_id?: string | null
+          ticket_id: string
+        }
+        Update: {
+          amount?: number
+          barbershop_id?: string
+          created_at?: string
+          id?: string
+          method_name?: string
+          payment_method_id?: string | null
+          ticket_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_payments_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tickets: {
+        Row: {
+          appointment_id: string
+          barber_id: string
+          barbershop_id: string
+          client_id: string
+          closed_at: string
+          closed_by: string
+          created_at: string
+          discount_amount: number
+          discount_type: string
+          id: string
+          notes: string | null
+          subtotal: number
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          appointment_id: string
+          barber_id: string
+          barbershop_id: string
+          client_id: string
+          closed_at?: string
+          closed_by: string
+          created_at?: string
+          discount_amount?: number
+          discount_type?: string
+          id?: string
+          notes?: string | null
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          appointment_id?: string
+          barber_id?: string
+          barbershop_id?: string
+          client_id?: string
+          closed_at?: string
+          closed_by?: string
+          created_at?: string
+          discount_amount?: number
+          discount_type?: string
+          id?: string
+          notes?: string | null
+          subtotal?: number
+          total?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       user_roles: {
         Row: {
