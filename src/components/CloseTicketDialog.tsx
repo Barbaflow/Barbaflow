@@ -8,8 +8,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { Plus, Trash2, Scissors, Package, Pencil, CreditCard } from "lucide-react";
+import { Plus, Trash2, Scissors, Package, Pencil, CreditCard, Download, MessageCircle } from "lucide-react";
 import { toast } from "sonner";
+import jsPDF from "jspdf";
 
 interface Props {
   open: boolean;
