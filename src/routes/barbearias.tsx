@@ -1,9 +1,26 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CalendarClock, Scissors, ShieldAlert, Star, Store, XCircle } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ArrowLeft,
+  CalendarClock,
+  MapPin,
+  Scissors,
+  ShieldAlert,
+  Star,
+  Store,
+  XCircle,
+} from "lucide-react";
 
 interface PublicBarbershop {
   id: string;
@@ -15,6 +32,13 @@ interface PublicBarbershop {
   rating_avg: number;
   rating_count: number;
   created_at: string;
+  cep?: string | null;
+  state?: string | null;
+  city?: string | null;
+  neighborhood?: string | null;
+  street?: string | null;
+  number?: string | null;
+  complement?: string | null;
   reschedule_min_hours?: number;
   cancel_min_hours?: number;
   noshow_policy_enabled?: boolean;
@@ -27,6 +51,8 @@ interface PublicBarbershop {
     client_name: string;
   } | null;
 }
+
+const ALL = "__all__";
 
 function formatHoursShort(h: number) {
   if (h <= 0) return "—";
@@ -115,7 +141,7 @@ function BarbeariasPage() {
       // View `barbearias_publicas` ainda não está nos tipos gerados — cast pontual
       const { data, error } = await (supabase as any)
         .from("barbearias_publicas")
-        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at")
+        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at, cep, state, city, neighborhood, street, number, complement")
         .order("rating_avg", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -267,25 +293,140 @@ function BarbeariasPage() {
           </p>
         </div>
 
-        {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div
-                key={i}
-                className="rounded-2xl border border-border bg-card/50 p-6 h-48 animate-pulse"
-              />
-            ))}
-          </div>
-        ) : barbearias.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {barbearias.map((b) => (
-              <BarbeariaCard key={b.id} b={b} />
-            ))}
-          </div>
-        )}
+        <Filters
+          barbearias={barbearias}
+          loading={loading}
+        >
+          {(filtered) => (
+            loading ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className="rounded-2xl border border-border bg-card/50 p-6 h-48 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : barbearias.length === 0 ? (
+              <EmptyState />
+            ) : filtered.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground font-body">
+                Nenhuma barbearia encontrada com esses filtros.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filtered.map((b) => (
+                  <BarbeariaCard key={b.id} b={b} />
+                ))}
+              </div>
+            )
+          )}
+        </Filters>
       </main>
+    </div>
+  );
+}
+
+function uniqueSorted(values: (string | null | undefined)[]): string[] {
+  return Array.from(
+    new Set(values.map((v) => (v ?? "").trim()).filter((v) => v.length > 0)),
+  ).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function Filters({
+  barbearias,
+  loading,
+  children,
+}: {
+  barbearias: PublicBarbershop[];
+  loading: boolean;
+  children: (filtered: PublicBarbershop[]) => React.ReactNode;
+}) {
+  const [state, setState] = useState<string>(ALL);
+  const [city, setCity] = useState<string>(ALL);
+  const [neighborhood, setNeighborhood] = useState<string>(ALL);
+  const [streetQuery, setStreetQuery] = useState("");
+
+  const states = useMemo(() => uniqueSorted(barbearias.map((b) => b.state)), [barbearias]);
+  const cities = useMemo(
+    () =>
+      uniqueSorted(
+        barbearias
+          .filter((b) => state === ALL || (b.state ?? "") === state)
+          .map((b) => b.city),
+      ),
+    [barbearias, state],
+  );
+  const neighborhoods = useMemo(
+    () =>
+      uniqueSorted(
+        barbearias
+          .filter((b) => state === ALL || (b.state ?? "") === state)
+          .filter((b) => city === ALL || (b.city ?? "") === city)
+          .map((b) => b.neighborhood),
+      ),
+    [barbearias, state, city],
+  );
+
+  const filtered = useMemo(() => {
+    const q = streetQuery.trim().toLowerCase();
+    return barbearias.filter((b) => {
+      if (state !== ALL && (b.state ?? "") !== state) return false;
+      if (city !== ALL && (b.city ?? "") !== city) return false;
+      if (neighborhood !== ALL && (b.neighborhood ?? "") !== neighborhood) return false;
+      if (q && !(b.street ?? "").toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [barbearias, state, city, neighborhood, streetQuery]);
+
+  const hasFilters = state !== ALL || city !== ALL || neighborhood !== ALL || streetQuery.trim().length > 0;
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-border bg-card/40 p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
+        <Select value={state} onValueChange={(v) => { setState(v); setCity(ALL); setNeighborhood(ALL); }} disabled={loading}>
+          <SelectTrigger><SelectValue placeholder="Estado" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todos os estados</SelectItem>
+            {states.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={city} onValueChange={(v) => { setCity(v); setNeighborhood(ALL); }} disabled={loading || cities.length === 0}>
+          <SelectTrigger><SelectValue placeholder="Cidade" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todas as cidades</SelectItem>
+            {cities.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={neighborhood} onValueChange={setNeighborhood} disabled={loading || neighborhoods.length === 0}>
+          <SelectTrigger><SelectValue placeholder="Bairro" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>Todos os bairros</SelectItem>
+            {neighborhoods.map((n) => <SelectItem key={n} value={n}>{n}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Input
+          value={streetQuery}
+          onChange={(e) => setStreetQuery(e.target.value)}
+          placeholder="Buscar por rua…"
+          disabled={loading}
+        />
+      </div>
+
+      {hasFilters && !loading && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground font-body">
+          <span>{filtered.length} {filtered.length === 1 ? "barbearia encontrada" : "barbearias encontradas"}</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => { setState(ALL); setCity(ALL); setNeighborhood(ALL); setStreetQuery(""); }}
+          >
+            Limpar filtros
+          </Button>
+        </div>
+      )}
+
+      {children(filtered)}
     </div>
   );
 }

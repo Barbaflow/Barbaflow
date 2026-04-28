@@ -196,13 +196,18 @@ export type Database = {
         Row: {
           appointments_this_month: number
           cancel_min_hours: number
+          cep: string | null
+          city: string | null
+          complement: string | null
           created_at: string
           id: string
           logo_url: string | null
           name: string
+          neighborhood: string | null
           noshow_block_days: number
           noshow_max_count: number
           noshow_policy_enabled: boolean
+          number: string | null
           owner_id: string | null
           pdf_slogan: string | null
           pdf_template: string | null
@@ -218,7 +223,9 @@ export type Database = {
           receipt_whatsapp_intro: string | null
           reschedule_min_hours: number
           secondary_color: string
+          state: string | null
           status: Database["public"]["Enums"]["approval_status"]
+          street: string | null
           subdomain: string
           updated_at: string
           whatsapp_message: string | null
@@ -226,13 +233,18 @@ export type Database = {
         Insert: {
           appointments_this_month?: number
           cancel_min_hours?: number
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name: string
+          neighborhood?: string | null
           noshow_block_days?: number
           noshow_max_count?: number
           noshow_policy_enabled?: boolean
+          number?: string | null
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
@@ -248,7 +260,9 @@ export type Database = {
           receipt_whatsapp_intro?: string | null
           reschedule_min_hours?: number
           secondary_color?: string
+          state?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
+          street?: string | null
           subdomain: string
           updated_at?: string
           whatsapp_message?: string | null
@@ -256,13 +270,18 @@ export type Database = {
         Update: {
           appointments_this_month?: number
           cancel_min_hours?: number
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string
           id?: string
           logo_url?: string | null
           name?: string
+          neighborhood?: string | null
           noshow_block_days?: number
           noshow_max_count?: number
           noshow_policy_enabled?: boolean
+          number?: string | null
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
@@ -278,7 +297,9 @@ export type Database = {
           receipt_whatsapp_intro?: string | null
           reschedule_min_hours?: number
           secondary_color?: string
+          state?: string | null
           status?: Database["public"]["Enums"]["approval_status"]
+          street?: string | null
           subdomain?: string
           updated_at?: string
           whatsapp_message?: string | null
@@ -1148,36 +1169,57 @@ export type Database = {
     Views: {
       barbearias_publicas: {
         Row: {
+          cep: string | null
+          city: string | null
+          complement: string | null
           created_at: string | null
           id: string | null
           logo_url: string | null
           name: string | null
+          neighborhood: string | null
+          number: string | null
           primary_color: string | null
           rating_avg: number | null
           rating_count: number | null
           secondary_color: string | null
+          state: string | null
+          street: string | null
           subdomain: string | null
         }
         Insert: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string | null
           id?: string | null
           logo_url?: string | null
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           secondary_color?: string | null
+          state?: string | null
+          street?: string | null
           subdomain?: string | null
         }
         Update: {
+          cep?: string | null
+          city?: string | null
+          complement?: string | null
           created_at?: string | null
           id?: string | null
           logo_url?: string | null
           name?: string | null
+          neighborhood?: string | null
+          number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
           secondary_color?: string | null
+          state?: string | null
+          street?: string | null
           subdomain?: string | null
         }
         Relationships: []

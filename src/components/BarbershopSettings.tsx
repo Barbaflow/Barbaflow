@@ -13,6 +13,14 @@ import { toast } from "sonner";
 import { Link } from "@tanstack/react-router";
 import { QRCodeCanvas } from "qrcode.react";
 import jsPDF from "jspdf";
+import {
+  AddressFields,
+  EMPTY_ADDRESS,
+  addressForDb,
+  isAddressComplete,
+  type AddressValue,
+} from "@/components/AddressFields";
+import { MapPin } from "lucide-react";
 
 interface BarbershopData {
   id: string;
@@ -35,6 +43,13 @@ interface BarbershopData {
   receipt_footer: string | null;
   receipt_thank_you_message: string | null;
   receipt_whatsapp_intro: string | null;
+  cep: string | null;
+  state: string | null;
+  city: string | null;
+  neighborhood: string | null;
+  street: string | null;
+  number: string | null;
+  complement: string | null;
 }
 
 const DEFAULT_RECEIPT_TITLE = "Recibo de atendimento";
@@ -77,6 +92,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const [receiptThanks, setReceiptThanks] = useState(DEFAULT_RECEIPT_THANKS);
   const [receiptWaIntro, setReceiptWaIntro] = useState(DEFAULT_RECEIPT_WA_INTRO);
   const [savingReceipt, setSavingReceipt] = useState(false);
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
+  const [savingAddress, setSavingAddress] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -330,6 +347,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           if (s.receipt_footer) setReceiptFooter(s.receipt_footer);
           if (s.receipt_thank_you_message) setReceiptThanks(s.receipt_thank_you_message);
           if (s.receipt_whatsapp_intro) setReceiptWaIntro(s.receipt_whatsapp_intro);
+          setAddress({
+            cep: s.cep ?? "",
+            state: s.state ?? "",
+            city: s.city ?? "",
+            neighborhood: s.neighborhood ?? "",
+            street: s.street ?? "",
+            number: s.number ?? "",
+            complement: s.complement ?? "",
+          });
         }
       });
   }, [barbershopId]);
@@ -441,6 +467,25 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       toast.success("Personalização do recibo salva!");
     }
     setSavingReceipt(false);
+  };
+
+  const handleSaveAddress = async () => {
+    if (!isAddressComplete(address)) {
+      toast.error("Preencha CEP, estado, cidade, bairro e rua.");
+      return;
+    }
+    setSavingAddress(true);
+    const { error } = await supabase
+      .from("barbershops")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update(addressForDb(address) as any)
+      .eq("id", barbershopId);
+    if (error) {
+      toast.error("Erro ao salvar endereço.");
+    } else {
+      toast.success("Endereço salvo!");
+    }
+    setSavingAddress(false);
   };
 
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -592,6 +637,37 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
               </Button>
               <p className="text-xs text-muted-foreground">PNG, JPG ou SVG. Máx 2MB.</p>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Endereço */}
+      <Card className="border-border bg-card">
+        <CardHeader>
+          <CardTitle className="font-display text-lg flex items-center gap-2">
+            <MapPin className="w-5 h-5 text-gold" />
+            Endereço da barbearia
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            O endereço é exibido publicamente e usado pelos clientes para filtrar
+            barbearias por estado, cidade, bairro e rua.
+          </p>
+          <AddressFields value={address} onChange={setAddress} idPrefix="settings" />
+          <div className="flex justify-end">
+            <Button
+              variant="gold"
+              onClick={handleSaveAddress}
+              disabled={savingAddress || !isAddressComplete(address)}
+            >
+              {savingAddress ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Check className="w-4 h-4" />
+              )}
+              {savingAddress ? "Salvando..." : "Salvar endereço"}
+            </Button>
           </div>
         </CardContent>
       </Card>

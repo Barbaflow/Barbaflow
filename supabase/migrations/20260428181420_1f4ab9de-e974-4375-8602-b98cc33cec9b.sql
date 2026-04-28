@@ -1,0 +1,1 @@
+ALTER VIEW public.barbearias_publicas SET (security_invoker = true);

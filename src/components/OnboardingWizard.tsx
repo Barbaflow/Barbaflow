@@ -16,10 +16,18 @@ import {
   Loader2,
   ImageIcon,
   Check,
+  MapPin,
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AddressFields,
+  EMPTY_ADDRESS,
+  addressForDb,
+  isAddressComplete,
+  type AddressValue,
+} from "@/components/AddressFields";
 
-const STEPS = ["Barbearia", "Branding", "Revisão"] as const;
+const STEPS = ["Barbearia", "Endereço", "Branding", "Revisão"] as const;
 
 export function OnboardingWizard() {
   const { user } = useAuth();
@@ -28,11 +36,11 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
-  const [uploading, setUploading] = useState(false);
 
   // Form state
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
+  const [address, setAddress] = useState<AddressValue>(EMPTY_ADDRESS);
   const [primaryColor, setPrimaryColor] = useState("#C8A96E");
   const [secondaryColor, setSecondaryColor] = useState("#1A1A2E");
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -45,6 +53,7 @@ export function OnboardingWizard() {
 
   const canAdvance = () => {
     if (step === 0) return name.trim().length >= 2 && subdomainSlug.length >= 3;
+    if (step === 1) return isAddressComplete(address);
     return true;
   };
 
@@ -65,6 +74,11 @@ export function OnboardingWizard() {
 
   const handleSubmit = async () => {
     if (!user) return;
+    if (!isAddressComplete(address)) {
+      toast.error("Preencha o endereço completo.");
+      setStep(1);
+      return;
+    }
     setSubmitting(true);
 
     try {
@@ -82,7 +96,7 @@ export function OnboardingWizard() {
         return;
       }
 
-      // 2. Create barbershop
+      // 2. Create barbershop with address
       const { data: shop, error: insertError } = await supabase
         .from("barbershops")
         .insert({
@@ -91,6 +105,7 @@ export function OnboardingWizard() {
           primary_color: primaryColor,
           secondary_color: secondaryColor,
           owner_id: user.id,
+          ...addressForDb(address),
         })
         .select()
         .single();
@@ -223,8 +238,25 @@ export function OnboardingWizard() {
         </div>
       )}
 
-      {/* Step 2: Branding */}
+      {/* Step 2: Address */}
       {step === 1 && (
+        <div className="space-y-6">
+          <div className="text-center mb-6">
+            <MapPin className="w-10 h-10 text-gold mx-auto mb-3" />
+            <h2 className="text-2xl font-display font-bold text-foreground">
+              Onde fica?
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Endereço completo — usado pelos clientes para encontrar você
+            </p>
+          </div>
+
+          <AddressFields value={address} onChange={setAddress} idPrefix="onb" />
+        </div>
+      )}
+
+      {/* Step 3: Branding */}
+      {step === 2 && (
         <div className="space-y-6">
           <div className="text-center mb-6">
             <Palette className="w-10 h-10 text-gold mx-auto mb-3" />
@@ -308,8 +340,8 @@ export function OnboardingWizard() {
         </div>
       )}
 
-      {/* Step 3: Review */}
-      {step === 2 && (
+      {/* Step 4: Review */}
+      {step === 3 && (
         <div className="space-y-6">
           <div className="text-center mb-6">
             <Scissors className="w-10 h-10 text-gold mx-auto mb-3" />
@@ -345,25 +377,20 @@ export function OnboardingWizard() {
                 </div>
               </div>
 
-              {/* Preview buttons */}
-              <div className="flex gap-2">
-                <div
-                  className="px-4 py-2 rounded-md text-sm font-medium"
-                  style={{ backgroundColor: primaryColor, color: secondaryColor }}
-                >
-                  Agendar
-                </div>
-                <div
-                  className="px-4 py-2 rounded-md text-sm font-medium border"
-                  style={{ borderColor: primaryColor, color: primaryColor }}
-                >
-                  Ver Serviços
-                </div>
-              </div>
-
               <div className="pt-3 border-t border-border space-y-1 text-sm">
                 <p><span className="text-muted-foreground">Nome:</span> {name}</p>
                 <p><span className="text-muted-foreground">URL:</span> {subdomainSlug}.barbaflow.app</p>
+                <p>
+                  <span className="text-muted-foreground">Endereço:</span>{" "}
+                  {address.street}
+                  {address.number ? `, ${address.number}` : ""}
+                  {address.complement ? ` — ${address.complement}` : ""}
+                </p>
+                <p>
+                  <span className="text-muted-foreground">Bairro/Cidade:</span>{" "}
+                  {address.neighborhood} — {address.city}/{address.state}
+                </p>
+                <p><span className="text-muted-foreground">CEP:</span> {address.cep}</p>
                 <p><span className="text-muted-foreground">Primária:</span> {primaryColor}</p>
                 <p><span className="text-muted-foreground">Secundária:</span> {secondaryColor}</p>
                 <p><span className="text-muted-foreground">Logo:</span> {logoFile ? logoFile.name : "Nenhum"}</p>
