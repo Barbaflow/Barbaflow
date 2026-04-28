@@ -261,12 +261,28 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         .eq("id", appointment.id);
       if (aErr) throw aErr;
 
-      // 5) Buscar dados para o recibo (barbearia + cliente)
-      const [shopRes, profRes, phoneRes] = await Promise.all([
+      // 5) Buscar dados para o recibo (barbearia + cliente + barbeiro se necessário)
+      const needsBarberFetch = !appointment.barber_name;
+      const [shopRes, profRes, phoneRes, barberRes] = await Promise.all([
         supabase.from("barbershops").select("name").eq("id", appointment.barbershop_id).maybeSingle(),
         supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
+        needsBarberFetch
+          ? supabase.from("profiles").select("full_name").eq("user_id", appointment.barber_id).maybeSingle()
+          : Promise.resolve({ data: null } as any),
       ]);
+
+      const barberName =
+        appointment.barber_name ||
+        (barberRes?.data as { full_name?: string } | null)?.full_name ||
+        "Barbeiro";
+
+      let startedAt: Date | null = null;
+      if (appointment.date && appointment.start_time) {
+        const t = appointment.start_time.length === 5 ? `${appointment.start_time}:00` : appointment.start_time;
+        const d = new Date(`${appointment.date}T${t}`);
+        if (!isNaN(d.getTime())) startedAt = d;
+      }
 
       toast.success(`Atendimento finalizado — ${fmt(total)}`);
       setSummary({
@@ -274,6 +290,8 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         shopName: shopRes.data?.name || "Barbearia",
         clientName: profRes.data?.full_name || "Cliente",
         clientPhone: (phoneRes.data as string | null) || null,
+        barberName,
+        startedAt,
         items: items.map((it) => ({ ...it })),
         payments: payments.map((p) => ({ ...p })),
         subtotal,
