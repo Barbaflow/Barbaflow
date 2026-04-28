@@ -286,6 +286,96 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
     } finally {
       setSaving(false);
     }
+
+  // ===== Recibo PDF =====
+  const buildReceiptPdf = (s: NonNullable<typeof summary>): jsPDF => {
+    const doc = new jsPDF({ unit: "mm", format: [80, 297] }); // estilo cupom 80mm
+    const W = 80;
+    let y = 8;
+    const line = (text: string, opts: { size?: number; bold?: boolean; align?: "left" | "center" | "right"; gap?: number } = {}) => {
+      const { size = 9, bold = false, align = "left", gap = 4.5 } = opts;
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(size);
+      const x = align === "center" ? W / 2 : align === "right" ? W - 5 : 5;
+      doc.text(text, x, y, { align });
+      y += gap;
+    };
+    const sep = () => {
+      doc.setLineDashPattern([0.6, 0.6], 0);
+      doc.line(5, y, W - 5, y);
+      y += 3;
+    };
+    const row = (l: string, r: string, bold = false) => {
+      doc.setFont("helvetica", bold ? "bold" : "normal");
+      doc.setFontSize(bold ? 10 : 9);
+      doc.text(l, 5, y);
+      doc.text(r, W - 5, y, { align: "right" });
+      y += 4.5;
+    };
+
+    line(s.shopName, { size: 12, bold: true, align: "center", gap: 5 });
+    line("Recibo de atendimento", { size: 8, align: "center", gap: 3 });
+    line(s.closedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }), { size: 8, align: "center" });
+    line(`Comanda: ${s.ticketId.slice(0, 8).toUpperCase()}`, { size: 8, align: "center" });
+    sep();
+    line(`Cliente: ${s.clientName}`, { size: 9 });
+    sep();
+    line("Itens", { size: 9, bold: true });
+    s.items.forEach((it) => {
+      const desc = it.description.length > 28 ? it.description.slice(0, 27) + "…" : it.description;
+      row(`${it.quantity}x ${desc}`, fmt(it.unit_price * it.quantity));
+    });
+    sep();
+    row("Subtotal", fmt(s.subtotal));
+    if (s.discountValue > 0) {
+      row(`Desconto${s.discountType === "percent" ? ` (${s.discountAmount}%)` : ""}`, `- ${fmt(s.discountValue)}`);
+    }
+    row("TOTAL", fmt(s.total), true);
+    sep();
+    line("Pagamentos", { size: 9, bold: true });
+    s.payments.forEach((p) => row(p.method_name, fmt(p.amount)));
+    if (s.notes) {
+      sep();
+      line("Obs.: " + s.notes, { size: 8 });
+    }
+    sep();
+    line("Obrigado pela preferência!", { size: 9, align: "center", bold: true, gap: 4 });
+    line("Volte sempre 💈", { size: 8, align: "center" });
+    return doc;
+  };
+
+  const downloadPdf = () => {
+    if (!summary) return;
+    const doc = buildReceiptPdf(summary);
+    doc.save(`recibo-${summary.ticketId.slice(0, 8)}.pdf`);
+  };
+
+  const sendWhatsapp = async () => {
+    if (!summary) return;
+    const phone = (summary.clientPhone || "").replace(/\D/g, "");
+    // 1) Baixa o PDF para o cliente anexar
+    downloadPdf();
+    // 2) Monta texto resumo
+    const lines: string[] = [
+      `*${summary.shopName}* — Recibo`,
+      `Olá, ${summary.clientName}! Segue o resumo do seu atendimento:`,
+      "",
+      ...summary.items.map((it) => `• ${it.quantity}x ${it.description} — ${fmt(it.unit_price * it.quantity)}`),
+      "",
+      `Subtotal: ${fmt(summary.subtotal)}`,
+    ];
+    if (summary.discountValue > 0) lines.push(`Desconto: - ${fmt(summary.discountValue)}`);
+    lines.push(`*Total: ${fmt(summary.total)}*`);
+    lines.push("");
+    lines.push("Pagamento: " + summary.payments.map((p) => `${p.method_name} (${fmt(p.amount)})`).join(", "));
+    lines.push("");
+    lines.push("Obrigado pela preferência! 💈");
+    const text = encodeURIComponent(lines.join("\n"));
+    const url = phone
+      ? `https://wa.me/${phone.startsWith("55") ? phone : "55" + phone}?text=${text}`
+      : `https://wa.me/?text=${text}`;
+    window.open(url, "_blank", "noopener,noreferrer");
+    if (!phone) toast.info("Cliente sem telefone. Escolha o contato no WhatsApp.");
   };
 
   return (
