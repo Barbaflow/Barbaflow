@@ -94,7 +94,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   useEffect(() => {
     if (!open) return;
     setDiscountType("fixed");
-    setDiscountAmount(0);
+    setDiscountInput("");
     setNotes("");
     setPayments([]);
     // Pre-popula com o serviço do agendamento
