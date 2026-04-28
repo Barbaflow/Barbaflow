@@ -388,10 +388,15 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       `*${summary.shopName}* — Recibo`,
       `Olá, ${summary.clientName}! Segue o resumo do seu atendimento:`,
       "",
-      ...summary.items.map((it) => `• ${it.quantity}x ${it.description} — ${fmt(it.unit_price * it.quantity)}`),
-      "",
-      `Subtotal: ${fmt(summary.subtotal)}`,
+      `Atendente: ${summary.barberName}`,
     ];
+    if (summary.startedAt) {
+      lines.push(`Início: ${summary.startedAt.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}`);
+    }
+    lines.push("");
+    summary.items.forEach((it) => lines.push(`• ${it.quantity}x ${it.description} — ${fmt(it.unit_price * it.quantity)}`));
+    lines.push("");
+    lines.push(`Subtotal: ${fmt(summary.subtotal)}`);
     if (summary.discountValue > 0) lines.push(`Desconto: - ${fmt(summary.discountValue)}`);
     lines.push(`*Total: ${fmt(summary.total)}*`);
     lines.push("");
