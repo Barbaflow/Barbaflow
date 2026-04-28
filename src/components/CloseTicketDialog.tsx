@@ -21,6 +21,9 @@ interface Props {
     client_id: string;
     barber_id: string;
     service_id: string;
+    date?: string;          // YYYY-MM-DD
+    start_time?: string;    // HH:MM[:SS]
+    barber_name?: string | null;
     service: { name: string; price: number } | null;
   };
   onClosed?: () => void;
