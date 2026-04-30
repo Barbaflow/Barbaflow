@@ -928,15 +928,7 @@ export function ManualAppointmentDialog({
             )}
             {(() => {
               if (isEditing || !date || !selectedTime) return null;
-              const now = new Date();
-              const todayISO = `${now.getFullYear()}-${(now.getMonth() + 1)
-                .toString()
-                .padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-              const nowMin = now.getHours() * 60 + now.getMinutes();
-              const isRetro =
-                date < todayISO ||
-                (date === todayISO && toMin(selectedTime) <= nowMin);
-              if (!isRetro) return null;
+              if (!isRetroactiveSlot(date, selectedTime)) return null;
               return (
                 <div className="flex items-start gap-2 p-2.5 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
                   <Clock className="w-3.5 h-3.5 mt-0.5 text-primary flex-shrink-0" />
