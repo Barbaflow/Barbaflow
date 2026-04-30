@@ -466,6 +466,15 @@ export function ManualAppointmentDialog({
       .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
     const isPastDate = date < todayISO;
 
+    const AUTO_NOTE = "[Encaixe / pré-registro de histórico]";
+    const userNote = notes.trim();
+    const finalNotes =
+      isPastDate && !isEditing
+        ? userNote
+          ? `${AUTO_NOTE} ${userNote}`
+          : AUTO_NOTE
+        : userNote || null;
+
     const payload: any = {
       barbershop_id: barbershopId,
       client_id: selectedClient.user_id,
@@ -474,7 +483,7 @@ export function ManualAppointmentDialog({
       date,
       start_time: `${selectedTime}:00`,
       end_time: endTime,
-      notes: notes.trim() || null,
+      notes: finalNotes,
     };
 
     // Encaixe / pré-registro de histórico: datas passadas entram como concluído
