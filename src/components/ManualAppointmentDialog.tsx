@@ -52,6 +52,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
+import { isRetroactiveSlot } from "@/lib/tz";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
 const dateToISO = (d: Date) =>
@@ -370,13 +371,8 @@ export function ManualAppointmentDialog({
           e: toMin(a.end_time),
         }));
 
-      const today = new Date();
-      const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
-      const isToday = date === todayISO;
-      const isPastDate = date < todayISO;
-      const nowMin = today.getHours() * 60 + today.getMinutes();
+      // (cálculo de "agora" não é mais necessário aqui — encaixes retroativos são liberados
+      // independentemente do horário; o status retroativo é decidido no submit usando o fuso do tenant.)
 
       const generated: Slot[] = [];
       if (!isBlocked) {
@@ -460,15 +456,9 @@ export function ManualAppointmentDialog({
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
-    const today = new Date();
-    const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
-    const nowMin = today.getHours() * 60 + today.getMinutes();
-    const isPastDate = date < todayISO;
-    // Encaixe também quando é hoje mas o horário já passou
-    const isPastTimeToday = date === todayISO && startMin <= nowMin;
-    const isRetroactive = isPastDate || isPastTimeToday;
+    // Decide se é encaixe retroativo usando o fuso horário do tenant (America/Sao_Paulo),
+    // não o relógio local do navegador — barbeiro pode estar em outro fuso/dispositivo desregulado.
+    const isRetroactive = isRetroactiveSlot(date, selectedTime);
 
     const AUTO_NOTE = "[Encaixe / pré-registro de histórico]";
     const userNote = notes.trim();
@@ -938,15 +928,7 @@ export function ManualAppointmentDialog({
             )}
             {(() => {
               if (isEditing || !date || !selectedTime) return null;
-              const now = new Date();
-              const todayISO = `${now.getFullYear()}-${(now.getMonth() + 1)
-                .toString()
-                .padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-              const nowMin = now.getHours() * 60 + now.getMinutes();
-              const isRetro =
-                date < todayISO ||
-                (date === todayISO && toMin(selectedTime) <= nowMin);
-              if (!isRetro) return null;
+              if (!isRetroactiveSlot(date, selectedTime)) return null;
               return (
                 <div className="flex items-start gap-2 p-2.5 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
                   <Clock className="w-3.5 h-3.5 mt-0.5 text-primary flex-shrink-0" />
