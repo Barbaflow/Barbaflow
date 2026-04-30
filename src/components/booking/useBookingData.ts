@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { todayISOInTenantTZ } from "@/lib/tz";
 import type { Service, AvailabilitySlot, Barber } from "./types";
 
 export function useBookingData(barbershopId: string) {
