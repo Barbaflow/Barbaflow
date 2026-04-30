@@ -72,3 +72,54 @@ export function todayISOInTenantTZ(tz: string = TENANT_TZ): string {
 export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): boolean {
   return dateISO < todayISOInTenantTZ(tz);
 }
+
+/**
+ * Converte (date YYYY-MM-DD, time HH:MM[:SS]) interpretados no fuso do tenant
+ * para o instante UTC absoluto correspondente, em milissegundos.
+ *
+ * Usado para comparar "quanto falta até o agendamento" de forma estável
+ * independente do fuso do dispositivo do usuário.
+ *
+ * Implementação: descobrimos o offset do TZ na data alvo (que pode mudar com DST)
+ * formatando a data como se fosse UTC e medindo a diferença.
+ */
+export function tenantDateTimeToUTCms(
+  dateISO: string,
+  time: string,
+  tz: string = TENANT_TZ
+): number {
+  const [h, m, s = "0"] = time.split(":");
+  // Ponto de partida: tratamos os componentes como se fossem UTC.
+  const asIfUTC = Date.UTC(
+    Number(dateISO.slice(0, 4)),
+    Number(dateISO.slice(5, 7)) - 1,
+    Number(dateISO.slice(8, 10)),
+    Number(h),
+    Number(m),
+    Number(s)
+  );
+  // Calcula o offset do TZ para esse instante. Renderizamos `asIfUTC` no TZ alvo
+  // e medimos a diferença em minutos contra a leitura UTC.
+  const dtf = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+  const parts = dtf.formatToParts(new Date(asIfUTC));
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value ?? "0");
+  const tzAsUTC = Date.UTC(
+    get("year"),
+    get("month") - 1,
+    get("day"),
+    get("hour") === 24 ? 0 : get("hour"),
+    get("minute"),
+    get("second")
+  );
+  const offsetMs = tzAsUTC - asIfUTC; // quanto o TZ está adiantado em relação ao UTC
+  return asIfUTC - offsetMs;
+}
