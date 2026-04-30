@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
+import { setActiveTenantTZ, DEFAULT_TENANT_TZ } from "@/lib/tz";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Barbershop = Tables<"barbershops">;
