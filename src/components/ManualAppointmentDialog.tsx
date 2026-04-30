@@ -52,6 +52,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
+import { nowInTenantTZ, isRetroactiveSlot } from "@/lib/tz";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
 const dateToISO = (d: Date) =>
