@@ -139,7 +139,7 @@ function ContatoPage() {
             <div className="md:col-span-2 space-y-6">
               {[
                 { icon: Mail, label: "Email", value: "contato@barbaflow.pro" },
-                { icon: Phone, label: "WhatsApp", value: "(11) 99999-9999" },
+                { icon: Phone, label: "WhatsApp", value: "+55 (74) 98117-8885" },
                 { icon: MapPin, label: "Localização", value: "São Paulo, SP — Brasil" },
               ].map((item) => (
                 <div
