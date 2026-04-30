@@ -371,13 +371,8 @@ export function ManualAppointmentDialog({
           e: toMin(a.end_time),
         }));
 
-      const today = new Date();
-      const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
-        .toString()
-        .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
-      const isToday = date === todayISO;
-      const isPastDate = date < todayISO;
-      const nowMin = today.getHours() * 60 + today.getMinutes();
+      // (cálculo de "agora" não é mais necessário aqui — encaixes retroativos são liberados
+      // independentemente do horário; o status retroativo é decidido no submit usando o fuso do tenant.)
 
       const generated: Slot[] = [];
       if (!isBlocked) {
