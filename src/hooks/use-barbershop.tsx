@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
+import { setActiveTenantTZ, DEFAULT_TENANT_TZ } from "@/lib/tz";
 import type { Tables } from "@/integrations/supabase/types";
 
 type Barbershop = Tables<"barbershops">;
@@ -72,6 +73,14 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
       resolveFromUserRoles();
     }
   }, []);
+
+  // Sincroniza o fuso horário ativo do tenant assim que a barbearia carrega
+  // (e em qualquer atualização realtime). Isso garante que todayISOInTenantTZ
+  // e isRetroactiveSlot usem sempre a mesma base, em qualquer parte do app.
+  useEffect(() => {
+    const tz = (barbershop as unknown as { timezone?: string } | null)?.timezone;
+    setActiveTenantTZ(tz ?? DEFAULT_TENANT_TZ);
+  }, [barbershop]);
 
   // Subscribe to realtime updates on the resolved barbershop
   useEffect(() => {

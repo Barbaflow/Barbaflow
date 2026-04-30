@@ -1,7 +1,39 @@
 // Fuso horário de operação do tenant.
-// Hoje todas as barbearias operam no Brasil; usamos America/Sao_Paulo (UTC-3, sem DST).
-// Se no futuro houver tenants em outros fusos, expor isto via barbershops.timezone.
-export const TENANT_TZ = "America/Sao_Paulo";
+// Default: America/Sao_Paulo (UTC-3, sem DST). Cada barbearia pode ter seu
+// próprio fuso via coluna `barbershops.timezone`. O valor ativo é definido
+// dinamicamente após o carregamento do tenant (ver setActiveTenantTZ).
+export const DEFAULT_TENANT_TZ = "America/Sao_Paulo";
+
+let _activeTenantTZ: string = DEFAULT_TENANT_TZ;
+
+/**
+ * Define o fuso ativo do tenant. Chamado uma vez quando o BarbershopProvider
+ * resolve a barbearia atual. Validamos via Intl para evitar fusos inválidos.
+ */
+export function setActiveTenantTZ(tz: string | null | undefined): void {
+  if (!tz) {
+    _activeTenantTZ = DEFAULT_TENANT_TZ;
+    return;
+  }
+  try {
+    // Lança RangeError se a TZ for inválida.
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    _activeTenantTZ = tz;
+  } catch {
+    _activeTenantTZ = DEFAULT_TENANT_TZ;
+  }
+}
+
+/** Retorna o TZ ativo do tenant (ou o default se ainda não foi definido). */
+export function getActiveTenantTZ(): string {
+  return _activeTenantTZ;
+}
+
+/**
+ * @deprecated Use getActiveTenantTZ() para reagir ao tenant carregado.
+ * Mantido como constante de compatibilidade — sempre devolve o default.
+ */
+export const TENANT_TZ = DEFAULT_TENANT_TZ;
 
 /**
  * Retorna { iso, minutes } representando "agora" no fuso do tenant:
@@ -11,7 +43,7 @@ export const TENANT_TZ = "America/Sao_Paulo";
  * Usa Intl.DateTimeFormat para extrair os componentes na timezone alvo,
  * evitando depender do relógio local do navegador (que pode estar em outro fuso).
  */
-export function nowInTenantTZ(tz: string = TENANT_TZ): {
+export function nowInTenantTZ(tz: string = getActiveTenantTZ()): {
   iso: string;
   minutes: number;
 } {
@@ -55,7 +87,7 @@ export function timeToMinutes(t: string): number {
 export function isRetroactiveSlot(
   dateISO: string,
   startTime: string,
-  tz: string = TENANT_TZ
+  tz: string = getActiveTenantTZ()
 ): boolean {
   const { iso: todayISO, minutes: nowMin } = nowInTenantTZ(tz);
   if (dateISO < todayISO) return true;
@@ -64,12 +96,12 @@ export function isRetroactiveSlot(
 }
 
 /** YYYY-MM-DD do "hoje" no fuso do tenant. */
-export function todayISOInTenantTZ(tz: string = TENANT_TZ): string {
+export function todayISOInTenantTZ(tz: string = getActiveTenantTZ()): string {
   return nowInTenantTZ(tz).iso;
 }
 
 /** True se a data (YYYY-MM-DD) é anterior ao "hoje" no fuso do tenant. */
-export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): boolean {
+export function isPastDateInTenantTZ(dateISO: string, tz: string = getActiveTenantTZ()): boolean {
   return dateISO < todayISOInTenantTZ(tz);
 }
 
@@ -86,7 +118,7 @@ export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): b
 export function tenantDateTimeToUTCms(
   dateISO: string,
   time: string,
-  tz: string = TENANT_TZ
+  tz: string = getActiveTenantTZ()
 ): number {
   const [h, m, s = "0"] = time.split(":");
   // Ponto de partida: tratamos os componentes como se fossem UTC.
