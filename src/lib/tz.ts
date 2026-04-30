@@ -1,7 +1,39 @@
 // Fuso horário de operação do tenant.
-// Hoje todas as barbearias operam no Brasil; usamos America/Sao_Paulo (UTC-3, sem DST).
-// Se no futuro houver tenants em outros fusos, expor isto via barbershops.timezone.
-export const TENANT_TZ = "America/Sao_Paulo";
+// Default: America/Sao_Paulo (UTC-3, sem DST). Cada barbearia pode ter seu
+// próprio fuso via coluna `barbershops.timezone`. O valor ativo é definido
+// dinamicamente após o carregamento do tenant (ver setActiveTenantTZ).
+export const DEFAULT_TENANT_TZ = "America/Sao_Paulo";
+
+let _activeTenantTZ: string = DEFAULT_TENANT_TZ;
+
+/**
+ * Define o fuso ativo do tenant. Chamado uma vez quando o BarbershopProvider
+ * resolve a barbearia atual. Validamos via Intl para evitar fusos inválidos.
+ */
+export function setActiveTenantTZ(tz: string | null | undefined): void {
+  if (!tz) {
+    _activeTenantTZ = DEFAULT_TENANT_TZ;
+    return;
+  }
+  try {
+    // Lança RangeError se a TZ for inválida.
+    new Intl.DateTimeFormat("en-CA", { timeZone: tz });
+    _activeTenantTZ = tz;
+  } catch {
+    _activeTenantTZ = DEFAULT_TENANT_TZ;
+  }
+}
+
+/** Retorna o TZ ativo do tenant (ou o default se ainda não foi definido). */
+export function getActiveTenantTZ(): string {
+  return _activeTenantTZ;
+}
+
+/**
+ * @deprecated Use getActiveTenantTZ() para reagir ao tenant carregado.
+ * Mantido como constante de compatibilidade — sempre devolve o default.
+ */
+export const TENANT_TZ = DEFAULT_TENANT_TZ;
 
 /**
  * Retorna { iso, minutes } representando "agora" no fuso do tenant:
