@@ -384,12 +384,12 @@ export function ManualAppointmentDialog({
           for (let t = w.s; t + service.duration_minutes <= w.e; t += service.duration_minutes) {
             const slotEnd = t + service.duration_minutes;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
-            // Datas passadas: todos os horários ficam disponíveis (encaixe no histórico)
-            const isPast = isToday && t <= nowMin && !isPastDate;
+            // Encaixe / pré-registro: horários passados (hoje ou em datas passadas)
+            // ficam disponíveis para registro retroativo no histórico.
             generated.push({
               time: fmtShort(t),
-              available: !conflicts && !isPast,
-              reason: conflicts ? "ocupado" : isPast ? "passado" : undefined,
+              available: !conflicts,
+              reason: conflicts ? "ocupado" : undefined,
             });
           }
         }
