@@ -932,6 +932,15 @@ export function ManualAppointmentDialog({
                 Selecione um barbeiro para ver os dias disponíveis.
               </p>
             )}
+            {!isEditing && date && date < new Date().toISOString().slice(0, 10) && (
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
+                <Clock className="w-3.5 h-3.5 mt-0.5 text-primary flex-shrink-0" />
+                <span>
+                  <strong>Encaixe / pré-registro:</strong> este agendamento será salvo como{" "}
+                  <strong>concluído</strong> no histórico, com nota automática.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Time slots grid */}
