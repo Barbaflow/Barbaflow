@@ -371,11 +371,11 @@ export function ManualAppointmentDialog({
         }));
 
       const today = new Date();
-      const isToday =
-        date ===
-        `${today.getFullYear()}-${(today.getMonth() + 1)
-          .toString()
-          .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+      const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
+        .toString()
+        .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+      const isToday = date === todayISO;
+      const isPastDate = date < todayISO;
       const nowMin = today.getHours() * 60 + today.getMinutes();
 
       const generated: Slot[] = [];
@@ -384,7 +384,8 @@ export function ManualAppointmentDialog({
           for (let t = w.s; t + service.duration_minutes <= w.e; t += service.duration_minutes) {
             const slotEnd = t + service.duration_minutes;
             const conflicts = busy.some((b) => t < b.e && slotEnd > b.s);
-            const isPast = isToday && t <= nowMin;
+            // Datas passadas: todos os horários ficam disponíveis (encaixe no histórico)
+            const isPast = isToday && t <= nowMin && !isPastDate;
             generated.push({
               time: fmtShort(t),
               available: !conflicts && !isPast,
