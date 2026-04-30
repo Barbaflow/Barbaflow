@@ -74,6 +74,14 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
     }
   }, []);
 
+  // Sincroniza o fuso horário ativo do tenant assim que a barbearia carrega
+  // (e em qualquer atualização realtime). Isso garante que todayISOInTenantTZ
+  // e isRetroactiveSlot usem sempre a mesma base, em qualquer parte do app.
+  useEffect(() => {
+    const tz = (barbershop as unknown as { timezone?: string } | null)?.timezone;
+    setActiveTenantTZ(tz ?? DEFAULT_TENANT_TZ);
+  }, [barbershop]);
+
   // Subscribe to realtime updates on the resolved barbershop
   useEffect(() => {
     if (!barbershop?.id) return;
