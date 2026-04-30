@@ -140,7 +140,7 @@ function ContatoPage() {
               {[
                 { icon: Mail, label: "Email", value: "contato@barbaflow.pro" },
                 { icon: Phone, label: "WhatsApp", value: "+55 (74) 98117-8885" },
-                { icon: MapPin, label: "Localização", value: "São Paulo, SP — Brasil" },
+                { icon: MapPin, label: "Localização", value: "Bahia — Brasil" },
               ].map((item) => (
                 <div
                   key={item.label}
