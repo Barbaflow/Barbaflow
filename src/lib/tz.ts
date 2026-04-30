@@ -62,3 +62,13 @@ export function isRetroactiveSlot(
   if (dateISO > todayISO) return false;
   return timeToMinutes(startTime) <= nowMin;
 }
+
+/** YYYY-MM-DD do "hoje" no fuso do tenant. */
+export function todayISOInTenantTZ(tz: string = TENANT_TZ): string {
+  return nowInTenantTZ(tz).iso;
+}
+
+/** True se a data (YYYY-MM-DD) é anterior ao "hoje" no fuso do tenant. */
+export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): boolean {
+  return dateISO < todayISOInTenantTZ(tz);
+}
