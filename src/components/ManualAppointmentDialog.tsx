@@ -460,7 +460,13 @@ export function ManualAppointmentDialog({
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
-    const payload = {
+    const today = new Date();
+    const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
+      .toString()
+      .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+    const isPastDate = date < todayISO;
+
+    const payload: any = {
       barbershop_id: barbershopId,
       client_id: selectedClient.user_id,
       barber_id: selectedBarber,
@@ -470,6 +476,11 @@ export function ManualAppointmentDialog({
       end_time: endTime,
       notes: notes.trim() || null,
     };
+
+    // Encaixe / pré-registro de histórico: datas passadas entram como concluído
+    if (isPastDate && !isEditing) {
+      payload.status = "completed";
+    }
 
     const { error } = isEditing
       ? await supabase.from("appointments").update(payload).eq("id", editAppointment!.id)
