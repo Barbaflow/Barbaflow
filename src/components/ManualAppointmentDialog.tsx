@@ -456,15 +456,9 @@ export function ManualAppointmentDialog({
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
 
-    const today = new Date();
-    const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
-      .toString()
-      .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
-    const nowMin = today.getHours() * 60 + today.getMinutes();
-    const isPastDate = date < todayISO;
-    // Encaixe também quando é hoje mas o horário já passou
-    const isPastTimeToday = date === todayISO && startMin <= nowMin;
-    const isRetroactive = isPastDate || isPastTimeToday;
+    // Decide se é encaixe retroativo usando o fuso horário do tenant (America/Sao_Paulo),
+    // não o relógio local do navegador — barbeiro pode estar em outro fuso/dispositivo desregulado.
+    const isRetroactive = isRetroactiveSlot(date, selectedTime);
 
     const AUTO_NOTE = "[Encaixe / pré-registro de histórico]";
     const userNote = notes.trim();
