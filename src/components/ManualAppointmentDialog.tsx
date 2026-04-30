@@ -466,6 +466,15 @@ export function ManualAppointmentDialog({
       .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
     const isPastDate = date < todayISO;
 
+    const AUTO_NOTE = "[Encaixe / pré-registro de histórico]";
+    const userNote = notes.trim();
+    const finalNotes =
+      isPastDate && !isEditing
+        ? userNote
+          ? `${AUTO_NOTE} ${userNote}`
+          : AUTO_NOTE
+        : userNote || null;
+
     const payload: any = {
       barbershop_id: barbershopId,
       client_id: selectedClient.user_id,
@@ -474,7 +483,7 @@ export function ManualAppointmentDialog({
       date,
       start_time: `${selectedTime}:00`,
       end_time: endTime,
-      notes: notes.trim() || null,
+      notes: finalNotes,
     };
 
     // Encaixe / pré-registro de histórico: datas passadas entram como concluído
@@ -922,6 +931,15 @@ export function ManualAppointmentDialog({
               <p className="text-xs text-muted-foreground">
                 Selecione um barbeiro para ver os dias disponíveis.
               </p>
+            )}
+            {!isEditing && date && date < new Date().toISOString().slice(0, 10) && (
+              <div className="flex items-start gap-2 p-2.5 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
+                <Clock className="w-3.5 h-3.5 mt-0.5 text-primary flex-shrink-0" />
+                <span>
+                  <strong>Encaixe / pré-registro:</strong> este agendamento será salvo como{" "}
+                  <strong>concluído</strong> no histórico, com nota automática.
+                </span>
+              </div>
             )}
           </div>
 
