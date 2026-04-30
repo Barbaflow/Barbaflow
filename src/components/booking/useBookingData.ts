@@ -8,7 +8,7 @@ export function useBookingData(barbershopId: string) {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
+    return todayISOInTenantTZ();
   });
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);
