@@ -39,7 +39,7 @@ interface DateSelectorProps {
 }
 
 export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISOInTenantTZ();
   const weekDays = getWeekDays(selectedDate);
   const { month, year } = formatDay(selectedDate);
 
