@@ -71,7 +71,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => todayISOInTenantTZ());
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [booking, setBooking] = useState(false);
