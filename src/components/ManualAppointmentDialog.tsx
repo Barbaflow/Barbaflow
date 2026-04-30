@@ -464,12 +464,16 @@ export function ManualAppointmentDialog({
     const todayISO = `${today.getFullYear()}-${(today.getMonth() + 1)
       .toString()
       .padStart(2, "0")}-${today.getDate().toString().padStart(2, "0")}`;
+    const nowMin = today.getHours() * 60 + today.getMinutes();
     const isPastDate = date < todayISO;
+    // Encaixe também quando é hoje mas o horário já passou
+    const isPastTimeToday = date === todayISO && startMin <= nowMin;
+    const isRetroactive = isPastDate || isPastTimeToday;
 
     const AUTO_NOTE = "[Encaixe / pré-registro de histórico]";
     const userNote = notes.trim();
     const finalNotes =
-      isPastDate && !isEditing
+      isRetroactive && !isEditing
         ? userNote
           ? `${AUTO_NOTE} ${userNote}`
           : AUTO_NOTE
@@ -486,8 +490,8 @@ export function ManualAppointmentDialog({
       notes: finalNotes,
     };
 
-    // Encaixe / pré-registro de histórico: datas passadas entram como concluído
-    if (isPastDate && !isEditing) {
+    // Encaixe / pré-registro de histórico: registros retroativos entram como concluído
+    if (isRetroactive && !isEditing) {
       payload.status = "completed";
     }
 
