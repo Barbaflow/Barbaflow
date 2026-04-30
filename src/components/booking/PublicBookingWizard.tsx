@@ -12,6 +12,7 @@ import { DateSelector } from "./DateSelector";
 import { TimeSlotGrid } from "./TimeSlotGrid";
 import { BookingConfirmation } from "./BookingConfirmation";
 import type { AvailabilitySlot, Service } from "./types";
+import { nowInTenantTZ, todayISOInTenantTZ } from "@/lib/tz";
 import {
   Store,
   User,
