@@ -12,6 +12,7 @@ import { DateSelector } from "./DateSelector";
 import { TimeSlotGrid } from "./TimeSlotGrid";
 import { BookingConfirmation } from "./BookingConfirmation";
 import type { AvailabilitySlot, Service } from "./types";
+import { nowInTenantTZ, todayISOInTenantTZ } from "@/lib/tz";
 import {
   Store,
   User,
@@ -70,7 +71,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(() => todayISOInTenantTZ());
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [booking, setBooking] = useState(false);
@@ -232,9 +233,10 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       .map((w) => ({ s: toMin(w.start_time), e: toMin(w.end_time) }));
     const freeWindows = windows.filter((w) => w.status === "livre");
 
-    const now = new Date();
-    const isToday = selectedDate === now.toISOString().split("T")[0];
-    const nowMin = now.getHours() * 60 + now.getMinutes();
+    // "Agora" no fuso do tenant — para que clientes em outro fuso (ou com relógio errado)
+    // ainda vejam slots passados como ocupados consistentemente com o resto do app.
+    const { iso: todayISO, minutes: nowMin } = nowInTenantTZ();
+    const isToday = selectedDate === todayISO;
 
     // Build distinct discrete slots from every "livre" window
     const seen = new Set<number>();

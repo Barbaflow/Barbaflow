@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
 import { format } from "date-fns";
+import { isPastDateInTenantTZ, tenantDateTimeToUTCms } from "@/lib/tz";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
@@ -352,13 +353,15 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
           {appointments.map((apt) => {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
-            const isPast = apt.date < new Date().toISOString().split("T")[0];
+            const isPast = isPastDateInTenantTZ(apt.date);
             const isFutureScheduled = apt.status === "scheduled" && !isPast;
             // Per-barbershop limits (default 2h, 0 = no limit). Configurable in settings.
             const minHours = rescheduleMinHoursMap[apt.barbershop_id] ?? 2;
             const cancelMinHours = cancelMinHoursMap[apt.barbershop_id] ?? 2;
-            const apptStart = new Date(`${apt.date}T${apt.start_time}`);
-            const hoursUntil = (apptStart.getTime() - Date.now()) / (1000 * 60 * 60);
+            // Instante absoluto do agendamento no fuso do tenant (estável independente
+            // do fuso do dispositivo do usuário).
+            const apptStartMs = tenantDateTimeToUTCms(apt.date, apt.start_time);
+            const hoursUntil = (apptStartMs - Date.now()) / (1000 * 60 * 60);
             const canReschedule = isFutureScheduled && (minHours <= 0 || hoursUntil >= minHours);
             const canCancel = isFutureScheduled && (cancelMinHours <= 0 || hoursUntil >= cancelMinHours);
             const rescheduleLocked = isFutureScheduled && !canReschedule;

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { todayISOInTenantTZ } from "@/lib/tz";
 import type { Service, AvailabilitySlot, Barber } from "./types";
 
 export function useBookingData(barbershopId: string) {
@@ -7,7 +8,7 @@ export function useBookingData(barbershopId: string) {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(() => {
-    return new Date().toISOString().split("T")[0];
+    return todayISOInTenantTZ();
   });
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [error, setError] = useState<string | null>(null);
