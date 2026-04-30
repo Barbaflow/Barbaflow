@@ -43,7 +43,7 @@ export const TENANT_TZ = DEFAULT_TENANT_TZ;
  * Usa Intl.DateTimeFormat para extrair os componentes na timezone alvo,
  * evitando depender do relógio local do navegador (que pode estar em outro fuso).
  */
-export function nowInTenantTZ(tz: string = TENANT_TZ): {
+export function nowInTenantTZ(tz: string = getActiveTenantTZ()): {
   iso: string;
   minutes: number;
 } {
@@ -87,7 +87,7 @@ export function timeToMinutes(t: string): number {
 export function isRetroactiveSlot(
   dateISO: string,
   startTime: string,
-  tz: string = TENANT_TZ
+  tz: string = getActiveTenantTZ()
 ): boolean {
   const { iso: todayISO, minutes: nowMin } = nowInTenantTZ(tz);
   if (dateISO < todayISO) return true;
@@ -96,12 +96,12 @@ export function isRetroactiveSlot(
 }
 
 /** YYYY-MM-DD do "hoje" no fuso do tenant. */
-export function todayISOInTenantTZ(tz: string = TENANT_TZ): string {
+export function todayISOInTenantTZ(tz: string = getActiveTenantTZ()): string {
   return nowInTenantTZ(tz).iso;
 }
 
 /** True se a data (YYYY-MM-DD) é anterior ao "hoje" no fuso do tenant. */
-export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): boolean {
+export function isPastDateInTenantTZ(dateISO: string, tz: string = getActiveTenantTZ()): boolean {
   return dateISO < todayISOInTenantTZ(tz);
 }
 
@@ -118,7 +118,7 @@ export function isPastDateInTenantTZ(dateISO: string, tz: string = TENANT_TZ): b
 export function tenantDateTimeToUTCms(
   dateISO: string,
   time: string,
-  tz: string = TENANT_TZ
+  tz: string = getActiveTenantTZ()
 ): number {
   const [h, m, s = "0"] = time.split(":");
   // Ponto de partida: tratamos os componentes como se fossem UTC.
