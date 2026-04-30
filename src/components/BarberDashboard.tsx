@@ -735,7 +735,15 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       acc.total++;
       if (a.status === "completed") {
         acc.completed++;
-        acc.revenue += a.service ? Number(a.service.price) : 0;
+        // Use ticket total when available (closed comanda); fallback to service price
+        // (encaixes / pré-registros têm completed sem ticket).
+        const ticketTotal = ticketStatusMap[a.id]?.total;
+        acc.revenue +=
+          ticketTotal !== undefined && ticketTotal > 0
+            ? ticketTotal
+            : a.service
+              ? Number(a.service.price)
+              : 0;
       }
       if (a.status === "cancelled") acc.cancelled++;
       if (a.status === "no_show") acc.noShow++;
