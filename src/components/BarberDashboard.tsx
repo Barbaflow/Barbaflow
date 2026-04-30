@@ -672,7 +672,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
     let query = supabase
       .from("appointments")
-      .select("id, status, service:services(price)")
+      .select("status, service:services(price)")
       .eq("barbershop_id", barbershopId)
       .gte("date", weekStart.toISOString().split("T")[0])
       .lte("date", weekEnd.toISOString().split("T")[0]);
@@ -686,27 +686,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     const { data } = await query;
     if (data) {
       const totalWeek = data.length;
-
-      // Pull ticket totals for completed appointments — encaixes (sem ticket) caem no price do serviço.
-      const completedIds = data
-        .filter((a) => a.status === "completed")
-        .map((a) => a.id);
-      const ticketTotals: Record<string, number> = {};
-      if (completedIds.length > 0) {
-        const { data: tks } = await supabase
-          .from("tickets")
-          .select("appointment_id, total")
-          .in("appointment_id", completedIds);
-        for (const t of tks || []) {
-          if (t.appointment_id) ticketTotals[t.appointment_id] = Number(t.total) || 0;
-        }
-      }
-
       const revenueWeek = data
         .filter((a) => a.status === "completed")
         .reduce((sum, a) => {
-          const ticketTotal = ticketTotals[a.id];
-          if (ticketTotal !== undefined && ticketTotal > 0) return sum + ticketTotal;
           const svc = Array.isArray(a.service) ? a.service[0] : a.service;
           return sum + (svc ? Number(svc.price) : 0);
         }, 0);
@@ -753,15 +735,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       acc.total++;
       if (a.status === "completed") {
         acc.completed++;
-        // Use ticket total when available (closed comanda); fallback to service price
-        // (encaixes / pré-registros têm completed sem ticket).
-        const ticketTotal = ticketStatusMap[a.id]?.total;
-        acc.revenue +=
-          ticketTotal !== undefined && ticketTotal > 0
-            ? ticketTotal
-            : a.service
-              ? Number(a.service.price)
-              : 0;
+        acc.revenue += a.service ? Number(a.service.price) : 0;
       }
       if (a.status === "cancelled") acc.cancelled++;
       if (a.status === "no_show") acc.noShow++;
