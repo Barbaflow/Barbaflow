@@ -875,9 +875,7 @@ export function ManualAppointmentDialog({
                     }
                   }}
                   disabled={(d) => {
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-                    if (d < today) return true;
+                    // Datas passadas são permitidas (encaixe / pré-registro no histórico)
                     if (activeWeekdays.size > 0 && !activeWeekdays.has(d.getDay())) return true;
                     if (blockedDates.has(dateToISO(d))) return true;
                     return false;
