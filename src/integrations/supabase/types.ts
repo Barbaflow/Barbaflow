@@ -227,6 +227,7 @@ export type Database = {
           status: Database["public"]["Enums"]["approval_status"]
           street: string | null
           subdomain: string
+          timezone: string
           updated_at: string
           whatsapp_message: string | null
         }
@@ -264,6 +265,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
           street?: string | null
           subdomain: string
+          timezone?: string
           updated_at?: string
           whatsapp_message?: string | null
         }
@@ -301,6 +303,7 @@ export type Database = {
           status?: Database["public"]["Enums"]["approval_status"]
           street?: string | null
           subdomain?: string
+          timezone?: string
           updated_at?: string
           whatsapp_message?: string | null
         }
