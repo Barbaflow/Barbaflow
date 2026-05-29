@@ -67,6 +67,21 @@ export function useNotifications() {
           const newNotif = payload.new as Notification;
           setNotifications((prev) => [newNotif, ...prev].slice(0, 20));
           setUnreadCount((c) => c + 1);
+
+          if (!getNotifEnabled()) return;
+
+          // Native browser notification — works in background / minimized tab.
+          showBrowserNotification(newNotif.title, {
+            body: newNotif.message,
+            tag: newNotif.id,
+            onClickUrl: newNotif.type === "new_appointment" ? "/agenda" : "/",
+          });
+
+          // In-app toast for when the tab IS focused (browser usually suppresses
+          // the system notification in that case).
+          if (typeof document !== "undefined" && !document.hidden) {
+            toast(newNotif.title, { description: newNotif.message });
+          }
         }
       )
       .subscribe();
