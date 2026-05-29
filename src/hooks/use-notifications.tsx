@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useSyncExternalStore } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { showBrowserNotification } from "@/lib/browser-notifications";
+import { toast } from "sonner";
 
 const NOTIF_ENABLED_KEY = "barbaflow_notifications_enabled";
 
