@@ -16,6 +16,14 @@ dist-ssr
 .nitro
 *.local
 
+# Variáveis de ambiente — nunca versionar (só o template)
+.env
+.env.*
+.env.local
+.env.development
+.env.production
+!.env.example
+
 # Wrangler / Cloudflare
 .wrangler/
 .dev.vars
