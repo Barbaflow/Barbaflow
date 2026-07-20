@@ -5,10 +5,11 @@
  * functions) lendo e gravando apenas em localStorage. Nenhuma requisição de
  * rede é feita e `createClient` do supabase-js nunca é chamado.
  */
-import { getMockSessionUserId, mockAuth } from "./auth";
+import { getMockSessionEmail, getMockSessionUserId, mockAuth } from "./auth";
 import { MockQueryBuilder, type MockResult } from "./query-builder";
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { dayOfWeekOf, minutesToTime, timeToMinutes } from "./fixtures";
+import { effectiveInvitationStatus } from "./rules";
 
 /* ------------------------------------------------------------------ */
 /* RPCs                                                                */
@@ -158,6 +159,102 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       })
       .filter((row) => row.noshow_count > 0)
       .sort((a, b) => b.noshow_count - a.noshow_count);
+  },
+
+  /**
+   * Aceita um convite de equipe pelo token.
+   *
+   * Devolve `{ success, error?, barbershop_id? }`, o formato que
+   * src/routes/convite.tsx espera. Nenhum email é enviado: o convite existe
+   * apenas como linha em team_invitations e o link é copiado na interface.
+   */
+  accept_team_invitation: (args) => {
+    const token = args._token;
+    const userId = getMockSessionUserId();
+    const sessionEmail = getMockSessionEmail();
+
+    if (!userId) {
+      return { success: false, error: "Faça login para aceitar o convite." };
+    }
+
+    const invitation = getTableRows("team_invitations").find((row) => row.token === token);
+    if (!invitation) {
+      return { success: false, error: "Convite não encontrado." };
+    }
+
+    const status = effectiveInvitationStatus(invitation);
+    if (status !== "pending") {
+      const labels: Record<string, string> = {
+        accepted: "Este convite já foi aceito.",
+        cancelled: "Este convite foi cancelado.",
+        expired: "Este convite expirou.",
+      };
+      return { success: false, error: labels[status] ?? "Convite indisponível." };
+    }
+
+    /* ---- o convite é nominal: só o destinatário pode aceitar ---- */
+    const invitedEmail = String(invitation.email ?? "").trim().toLowerCase();
+    const currentEmail = (sessionEmail ?? "").trim().toLowerCase();
+
+    if (!currentEmail || currentEmail !== invitedEmail) {
+      // Nenhum profile ou papel é criado aqui: a recusa acontece antes de
+      // qualquer escrita.
+      return {
+        success: false,
+        error: `Este convite foi enviado para ${invitation.email}. Entre com essa conta para aceitá-lo.`,
+      };
+    }
+
+    const barbershopId = String(invitation.barbershop_id);
+    const role = String(invitation.role ?? "barbeiro");
+    const timestamp = new Date().toISOString();
+
+    /* ---- profile: cria se ainda não existir ---- */
+    const profiles = getTableRows("profiles");
+    if (!profiles.some((row) => row.user_id === userId)) {
+      setTableRows("profiles", [
+        ...profiles,
+        {
+          id: newMockId(),
+          user_id: userId,
+          full_name: String(invitation.email).split("@")[0],
+          phone: null,
+          avatar_url: null,
+          created_at: timestamp,
+          updated_at: timestamp,
+        },
+      ]);
+    }
+
+    /* ---- papel: não duplica se já existir ---- */
+    const roles = getTableRows("user_roles");
+    const alreadyHasRole = roles.some(
+      (row) => row.user_id === userId && row.barbershop_id === barbershopId && row.role === role,
+    );
+    if (!alreadyHasRole) {
+      setTableRows("user_roles", [
+        ...roles,
+        {
+          id: newMockId(),
+          user_id: userId,
+          barbershop_id: barbershopId,
+          role,
+          created_at: timestamp,
+        },
+      ]);
+    }
+
+    /* ---- marca o convite como consumido ---- */
+    setTableRows(
+      "team_invitations",
+      getTableRows("team_invitations").map((row) =>
+        row.id === invitation.id
+          ? { ...row, status: "accepted", updated_at: timestamp }
+          : row,
+      ),
+    );
+
+    return { success: true, barbershop_id: barbershopId };
   },
 
   /** Cria um cliente avulso (profile + papel) e devolve o novo user_id. */
@@ -405,15 +502,26 @@ function createMockChannel(topic: string): MockChannel {
   return channel;
 }
 
+/**
+ * Storage depende de serviço real: no modo offline ele falha de forma
+ * explícita em vez de fingir sucesso. Antes o upload devolvia uma URL
+ * `/mock-storage/...` inexistente, e a tela salvava esse caminho quebrado
+ * como logo/avatar.
+ */
+const STORAGE_MESSAGE =
+  "Modo offline: upload de arquivos indisponível (depende do Storage do Supabase).";
+
 const mockStorageBucket = {
-  async upload(path: string, _file: unknown, _options?: unknown) {
-    return { data: { path, id: path, fullPath: path }, error: null };
+  async upload(_path: string, _file: unknown, _options?: unknown) {
+    console.warn(`[mock] ${STORAGE_MESSAGE}`);
+    return { data: null, error: { message: STORAGE_MESSAGE, name: "MockStorageError" } };
   },
-  getPublicUrl(path: string) {
-    return { data: { publicUrl: `/mock-storage/${path}` } };
+  getPublicUrl(_path: string) {
+    // Sem URL simulada: nada aponta para um arquivo que não existe.
+    return { data: { publicUrl: "" } };
   },
-  async remove(paths: string[]) {
-    return { data: paths.map((path) => ({ name: path })), error: null };
+  async remove(_paths: string[]) {
+    return { data: null, error: { message: STORAGE_MESSAGE, name: "MockStorageError" } };
   },
   async list() {
     return { data: [], error: null };

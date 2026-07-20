@@ -52,6 +52,8 @@ export const MOCK_USER_IDS = {
 
 export const MOCK_ADMIN_EMAIL = "admin@barbearia.teste";
 export const MOCK_ADMIN_B_EMAIL = "beatriz@navalha.teste";
+/** Destinatário do convite de equipe que pode ser aceito no seed. */
+export const MOCK_CLIENT_BENTO_EMAIL = "bento@cliente.teste";
 
 const SERVICE_IDS = {
   // Barbearia A
@@ -124,23 +126,10 @@ function buildBarbershops(): TableRow<"barbershops">[] {
     // Plano pro: sem isso a rota /relatorios cai no paywall do plano free.
     plan_id: MOCK_PLAN_IDS.pro,
     timezone: "America/Sao_Paulo",
+    // Storage indisponível no modo offline: nenhuma URL de arquivo simulada.
     logo_url: null,
     complement: null,
     appointments_this_month: 3,
-    cancel_min_hours: 2,
-    reschedule_min_hours: 2,
-    noshow_policy_enabled: false,
-    noshow_block_days: 7,
-    noshow_max_count: 3,
-    pdf_slogan: null,
-    pdf_template: null,
-    qr_size: null,
-    receipt_footer: null,
-    receipt_subtitle: null,
-    receipt_thank_you_message: null,
-    receipt_title: null,
-    receipt_whatsapp_intro: null,
-    whatsapp_message: null,
     created_at: NOW_ISO,
     updated_at: NOW_ISO,
   };
@@ -163,6 +152,21 @@ function buildBarbershops(): TableRow<"barbershops">[] {
       state: "SP",
       rating_avg: 4.8,
       rating_count: 12,
+      // Políticas mais permissivas que as da B.
+      cancel_min_hours: 2,
+      reschedule_min_hours: 2,
+      noshow_policy_enabled: false,
+      noshow_max_count: 3,
+      noshow_block_days: 7,
+      whatsapp_message: "Olá! Aqui é da Barbearia Modelo. Seu horário está confirmado.",
+      pdf_template: "classico",
+      pdf_slogan: "Tradição desde 1998",
+      qr_size: "240",
+      receipt_title: "Recibo — Barbearia Modelo",
+      receipt_subtitle: "Obrigado pela preferência",
+      receipt_footer: "Av. Paulista, 1000 — São Paulo/SP",
+      receipt_thank_you_message: "Volte sempre!",
+      receipt_whatsapp_intro: "Segue o comprovante do seu atendimento:",
     },
     {
       ...base,
@@ -181,6 +185,21 @@ function buildBarbershops(): TableRow<"barbershops">[] {
       state: "RJ",
       rating_avg: 4.5,
       rating_count: 7,
+      // Políticas mais rígidas e política de falta ativa.
+      cancel_min_hours: 24,
+      reschedule_min_hours: 12,
+      noshow_policy_enabled: true,
+      noshow_max_count: 2,
+      noshow_block_days: 15,
+      whatsapp_message: "Navalha de Ouro agradece! Seu horário está reservado.",
+      pdf_template: "moderno",
+      pdf_slogan: "Corte de assinatura",
+      qr_size: "320",
+      receipt_title: "Comprovante — Navalha de Ouro",
+      receipt_subtitle: "Atendimento premium",
+      receipt_footer: "Av. Atlântica, 250 — Rio de Janeiro/RJ",
+      receipt_thank_you_message: "Foi um prazer atender você.",
+      receipt_whatsapp_intro: "Seu comprovante:",
     },
   ];
 }
@@ -968,6 +987,96 @@ function buildReviews(): TableRow<"reviews">[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Convites de equipe                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Cobre os quatro estados que TeamManager renderiza. O convite "expirado"
+ * fica com `status: "pending"` e `expires_at` no passado — é assim que o
+ * banco real o guarda; quem decide é a data, não o campo.
+ */
+function buildTeamInvitations(): TableRow<"team_invitations">[] {
+  const future = new Date();
+  future.setDate(future.getDate() + 7);
+  const past = new Date();
+  past.setDate(past.getDate() - 3);
+
+  const base = { created_at: NOW_ISO, updated_at: NOW_ISO };
+
+  return [
+    {
+      ...base,
+      id: "0e0f0a01-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      email: "novo.barbeiro@barbearia.teste",
+      role: "barbeiro",
+      status: "pending",
+      token: "mock-invite-pendente-a",
+      expires_at: future.toISOString(),
+      invited_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0e0f0a01-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      email: "ana@barbearia.teste",
+      role: "barbeiro",
+      status: "accepted",
+      token: "mock-invite-aceito-a",
+      expires_at: future.toISOString(),
+      invited_by: MOCK_USER_IDS.admin,
+    },
+    {
+      // Pendente no campo, mas vencido pela data.
+      ...base,
+      id: "0e0f0a01-0000-4000-8000-000000000003",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      email: "expirado@barbearia.teste",
+      role: "barbeiro",
+      status: "pending",
+      token: "mock-invite-expirado-a",
+      expires_at: past.toISOString(),
+      invited_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0e0f0a01-0000-4000-8000-000000000004",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      email: "cancelado@barbearia.teste",
+      role: "admin_barbearia",
+      status: "cancelled",
+      token: "mock-invite-cancelado-a",
+      expires_at: future.toISOString(),
+      invited_by: MOCK_USER_IDS.admin,
+    },
+    {
+      // Convite nominal para uma conta fictícia existente: é o único que
+      // pode de fato ser aceito, já que o aceite exige email da sessão.
+      ...base,
+      id: "0e0f0a01-0000-4000-8000-000000000005",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      email: MOCK_CLIENT_BENTO_EMAIL,
+      role: "barbeiro",
+      status: "pending",
+      token: "mock-invite-para-bento",
+      expires_at: future.toISOString(),
+      invited_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0e0f0a02-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      email: "novo.barbeiro@navalha.teste",
+      role: "barbeiro",
+      status: "pending",
+      token: "mock-invite-pendente-b",
+      expires_at: future.toISOString(),
+      invited_by: MOCK_USER_IDS.adminBeatriz,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
 /* Planos                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -1389,5 +1498,6 @@ export function buildSeedDatabase(): MockDatabase {
     ticket_payments: payments,
     client_notes: buildClientNotes(),
     client_blocks: buildClientBlocks(),
+    team_invitations: buildTeamInvitations(),
   };
 }

@@ -6,8 +6,9 @@
  */
 import type { Session, User } from "@supabase/supabase-js";
 import { MOCK_ADMIN_B_EMAIL, MOCK_ADMIN_EMAIL, MOCK_USER_IDS } from "./fixtures";
+import { MOCK_SESSION_STORAGE_KEY, setMockActor } from "./session";
 
-const SESSION_KEY = "barbaflow.mock.session.v1";
+const SESSION_KEY = MOCK_SESSION_STORAGE_KEY;
 
 export interface MockAuthError {
   message: string;
@@ -155,12 +156,21 @@ function loadSession(): Session | null {
   } catch {
     currentSession = null;
   }
+  syncActor(currentSession);
   return currentSession;
+}
+
+/** Mantém o ator de src/mocks/session.ts alinhado com a sessão. */
+function syncActor(session: Session | null): void {
+  setMockActor(
+    session ? { id: session.user.id, email: session.user.email ?? null } : null,
+  );
 }
 
 function persistSession(session: Session | null): void {
   currentSession = session;
   sessionLoaded = true;
+  syncActor(session);
 
   if (!hasLocalStorage()) return;
   if (session) {
@@ -191,6 +201,11 @@ export function clearMockSession(): void {
  */
 export function getMockSessionUserId(): string | null {
   return loadSession()?.user.id ?? null;
+}
+
+/** Email da sessão atual, usado para conferir o destinatário do convite. */
+export function getMockSessionEmail(): string | null {
+  return loadSession()?.user.email ?? null;
 }
 
 /* ------------------------------------------------------------------ */
