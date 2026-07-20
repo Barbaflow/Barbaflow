@@ -3,6 +3,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { TenantThemeApplier } from "@/components/TenantThemeProvider";
 import { BarbershopProvider } from "@/hooks/use-barbershop";
 import { AutoClientRole } from "@/components/AutoClientRole";
+import { MockModeBanner } from "@/components/MockModeBanner";
 
 import appCss from "../styles.css?url";
 
@@ -103,6 +104,7 @@ function RootComponent() {
       <TenantThemeApplier />
       <AutoClientRole />
       <Outlet />
+      <MockModeBanner />
       <Toaster position="top-right" richColors />
     </BarbershopProvider>
   );
