@@ -45,8 +45,14 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       }));
   },
 
-  get_client_phone: (args) =>
-    getTableRows("profiles").find((row) => row.user_id === args._client_id)?.phone ?? null,
+  /**
+   * Telefone do cliente. Só responde se quem pede for staff de alguma
+   * barbearia à qual esse cliente pertence — o telefone não é público.
+   */
+  get_client_phone: (args) => {
+    if (!currentUserSharesBarbershopWith(args._client_id)) return null;
+    return getTableRows("profiles").find((row) => row.user_id === args._client_id)?.phone ?? null;
+  },
 
   /**
    * Clientes da barbearia, agregados a partir dos agendamentos.
@@ -62,6 +68,8 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       (row) => row.barbershop_id === barbershopId,
     );
 
+    const nowISO = new Date().toISOString();
+
     const byClient = new Map<string, MockRow[]>();
     for (const appointment of appointments) {
       const clientId = String(appointment.client_id);
@@ -72,7 +80,11 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
 
     return Array.from(byClient.entries()).map(([clientId, rows]) => {
       const profile = profiles.find((row) => row.user_id === clientId);
-      const block = blocks.find((row) => row.client_id === clientId);
+      // Só bloqueios ainda vigentes contam — um bloqueio expirado não pode
+      // deixar o cliente marcado como bloqueado para sempre na lista.
+      const block = blocks.find(
+        (row) => row.client_id === clientId && String(row.blocked_until) > nowISO,
+      );
       const countBy = (status: string) =>
         rows.filter((row) => row.status === status).length;
       const dates = rows.map((row) => String(row.date)).sort();
@@ -299,6 +311,35 @@ const TENANT_GUARDED_RPCS = new Set([
 
 /** Papéis que dão acesso a dados agregados da barbearia. */
 const STAFF_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+/**
+ * `true` quando o usuário da sessão é staff de alguma barbearia em que o
+ * cliente informado também está — base para liberar dados pessoais.
+ */
+function currentUserSharesBarbershopWith(clientId: unknown): boolean {
+  const userId = getMockSessionUserId();
+  if (!userId) return false;
+
+  const roles = getTableRows("user_roles");
+  const staffShops = new Set(
+    roles
+      .filter((row) => row.user_id === userId && STAFF_ROLES.has(String(row.role)))
+      .map((row) => String(row.barbershop_id)),
+  );
+  if (staffShops.size === 0) return false;
+
+  const clientShops = new Set<string>(
+    roles.filter((row) => row.user_id === clientId).map((row) => String(row.barbershop_id)),
+  );
+  for (const row of getTableRows("appointments")) {
+    if (row.client_id === clientId) clientShops.add(String(row.barbershop_id));
+  }
+
+  for (const shop of clientShops) {
+    if (staffShops.has(shop)) return true;
+  }
+  return false;
+}
 
 function currentUserIsStaffOf(barbershopId: unknown): boolean {
   const userId = getMockSessionUserId();

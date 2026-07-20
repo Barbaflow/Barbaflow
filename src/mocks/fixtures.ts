@@ -37,11 +37,17 @@ export const MOCK_USER_IDS = {
   barberBruno: "33333333-3333-4333-8333-333333333333",
   clienteCarla: "44444444-4444-4444-8444-444444444444",
   clienteCaio: "45454545-4545-4545-8545-454545454545",
+  /** Cliente sem telefone cadastrado. */
+  clienteDiego: "46464646-4646-4646-8646-464646464646",
+  /** Cliente avulso (walk-in) já existente no seed. */
+  walkinEva: "47474747-4747-4747-8747-474747474747",
   // Barbearia B
   adminBeatriz: "55555555-5555-4555-8555-555555555555",
   barberBianca: "66666666-6666-4666-8666-666666666666",
   barberBreno: "77777777-7777-4777-8777-777777777777",
   clienteBento: "88888888-8888-4888-8888-888888888888",
+  /** Cliente da B sem telefone. */
+  clienteBruna: "89898989-8989-4989-8989-898989898989",
 } as const;
 
 export const MOCK_ADMIN_EMAIL = "admin@barbearia.teste";
@@ -187,7 +193,8 @@ interface PersonSeed {
   userId: string;
   profileId: string;
   fullName: string;
-  phone: string;
+  /** `null` reproduz o cliente cadastrado sem telefone. */
+  phone: string | null;
 }
 
 const PEOPLE: readonly PersonSeed[] = [
@@ -222,6 +229,18 @@ const PEOPLE: readonly PersonSeed[] = [
     phone: "+5511900000005",
   },
   {
+    userId: MOCK_USER_IDS.clienteDiego,
+    profileId: "bbbbbbb1-0000-4000-8000-000000000006",
+    fullName: "Diego Cliente",
+    phone: null,
+  },
+  {
+    userId: MOCK_USER_IDS.walkinEva,
+    profileId: "bbbbbbb1-0000-4000-8000-000000000007",
+    fullName: "Eva Avulsa",
+    phone: "+5511900000007",
+  },
+  {
     userId: MOCK_USER_IDS.adminBeatriz,
     profileId: "bbbbbbb2-0000-4000-8000-000000000001",
     fullName: "Beatriz Dona",
@@ -244,6 +263,12 @@ const PEOPLE: readonly PersonSeed[] = [
     profileId: "bbbbbbb2-0000-4000-8000-000000000004",
     fullName: "Bento Cliente",
     phone: "+5521900000004",
+  },
+  {
+    userId: MOCK_USER_IDS.clienteBruna,
+    profileId: "bbbbbbb2-0000-4000-8000-000000000005",
+    fullName: "Bruna Cliente",
+    phone: null,
   },
 ];
 
@@ -280,12 +305,15 @@ const ROLES: readonly RoleSeed[] = [
   { userId: MOCK_USER_IDS.barberBruno, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteCarla, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   { userId: MOCK_USER_IDS.clienteCaio, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
+  { userId: MOCK_USER_IDS.clienteDiego, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
+  { userId: MOCK_USER_IDS.walkinEva, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   // Barbearia B
   { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "admin_barbearia" },
   { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBianca, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBreno, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteBento, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
+  { userId: MOCK_USER_IDS.clienteBruna, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
 ];
 
 function buildUserRoles(): TableRow<"user_roles">[] {
@@ -587,27 +615,31 @@ const BARBER_PLANS: readonly BarberPlan[] = [
   {
     barbershopId: MOCK_BARBERSHOP_ID,
     barberId: MOCK_USER_IDS.admin,
-    clientIds: [MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.clienteCaio],
+    clientIds: [MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.clienteDiego],
   },
   {
     barbershopId: MOCK_BARBERSHOP_ID,
     barberId: MOCK_USER_IDS.barberAna,
-    clientIds: [MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.clienteCaio],
+    clientIds: [
+      MOCK_USER_IDS.clienteCarla,
+      MOCK_USER_IDS.clienteCaio,
+      MOCK_USER_IDS.clienteDiego,
+    ],
   },
   {
     barbershopId: MOCK_BARBERSHOP_ID,
     barberId: MOCK_USER_IDS.barberBruno,
-    clientIds: [MOCK_USER_IDS.clienteCaio, MOCK_USER_IDS.clienteCarla],
+    clientIds: [MOCK_USER_IDS.clienteCaio, MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.walkinEva],
   },
   {
     barbershopId: MOCK_BARBERSHOP_B_ID,
     barberId: MOCK_USER_IDS.adminBeatriz,
-    clientIds: [MOCK_USER_IDS.clienteBento],
+    clientIds: [MOCK_USER_IDS.clienteBento, MOCK_USER_IDS.clienteBruna],
   },
   {
     barbershopId: MOCK_BARBERSHOP_B_ID,
     barberId: MOCK_USER_IDS.barberBianca,
-    clientIds: [MOCK_USER_IDS.clienteBento],
+    clientIds: [MOCK_USER_IDS.clienteBento, MOCK_USER_IDS.clienteBruna],
   },
   {
     barbershopId: MOCK_BARBERSHOP_B_ID,
@@ -973,69 +1005,351 @@ function buildPlans(): TableRow<"plans">[] {
 }
 
 /* ------------------------------------------------------------------ */
-/* Comandas — exercitam a regra "total da comanda > preço do serviço"  */
+/* Produtos — o schema tem stock_quantity, mas o app não dá baixa      */
+/* ------------------------------------------------------------------ */
+
+export const MOCK_PRODUCT_IDS = {
+  pomadaA: "0f0f0f01-0000-4000-8000-000000000001",
+  oleoA: "0f0f0f01-0000-4000-8000-000000000002",
+  shampooA: "0f0f0f01-0000-4000-8000-000000000003",
+  cremeAInativo: "0f0f0f01-0000-4000-8000-000000000004",
+  pomadaB: "0f0f0f02-0000-4000-8000-000000000001",
+  oleoBInativo: "0f0f0f02-0000-4000-8000-000000000002",
+} as const;
+
+function buildProducts(): TableRow<"products">[] {
+  const base = { image_url: null, created_at: NOW_ISO, updated_at: NOW_ISO };
+
+  return [
+    {
+      ...base,
+      id: MOCK_PRODUCT_IDS.pomadaA,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      name: "Pomada modeladora",
+      description: "Fixação forte, acabamento matte.",
+      price: 45,
+      stock_quantity: 12,
+      active: true,
+    },
+    {
+      ...base,
+      id: MOCK_PRODUCT_IDS.oleoA,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      name: "Óleo para barba",
+      description: "Hidratação diária.",
+      price: 35,
+      stock_quantity: 5,
+      active: true,
+    },
+    {
+      // Estoque zerado: CloseTicketDialog desabilita a opção "(sem estoque)".
+      ...base,
+      id: MOCK_PRODUCT_IDS.shampooA,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      name: "Shampoo anticaspa",
+      description: "Frasco 250ml.",
+      price: 30,
+      stock_quantity: 0,
+      active: true,
+    },
+    {
+      ...base,
+      id: MOCK_PRODUCT_IDS.cremeAInativo,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      name: "Creme de barbear (descontinuado)",
+      description: null,
+      price: 25,
+      stock_quantity: 3,
+      active: false,
+    },
+    {
+      ...base,
+      id: MOCK_PRODUCT_IDS.pomadaB,
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      name: "Pomada premium",
+      description: "Linha exclusiva da casa.",
+      price: 60,
+      stock_quantity: 8,
+      active: true,
+    },
+    {
+      ...base,
+      id: MOCK_PRODUCT_IDS.oleoBInativo,
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      name: "Óleo importado (fora de linha)",
+      description: null,
+      price: 90,
+      stock_quantity: 0,
+      active: false,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Formas de pagamento                                                 */
+/* ------------------------------------------------------------------ */
+
+export const MOCK_PAYMENT_METHOD_IDS = {
+  dinheiroA: "0a0b0c01-0000-4000-8000-000000000001",
+  pixA: "0a0b0c01-0000-4000-8000-000000000002",
+  creditoA: "0a0b0c01-0000-4000-8000-000000000003",
+  debitoAInativo: "0a0b0c01-0000-4000-8000-000000000004",
+  dinheiroB: "0a0b0c02-0000-4000-8000-000000000001",
+  pixB: "0a0b0c02-0000-4000-8000-000000000002",
+} as const;
+
+function buildPaymentMethods(): TableRow<"payment_methods">[] {
+  const base = { created_at: NOW_ISO, updated_at: NOW_ISO };
+
+  return [
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.dinheiroA, barbershop_id: MOCK_BARBERSHOP_ID, name: "Dinheiro", sort_order: 1, active: true },
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.pixA, barbershop_id: MOCK_BARBERSHOP_ID, name: "Pix", sort_order: 2, active: true },
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.creditoA, barbershop_id: MOCK_BARBERSHOP_ID, name: "Cartão de crédito", sort_order: 3, active: true },
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.debitoAInativo, barbershop_id: MOCK_BARBERSHOP_ID, name: "Cartão de débito (desativado)", sort_order: 4, active: false },
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.dinheiroB, barbershop_id: MOCK_BARBERSHOP_B_ID, name: "Dinheiro", sort_order: 1, active: true },
+    { ...base, id: MOCK_PAYMENT_METHOD_IDS.pixB, barbershop_id: MOCK_BARBERSHOP_B_ID, name: "Pix", sort_order: 2, active: true },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Notas internas e bloqueios de cliente                               */
+/* ------------------------------------------------------------------ */
+
+function buildClientNotes(): TableRow<"client_notes">[] {
+  const base = { created_at: NOW_ISO, updated_at: NOW_ISO, updated_by: null };
+
+  return [
+    {
+      ...base,
+      id: "0b0c0d01-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteCarla,
+      note: "Prefere máquina 2 nas laterais. (nota fictícia)",
+      pinned: true,
+      created_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0b0c0d01-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteCarla,
+      note: "Costuma remarcar em cima da hora. (nota fictícia)",
+      pinned: false,
+      created_by: MOCK_USER_IDS.barberAna,
+    },
+    {
+      ...base,
+      id: "0b0c0d01-0000-4000-8000-000000000003",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteCaio,
+      note: "Alergia a produtos com álcool. (nota fictícia)",
+      pinned: true,
+      created_by: MOCK_USER_IDS.barberBruno,
+    },
+    {
+      ...base,
+      id: "0b0c0d02-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      client_id: MOCK_USER_IDS.clienteBento,
+      note: "Cliente da Barbearia B. (nota fictícia)",
+      pinned: false,
+      created_by: MOCK_USER_IDS.adminBeatriz,
+    },
+  ];
+}
+
+/** Um bloqueio vigente e um já expirado, para exercitar o filtro por data. */
+function buildClientBlocks(): TableRow<"client_blocks">[] {
+  const future = new Date();
+  future.setDate(future.getDate() + 10);
+  const past = new Date();
+  past.setDate(past.getDate() - 10);
+
+  const base = { created_at: NOW_ISO, updated_at: NOW_ISO };
+
+  return [
+    {
+      ...base,
+      id: "0c0d0e01-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteCaio,
+      blocked_until: future.toISOString(),
+      reason: "Faltas seguidas. (bloqueio fictício vigente)",
+      blocked_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0c0d0e01-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteDiego,
+      blocked_until: past.toISOString(),
+      reason: "Bloqueio fictício já expirado.",
+      blocked_by: MOCK_USER_IDS.admin,
+    },
+    {
+      ...base,
+      id: "0c0d0e02-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      client_id: MOCK_USER_IDS.clienteBruna,
+      blocked_until: future.toISOString(),
+      reason: "Bloqueio fictício vigente da Barbearia B.",
+      blocked_by: MOCK_USER_IDS.adminBeatriz,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Comandas                                                            */
 /* ------------------------------------------------------------------ */
 
 interface TicketBundle {
   tickets: TableRow<"tickets">[];
+  items: TableRow<"ticket_items">[];
   payments: TableRow<"ticket_payments">[];
 }
 
 /**
- * Fecha comanda para uma fração dos agendamentos concluídos, com um acréscimo
- * fixo (produto vendido no balcão). Isso faz o faturamento divergir da soma
- * pura dos preços de serviço — exatamente o caso que BarberReports trata ao
- * preferir `tickets.total`.
+ * Abre comanda para uma fração dos agendamentos concluídos.
+ *
+ * O schema não tem coluna de status (`closed_at` é obrigatório), então
+ * "aberta" aqui significa comanda sem pagamento registrado — exatamente o
+ * estado que BarberDashboard rotula como `open`. O ciclo de três cobre:
+ *   0 → pagamento integral em um método;
+ *   1 → pagamento dividido entre dois métodos;
+ *   2 → sem pagamento (comanda aberta).
+ *
+ * Uma a cada quatro leva também um item de produto, fazendo o total divergir
+ * do preço do serviço — o caso que BarberReports trata ao preferir o total
+ * da comanda.
  */
 function buildTickets(
   appointments: TableRow<"appointments">[],
   services: TableRow<"services">[],
+  products: TableRow<"products">[],
+  methods: TableRow<"payment_methods">[],
 ): TicketBundle {
   const tickets: TableRow<"tickets">[] = [];
+  const items: TableRow<"ticket_items">[] = [];
   const payments: TableRow<"ticket_payments">[] = [];
 
   const completed = appointments.filter((item) => item.status === "completed");
   let index = 0;
 
-  // Uma a cada três comandas concluídas é fechada com acréscimo de R$ 20.
+  const pad = (value: number) => String(value).padStart(12, "0");
+
   for (let position = 0; position < completed.length; position += 3) {
     const appointment = completed[position];
     const service = services.find((item) => item.id === appointment.service_id);
     if (!service) continue;
 
     index += 1;
-    const subtotal = service.price + 20;
-    const ticketId = `0d0d0d01-0000-4000-8000-${String(index).padStart(12, "0")}`;
+    const ticketId = `0d0d0d01-0000-4000-8000-${pad(index)}`;
+    const shopId = appointment.barbershop_id;
+
+    /* ---- itens ---- */
+    const ticketItems: TableRow<"ticket_items">[] = [
+      {
+        id: `0d0e0f01-0000-4000-8000-${pad(index * 2 - 1)}`,
+        ticket_id: ticketId,
+        barbershop_id: shopId,
+        item_type: "service",
+        service_id: service.id,
+        product_id: null,
+        description: service.name,
+        unit_price: service.price,
+        quantity: 1,
+        total: service.price,
+        created_at: NOW_ISO,
+      },
+    ];
+
+    if (index % 4 === 0) {
+      const product = products.find((item) => item.barbershop_id === shopId && item.active);
+      if (product) {
+        ticketItems.push({
+          id: `0d0e0f01-0000-4000-8000-${pad(index * 2)}`,
+          ticket_id: ticketId,
+          barbershop_id: shopId,
+          item_type: "product",
+          service_id: null,
+          product_id: product.id,
+          description: product.name,
+          unit_price: product.price,
+          quantity: 2,
+          total: product.price * 2,
+          created_at: NOW_ISO,
+        });
+      }
+    }
+
+    /* ---- totais: subtotal = soma dos itens ---- */
+    const subtotal = ticketItems.reduce((sum, item) => sum + item.total, 0);
+    // Uma a cada cinco recebe R$ 10 de desconto.
+    const discount = index % 5 === 0 ? 10 : 0;
+    const total = Math.max(0, subtotal - discount);
 
     tickets.push({
       id: ticketId,
-      barbershop_id: appointment.barbershop_id,
+      barbershop_id: shopId,
       appointment_id: appointment.id,
       barber_id: appointment.barber_id,
       client_id: appointment.client_id,
       subtotal,
-      discount_amount: 0,
+      discount_amount: discount,
       discount_type: "value",
-      total: subtotal,
+      total,
       notes: null,
       closed_at: NOW_ISO,
       closed_by: appointment.barber_id,
       created_at: NOW_ISO,
       updated_at: NOW_ISO,
     });
+    items.push(...ticketItems);
 
-    payments.push({
-      id: `0e0e0e01-0000-4000-8000-${String(index).padStart(12, "0")}`,
-      ticket_id: ticketId,
-      barbershop_id: appointment.barbershop_id,
-      payment_method_id: null,
-      method_name: index % 2 === 0 ? "Pix" : "Cartão de crédito",
-      amount: subtotal,
-      created_at: NOW_ISO,
-    });
+    /* ---- pagamentos ---- */
+    const shopMethods = methods.filter((item) => item.barbershop_id === shopId && item.active);
+    const mode = index % 3;
+
+    if (mode === 0 && shopMethods.length > 0) {
+      payments.push({
+        id: `0e0e0e01-0000-4000-8000-${pad(index * 2 - 1)}`,
+        ticket_id: ticketId,
+        barbershop_id: shopId,
+        payment_method_id: shopMethods[0].id,
+        method_name: shopMethods[0].name,
+        amount: total,
+        created_at: NOW_ISO,
+      });
+    } else if (mode === 1 && shopMethods.length > 1) {
+      // Divide em duas parcelas; a segunda absorve o arredondamento.
+      const first = Math.round((total / 2) * 100) / 100;
+      const second = Math.round((total - first) * 100) / 100;
+
+      payments.push(
+        {
+          id: `0e0e0e01-0000-4000-8000-${pad(index * 2 - 1)}`,
+          ticket_id: ticketId,
+          barbershop_id: shopId,
+          payment_method_id: shopMethods[0].id,
+          method_name: shopMethods[0].name,
+          amount: first,
+          created_at: NOW_ISO,
+        },
+        {
+          id: `0e0e0e01-0000-4000-8000-${pad(index * 2)}`,
+          ticket_id: ticketId,
+          barbershop_id: shopId,
+          payment_method_id: shopMethods[1].id,
+          method_name: shopMethods[1].name,
+          amount: second,
+          created_at: NOW_ISO,
+        },
+      );
+    }
+    // mode === 2: nenhuma linha de pagamento → comanda aberta.
   }
 
-  return { tickets, payments };
+  return { tickets, items, payments };
 }
 
 /* ------------------------------------------------------------------ */
@@ -1048,7 +1362,14 @@ export function buildSeedDatabase(): MockDatabase {
   const blocks = buildScheduleBlocks();
   const services = buildServices();
   const appointments = buildAppointments(weekly, blocks, services);
-  const { tickets, payments } = buildTickets(appointments, services);
+  const products = buildProducts();
+  const paymentMethods = buildPaymentMethods();
+  const { tickets, items, payments } = buildTickets(
+    appointments,
+    services,
+    products,
+    paymentMethods,
+  );
 
   return {
     barbershops: buildBarbershops(),
@@ -1061,8 +1382,12 @@ export function buildSeedDatabase(): MockDatabase {
     appointments,
     availability: buildAvailability(weekly, blocks, appointments),
     reviews: buildReviews(),
+    products,
+    payment_methods: paymentMethods,
     tickets,
+    ticket_items: items,
     ticket_payments: payments,
-    client_blocks: [],
+    client_notes: buildClientNotes(),
+    client_blocks: buildClientBlocks(),
   };
 }

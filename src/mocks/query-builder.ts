@@ -15,8 +15,15 @@ import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from ".
 import {
   validateAppointment,
   validateBarberOwnedRow,
+  validateClientBlock,
+  validateClientNote,
+  validatePaymentMethod,
+  validateProduct,
   validateScheduleBlock,
   validateService,
+  validateTicket,
+  validateTicketItem,
+  validateTicketPayment,
 } from "./rules";
 
 export interface MockPostgrestError {
@@ -70,10 +77,19 @@ function fail<T>(data: T, err: MockPostgrestError, status = 400): MockResult<T> 
 /* ------------------------------------------------------------------ */
 
 /**
- * Valida uma linha antes de gravar. `existing` é a linha atual em updates,
- * para que ela não conflite consigo mesma.
+ * Valida uma linha antes de gravar.
+ *
+ * `existing` é a linha atual em updates, para que ela não conflite consigo
+ * mesma. `pending` são as demais linhas do mesmo insert em lote — necessário
+ * para pagamentos divididos, em que cada parcela precisa ser somada às
+ * anteriores do próprio lote antes de comparar com o total da comanda.
  */
-function validateWrite(table: string, row: MockRow, existing?: MockRow): string | null {
+function validateWrite(
+  table: string,
+  row: MockRow,
+  existing?: MockRow,
+  pending: readonly MockRow[] = [],
+): string | null {
   switch (table) {
     case "appointments":
       return validateAppointment(row, existing);
@@ -85,6 +101,20 @@ function validateWrite(table: string, row: MockRow, existing?: MockRow): string 
       return validateBarberOwnedRow(row, "Grade semanal");
     case "availability":
       return validateBarberOwnedRow(row, "Disponibilidade");
+    case "tickets":
+      return validateTicket(row, existing);
+    case "ticket_items":
+      return validateTicketItem(row, pending);
+    case "ticket_payments":
+      return validateTicketPayment(row, pending);
+    case "client_notes":
+      return validateClientNote(row);
+    case "client_blocks":
+      return validateClientBlock(row);
+    case "products":
+      return validateProduct(row);
+    case "payment_methods":
+      return validatePaymentMethod(row);
     default:
       return null;
   }
@@ -94,6 +124,17 @@ function validateWrite(table: string, row: MockRow, existing?: MockRow): string 
 function ruleError(message: string): MockPostgrestError {
   return { message, details: "Regra do modo offline.", hint: "", code: "MOCK_RULE" };
 }
+
+/** Tabelas cujos updates sempre revalidam (não só quando mexem na agenda). */
+const ALWAYS_REVALIDATED_ON_UPDATE = new Set([
+  "tickets",
+  "ticket_items",
+  "ticket_payments",
+  "client_notes",
+  "client_blocks",
+  "products",
+  "payment_methods",
+]);
 
 /** Colunas cuja alteração exige revalidar grade, bloqueio e conflito. */
 const SCHEDULING_COLUMNS = [
@@ -335,11 +376,15 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           ...row,
         }));
 
+        // Cada linha é validada contra as anteriores do mesmo lote: sem isso,
+        // duas parcelas de R$100 numa comanda de R$100 passariam as duas.
+        const accepted: MockRow[] = [];
         for (const candidate of created) {
-          const problem = validateWrite(this.table, candidate);
+          const problem = validateWrite(this.table, candidate, undefined, accepted);
           if (problem) {
             return fail<MockRow[]>([], ruleError(problem), 409);
           }
+          accepted.push(candidate);
         }
 
         setTableRows(this.table, [...all, ...created]);
@@ -380,7 +425,7 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         // encaixe (cancelar, concluir, marcar falta, editar observação)
         // passam direto: revalidá-las impediria, por exemplo, cancelar um
         // agendamento cuja data foi bloqueada depois.
-        if (touchesScheduling(patch)) {
+        if (ALWAYS_REVALIDATED_ON_UPDATE.has(this.table) || touchesScheduling(patch)) {
           for (const updated of pending) {
             const original = all.find((row) => row.id === updated.id);
             const problem = validateWrite(this.table, updated, original);

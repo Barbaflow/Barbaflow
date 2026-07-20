@@ -65,6 +65,26 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
     appointments: { table: "appointments", localKey: "appointment_id", foreignKey: "id" },
     profiles: { table: "profiles", localKey: "client_id", foreignKey: "user_id" },
   },
+  ticket_items: {
+    services: { table: "services", localKey: "service_id", foreignKey: "id" },
+    products: { table: "products", localKey: "product_id", foreignKey: "id" },
+    tickets: { table: "tickets", localKey: "ticket_id", foreignKey: "id" },
+  },
+  ticket_payments: {
+    payment_methods: { table: "payment_methods", localKey: "payment_method_id", foreignKey: "id" },
+    tickets: { table: "tickets", localKey: "ticket_id", foreignKey: "id" },
+  },
+  client_notes: {
+    profiles: { table: "profiles", localKey: "client_id", foreignKey: "user_id" },
+    barbershops: { table: "barbershops", localKey: "barbershop_id", foreignKey: "id" },
+  },
+  client_blocks: {
+    profiles: { table: "profiles", localKey: "client_id", foreignKey: "user_id" },
+    barbershops: { table: "barbershops", localKey: "barbershop_id", foreignKey: "id" },
+  },
+  products: {
+    barbershops: { table: "barbershops", localKey: "barbershop_id", foreignKey: "id" },
+  },
   user_roles: {
     profiles: { table: "profiles", localKey: "user_id", foreignKey: "user_id" },
     barbershops: { table: "barbershops", localKey: "barbershop_id", foreignKey: "id" },
