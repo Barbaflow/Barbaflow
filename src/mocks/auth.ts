@@ -5,7 +5,7 @@
  * A sessão é persistida em localStorage, então o login sobrevive ao reload.
  */
 import type { Session, User } from "@supabase/supabase-js";
-import { MOCK_ADMIN_EMAIL, MOCK_USER_IDS } from "./fixtures";
+import { MOCK_ADMIN_B_EMAIL, MOCK_ADMIN_EMAIL, MOCK_USER_IDS } from "./fixtures";
 
 const SESSION_KEY = "barbaflow.mock.session.v1";
 
@@ -20,33 +20,76 @@ interface MockAccount {
   email: string;
   fullName: string;
   phone: string;
+  /** Só para exibição no banner do modo offline. */
+  description: string;
 }
 
-/** Contas fictícias que podem entrar no modo offline. */
+/** Contas fictícias que podem entrar no modo offline. Qualquer senha serve. */
 export const MOCK_ACCOUNTS: readonly MockAccount[] = [
+  // Barbearia A — "Barbearia Modelo (offline)"
   {
     id: MOCK_USER_IDS.admin,
     email: MOCK_ADMIN_EMAIL,
     fullName: "Alex Admin",
     phone: "+5511900000001",
+    description: "Admin · Barbearia A",
   },
   {
     id: MOCK_USER_IDS.barberAna,
     email: "ana@barbearia.teste",
     fullName: "Ana Tesoura",
     phone: "+5511900000002",
+    description: "Barbeira · Barbearia A",
   },
   {
     id: MOCK_USER_IDS.barberBruno,
     email: "bruno@barbearia.teste",
     fullName: "Bruno Navalha",
     phone: "+5511900000003",
+    description: "Barbeiro · Barbearia A",
   },
   {
     id: MOCK_USER_IDS.clienteCarla,
     email: "carla@cliente.teste",
     fullName: "Carla Cliente",
     phone: "+5511900000004",
+    description: "Cliente · Barbearia A",
+  },
+  {
+    id: MOCK_USER_IDS.clienteCaio,
+    email: "caio@cliente.teste",
+    fullName: "Caio Cliente",
+    phone: "+5511900000005",
+    description: "Cliente · Barbearia A",
+  },
+  // Barbearia B — "Navalha de Ouro (offline)"
+  {
+    id: MOCK_USER_IDS.adminBeatriz,
+    email: MOCK_ADMIN_B_EMAIL,
+    fullName: "Beatriz Dona",
+    phone: "+5521900000001",
+    description: "Admin · Barbearia B",
+  },
+  {
+    id: MOCK_USER_IDS.barberBianca,
+    email: "bianca@navalha.teste",
+    fullName: "Bianca Lâmina",
+    phone: "+5521900000002",
+    description: "Barbeira · Barbearia B",
+  },
+  {
+    id: MOCK_USER_IDS.barberBreno,
+    email: "breno@navalha.teste",
+    fullName: "Breno Pente",
+    phone: "+5521900000003",
+    description: "Barbeiro · Barbearia B",
+  },
+  {
+    id: MOCK_USER_IDS.clienteBento,
+    email: "bento@cliente.teste",
+    fullName: "Bento Cliente",
+    phone: "+5521900000004",
+    description: "Cliente · Barbearia B",
   },
 ];
 

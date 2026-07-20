@@ -5,8 +5,7 @@
 import { useState } from "react";
 import { isMockDataSource } from "@/lib/data-source";
 import { resetMockDatabase } from "@/mocks/store";
-import { clearMockSession } from "@/mocks/auth";
-import { MOCK_ADMIN_EMAIL } from "@/mocks/fixtures";
+import { clearMockSession, MOCK_ACCOUNTS } from "@/mocks/auth";
 
 export function MockModeBanner() {
   const [open, setOpen] = useState(false);
@@ -22,16 +21,22 @@ export function MockModeBanner() {
   return (
     <div className="fixed bottom-3 left-3 z-[9999] font-mono text-xs">
       {open && (
-        <div className="mb-2 w-64 rounded-md border border-amber-500/40 bg-background p-3 shadow-lg">
+        <div className="mb-2 max-h-[70vh] w-72 overflow-y-auto rounded-md border border-amber-500/40 bg-background p-3 shadow-lg">
           <p className="font-semibold text-foreground">Modo offline</p>
           <p className="mt-1 leading-relaxed text-muted-foreground">
             Dados fictícios em localStorage. Nenhuma requisição ao Supabase.
           </p>
-          <p className="mt-2 break-all text-muted-foreground">
-            Login: <span className="text-foreground">{MOCK_ADMIN_EMAIL}</span>
-            <br />
-            Senha: qualquer valor
+          <p className="mt-2 text-muted-foreground">
+            Senha: <span className="text-foreground">qualquer valor</span>
           </p>
+          <ul className="mt-2 space-y-1.5">
+            {MOCK_ACCOUNTS.map((account) => (
+              <li key={account.id}>
+                <span className="block break-all text-foreground">{account.email}</span>
+                <span className="text-[10px] text-muted-foreground">{account.description}</span>
+              </li>
+            ))}
+          </ul>
           <button
             type="button"
             onClick={handleReset}

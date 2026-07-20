@@ -7,7 +7,8 @@
  */
 import { mockAuth } from "./auth";
 import { MockQueryBuilder, type MockResult } from "./query-builder";
-import { getTableRows, type MockRow } from "./store";
+import { getTableRows, setTableRows, type MockRow } from "./store";
+import { dayOfWeekOf, minutesToTime, timeToMinutes } from "./fixtures";
 
 /* ------------------------------------------------------------------ */
 /* RPCs                                                                */
@@ -47,11 +48,189 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
   get_client_phone: (args) =>
     getTableRows("profiles").find((row) => row.user_id === args._client_id)?.phone ?? null,
 
-  check_client_noshow_block: () => false,
+  /**
+   * Clientes da barbearia, agregados a partir dos agendamentos.
+   * Nunca cruza a fronteira do tenant: só lê linhas do _barbershop_id pedido.
+   */
+  get_barbershop_clients: (args) => {
+    const barbershopId = args._barbershop_id;
+    const appointments = getTableRows("appointments").filter(
+      (row) => row.barbershop_id === barbershopId,
+    );
+    const profiles = getTableRows("profiles");
+    const blocks = getTableRows("client_blocks").filter(
+      (row) => row.barbershop_id === barbershopId,
+    );
+
+    const byClient = new Map<string, MockRow[]>();
+    for (const appointment of appointments) {
+      const clientId = String(appointment.client_id);
+      const list = byClient.get(clientId) ?? [];
+      list.push(appointment);
+      byClient.set(clientId, list);
+    }
+
+    return Array.from(byClient.entries()).map(([clientId, rows]) => {
+      const profile = profiles.find((row) => row.user_id === clientId);
+      const block = blocks.find((row) => row.client_id === clientId);
+      const countBy = (status: string) =>
+        rows.filter((row) => row.status === status).length;
+      const dates = rows.map((row) => String(row.date)).sort();
+
+      return {
+        client_id: clientId,
+        client_name: profile?.full_name ?? "Cliente",
+        client_phone: profile?.phone ?? null,
+        client_avatar: profile?.avatar_url ?? null,
+        total_appointments: rows.length,
+        completed_count: countBy("completed"),
+        cancelled_count: countBy("cancelled"),
+        noshow_count: countBy("no_show"),
+        first_appointment_at: dates[0] ?? null,
+        last_appointment_at: dates[dates.length - 1] ?? null,
+        manual_block_reason: block?.reason ?? null,
+        manual_blocked_until: block?.blocked_until ?? null,
+      };
+    });
+  },
+
+  /** Cria um cliente avulso (profile + papel) e devolve o novo user_id. */
+  create_walkin_client: (args) => {
+    const barbershopId = String(args._barbershop_id);
+    const userId = newMockId();
+    const timestamp = new Date().toISOString();
+
+    setTableRows("profiles", [
+      ...getTableRows("profiles"),
+      {
+        id: newMockId(),
+        user_id: userId,
+        full_name: args._full_name ?? "Cliente avulso",
+        phone: args._phone ?? null,
+        avatar_url: null,
+        created_at: timestamp,
+        updated_at: timestamp,
+      },
+    ]);
+
+    setTableRows("user_roles", [
+      ...getTableRows("user_roles"),
+      {
+        id: newMockId(),
+        user_id: userId,
+        barbershop_id: barbershopId,
+        role: "cliente",
+        created_at: timestamp,
+      },
+    ]);
+
+    return userId;
+  },
+
+  /**
+   * Regenera a disponibilidade do barbeiro no intervalo, a partir da grade
+   * semanal, pulando datas bloqueadas. Devolve quantos slots foram criados.
+   */
+  generate_availability_from_schedule: (args) => {
+    const barbershopId = String(args._barbershop_id);
+    const barberId = String(args._barber_id);
+    const startDate = String(args._start_date);
+    const endDate = String(args._end_date);
+    const timestamp = new Date().toISOString();
+
+    const shifts = getTableRows("weekly_schedule").filter(
+      (row) =>
+        row.barbershop_id === barbershopId && row.barber_id === barberId && row.is_active === true,
+    );
+    const blocks = getTableRows("schedule_blocks").filter(
+      (row) => row.barbershop_id === barbershopId && row.barber_id === barberId,
+    );
+    const appointments = getTableRows("appointments").filter(
+      (row) =>
+        row.barbershop_id === barbershopId &&
+        row.barber_id === barberId &&
+        row.status !== "cancelled",
+    );
+
+    // Substitui a janela pedida, preservando o restante da tabela.
+    const preserved = getTableRows("availability").filter((row) => {
+      const sameBarber = row.barbershop_id === barbershopId && row.barber_id === barberId;
+      if (!sameBarber) return true;
+      const date = String(row.date);
+      return date < startDate || date > endDate;
+    });
+
+    const created: MockRow[] = [];
+
+    for (const date of datesBetween(startDate, endDate)) {
+      const dow = dayOfWeekOf(date);
+      if (blocks.some((block) => block.block_date === date)) continue;
+
+      for (const shift of shifts) {
+        if (shift.day_of_week !== dow) continue;
+
+        const shiftStart = timeToMinutes(String(shift.start_time));
+        const shiftEnd = timeToMinutes(String(shift.end_time));
+
+        for (let start = shiftStart; start + SLOT_STEP <= shiftEnd; start += SLOT_STEP) {
+          const end = start + SLOT_STEP;
+          const taken = appointments.some(
+            (appointment) =>
+              appointment.date === date &&
+              start < timeToMinutes(String(appointment.end_time)) &&
+              timeToMinutes(String(appointment.start_time)) < end,
+          );
+
+          created.push({
+            id: newMockId(),
+            barbershop_id: barbershopId,
+            barber_id: barberId,
+            date,
+            start_time: minutesToTime(start),
+            end_time: minutesToTime(end),
+            status: taken ? "ocupado" : "livre",
+            created_at: timestamp,
+            updated_at: timestamp,
+          });
+        }
+      }
+    }
+
+    setTableRows("availability", [...preserved, ...created]);
+    return created.length;
+  },
+
+  /** Nenhuma política de falta ativa nos dados fictícios. */
+  check_client_noshow_block: () => ({ blocked: false }),
+
   check_appointment_limit: () => true,
   check_barber_limit: () => true,
   has_active_subscription: () => true,
 };
+
+/** Passo da grade de horários gerada pelas RPCs, em minutos. */
+const SLOT_STEP = 30;
+
+function newMockId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `mock-${Date.now().toString(16)}-${Math.floor(Math.random() * 1e9).toString(16)}`;
+}
+
+/** Datas ISO de `start` a `end`, inclusive. */
+function datesBetween(start: string, end: string): string[] {
+  const dates: string[] = [];
+  const cursor = new Date(`${start}T12:00:00`);
+  const last = new Date(`${end}T12:00:00`);
+
+  while (cursor <= last && dates.length < 400) {
+    dates.push(cursor.toISOString().slice(0, 10));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return dates;
+}
 
 function runRpc(name: string, args: RpcArgs): MockResult<unknown> {
   const handler = RPC_HANDLERS[name];

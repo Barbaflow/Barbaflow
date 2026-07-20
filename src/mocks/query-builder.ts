@@ -4,8 +4,20 @@
  * Suporta o subconjunto realmente usado pelo app: select/insert/update/upsert/
  * delete, filtros eq/neq/gt/gte/lt/lte/in/is/not/filter, order, limit, range,
  * single e maybeSingle. Opera sobre os dados em localStorage — nunca faz rede.
+ *
+ * Também resolve os embeds (joins) usados pelos fluxos de agenda/agendamento
+ * — ver src/mocks/relations.ts — e aplica as regras de integridade do
+ * src/mocks/rules.ts nas escritas, para que o mock recuse as mesmas
+ * combinações que o banco real recusaria.
  */
 import { getTableRows, setTableRows, type MockRow } from "./store";
+import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from "./relations";
+import {
+  validateAppointment,
+  validateBarberOwnedRow,
+  validateScheduleBlock,
+  validateService,
+} from "./rules";
 
 export interface MockPostgrestError {
   message: string;
@@ -29,6 +41,13 @@ interface Predicate {
   test: (value: unknown) => boolean;
 }
 
+interface NestedPredicate {
+  /** Alias do embed, ex.: "appointments" em `appointments.barber_id`. */
+  alias: string;
+  column: string;
+  test: (value: unknown) => boolean;
+}
+
 interface OrderSpec {
   column: string;
   ascending: boolean;
@@ -44,6 +63,50 @@ function ok<T>(data: T, count: number | null = null): MockResult<T> {
 
 function fail<T>(data: T, err: MockPostgrestError, status = 400): MockResult<T> {
   return { data, error: err, count: null, status, statusText: "Error" };
+}
+
+/* ------------------------------------------------------------------ */
+/* Regras de escrita por tabela                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Valida uma linha antes de gravar. `existing` é a linha atual em updates,
+ * para que ela não conflite consigo mesma.
+ */
+function validateWrite(table: string, row: MockRow, existing?: MockRow): string | null {
+  switch (table) {
+    case "appointments":
+      return validateAppointment(row, existing);
+    case "schedule_blocks":
+      return validateScheduleBlock(row);
+    case "services":
+      return validateService(row);
+    case "weekly_schedule":
+      return validateBarberOwnedRow(row, "Grade semanal");
+    case "availability":
+      return validateBarberOwnedRow(row, "Disponibilidade");
+    default:
+      return null;
+  }
+}
+
+/** Erro no formato que os componentes já tratam (checam apenas `error`). */
+function ruleError(message: string): MockPostgrestError {
+  return { message, details: "Regra do modo offline.", hint: "", code: "MOCK_RULE" };
+}
+
+/** Colunas cuja alteração exige revalidar grade, bloqueio e conflito. */
+const SCHEDULING_COLUMNS = [
+  "date",
+  "start_time",
+  "end_time",
+  "barber_id",
+  "service_id",
+  "barbershop_id",
+] as const;
+
+function touchesScheduling(patch: MockRow): boolean {
+  return SCHEDULING_COLUMNS.some((column) => column in patch);
 }
 
 function newId(): string {
@@ -90,6 +153,9 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   private operation: Operation = "select";
   private payload: MockRow[] = [];
   private predicates: Predicate[] = [];
+  /** Filtros sobre colunas de um embed, ex.: `.in("appointments.barber_id", ids)`. */
+  private nestedPredicates: NestedPredicate[] = [];
+  private embeds: EmbedSpec[] = [];
   private orderSpecs: OrderSpec[] = [];
   private limitCount: number | null = null;
   private rangeSpec: { from: number; to: number } | null = null;
@@ -101,8 +167,9 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
 
   /* ---------------- operações ---------------- */
 
-  select(_columns?: string, _options?: { count?: string; head?: boolean }): this {
-    if (this.operation === "select") this.operation = "select";
+  select(columns?: string, _options?: { count?: string; head?: boolean }): this {
+    // `.insert(...).select()` mantém a operação de escrita; só registramos os embeds.
+    this.embeds = parseSelect(columns).embeds;
     return this;
   }
 
@@ -132,7 +199,19 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   /* ---------------- filtros ---------------- */
 
   private addPredicate(column: string, op: string, value: unknown): this {
-    this.predicates.push({ column, test: (rowValue) => applyOperator(op, rowValue, value) });
+    const test = (rowValue: unknown) => applyOperator(op, rowValue, value);
+    const dot = column.indexOf(".");
+
+    if (dot > 0) {
+      this.nestedPredicates.push({
+        alias: column.slice(0, dot),
+        column: column.slice(dot + 1),
+        test,
+      });
+      return this;
+    }
+
+    this.predicates.push({ column, test });
     return this;
   }
 
@@ -233,6 +312,15 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
     return this.predicates.every((p) => p.test(row[p.column]));
   }
 
+  /** Filtros sobre embeds, aplicados depois que os joins são resolvidos. */
+  private matchesNested(row: MockRow): boolean {
+    return this.nestedPredicates.every((p) => {
+      const embedded = row[p.alias];
+      if (embedded === null || typeof embedded !== "object") return false;
+      return p.test((embedded as MockRow)[p.column]);
+    });
+  }
+
   private run(): MockResult<MockRow[] | MockRow | null> {
     const all = getTableRows(this.table);
     const timestamp = new Date().toISOString();
@@ -246,6 +334,14 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           updated_at: timestamp,
           ...row,
         }));
+
+        for (const candidate of created) {
+          const problem = validateWrite(this.table, candidate);
+          if (problem) {
+            return fail<MockRow[]>([], ruleError(problem), 409);
+          }
+        }
+
         setTableRows(this.table, [...all, ...created]);
         affected = created;
         break;
@@ -272,14 +368,30 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
 
       case "update": {
         const patch = this.payload[0] ?? {};
-        affected = [];
+        const pending: MockRow[] = [];
         const next = all.map((row) => {
           if (!this.matches(row)) return row;
           const updated = { ...row, ...patch, updated_at: timestamp };
-          affected.push(updated);
+          pending.push(updated);
           return updated;
         });
+
+        // Reagendamento revalida conflito. Mudanças que não mexem no
+        // encaixe (cancelar, concluir, marcar falta, editar observação)
+        // passam direto: revalidá-las impediria, por exemplo, cancelar um
+        // agendamento cuja data foi bloqueada depois.
+        if (touchesScheduling(patch)) {
+          for (const updated of pending) {
+            const original = all.find((row) => row.id === updated.id);
+            const problem = validateWrite(this.table, updated, original);
+            if (problem) {
+              return fail<MockRow[]>([], ruleError(problem), 409);
+            }
+          }
+        }
+
         setTableRows(this.table, next);
+        affected = pending;
         break;
       }
 
@@ -296,6 +408,18 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
       default: {
         affected = all.filter((row) => this.matches(row));
 
+        // Joins primeiro, para que filtros como `.in("appointments.barber_id", …)`
+        // e o descarte de `!inner` possam enxergar o objeto embutido.
+        if (this.embeds.length > 0) {
+          affected = affected
+            .map((row) => attachEmbeds(this.table, row, this.embeds))
+            .filter((row) => !droppedByInnerJoin(row, this.embeds));
+        }
+
+        if (this.nestedPredicates.length > 0) {
+          affected = affected.filter((row) => this.matchesNested(row));
+        }
+
         for (const spec of [...this.orderSpecs].reverse()) {
           affected.sort((a, b) => {
             const result = compare(a[spec.column], b[spec.column]);
@@ -311,6 +435,11 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         }
         break;
       }
+    }
+
+    // `.insert(...).select("…, tabela(...)")` também devolve os embeds.
+    if (this.embeds.length > 0 && this.operation !== "select") {
+      affected = affected.map((row) => attachEmbeds(this.table, row, this.embeds));
     }
 
     const total = affected.length;
