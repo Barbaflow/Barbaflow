@@ -185,6 +185,14 @@ export function clearMockSession(): void {
   emit("SIGNED_OUT", null);
 }
 
+/**
+ * Usuário da sessão atual, ou `null`. Usado pelas RPCs que precisam validar
+ * o tenant antes de devolver dados agregados.
+ */
+export function getMockSessionUserId(): string | null {
+  return loadSession()?.user.id ?? null;
+}
+
 /* ------------------------------------------------------------------ */
 /* API no formato supabase.auth                                        */
 /* ------------------------------------------------------------------ */

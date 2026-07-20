@@ -5,7 +5,7 @@
  * functions) lendo e gravando apenas em localStorage. Nenhuma requisição de
  * rede é feita e `createClient` do supabase-js nunca é chamado.
  */
-import { mockAuth } from "./auth";
+import { getMockSessionUserId, mockAuth } from "./auth";
 import { MockQueryBuilder, type MockResult } from "./query-builder";
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { dayOfWeekOf, minutesToTime, timeToMinutes } from "./fixtures";
@@ -92,6 +92,60 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
         manual_blocked_until: block?.blocked_until ?? null,
       };
     });
+  },
+
+  /**
+   * Relatório de faltas dos últimos `_days` dias (padrão 30).
+   * Só considera agendamentos da barbearia informada.
+   */
+  get_noshow_report: (args) => {
+    const barbershopId = args._barbershop_id;
+    const days = typeof args._days === "number" && args._days > 0 ? args._days : 30;
+
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    const sinceISO = since.toISOString().slice(0, 10);
+
+    const appointments = getTableRows("appointments").filter(
+      (row) => row.barbershop_id === barbershopId && String(row.date) >= sinceISO,
+    );
+    const profiles = getTableRows("profiles");
+    const blocks = getTableRows("client_blocks").filter(
+      (row) => row.barbershop_id === barbershopId,
+    );
+    const nowISO = new Date().toISOString();
+
+    const byClient = new Map<string, MockRow[]>();
+    for (const appointment of appointments) {
+      const clientId = String(appointment.client_id);
+      const list = byClient.get(clientId) ?? [];
+      list.push(appointment);
+      byClient.set(clientId, list);
+    }
+
+    return Array.from(byClient.entries())
+      .map(([clientId, rows]) => {
+        const noShows = rows.filter((row) => row.status === "no_show");
+        const profile = profiles.find((row) => row.user_id === clientId);
+        // Só bloqueios ainda vigentes contam como bloqueio manual.
+        const block = blocks.find(
+          (row) => row.client_id === clientId && String(row.blocked_until) > nowISO,
+        );
+        const noShowDates = noShows.map((row) => String(row.date)).sort();
+
+        return {
+          client_id: clientId,
+          client_name: profile?.full_name ?? "Cliente",
+          client_avatar: profile?.avatar_url ?? null,
+          noshow_count: noShows.length,
+          total_appointments: rows.length,
+          last_noshow_at: noShowDates[noShowDates.length - 1] ?? null,
+          manual_block_reason: block?.reason ?? null,
+          manual_blocked_until: block?.blocked_until ?? null,
+        };
+      })
+      .filter((row) => row.noshow_count > 0)
+      .sort((a, b) => b.noshow_count - a.noshow_count);
   },
 
   /** Cria um cliente avulso (profile + papel) e devolve o novo user_id. */
@@ -232,12 +286,55 @@ function datesBetween(start: string, end: string): string[] {
   return dates;
 }
 
+/**
+ * RPCs que só podem ser executadas por quem tem vínculo com o tenant.
+ * Espelha o `security definer` + checagem de papel das funções reais.
+ */
+const TENANT_GUARDED_RPCS = new Set([
+  "get_barbershop_clients",
+  "get_noshow_report",
+  "create_walkin_client",
+  "generate_availability_from_schedule",
+]);
+
+/** Papéis que dão acesso a dados agregados da barbearia. */
+const STAFF_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+function currentUserIsStaffOf(barbershopId: unknown): boolean {
+  const userId = getMockSessionUserId();
+  if (!userId) return false;
+
+  return getTableRows("user_roles").some(
+    (row) =>
+      row.user_id === userId &&
+      row.barbershop_id === barbershopId &&
+      STAFF_ROLES.has(String(row.role)),
+  );
+}
+
 function runRpc(name: string, args: RpcArgs): MockResult<unknown> {
   const handler = RPC_HANDLERS[name];
 
   if (!handler) {
     console.warn(`[mock] RPC "${name}" não implementada no modo mock. Retornando null.`);
     return { data: null, error: null, count: null, status: 200, statusText: "OK" };
+  }
+
+  // Isolamento entre tenants: uma RPC agregada só responde para quem trabalha
+  // naquela barbearia. Sem isso o mock vazaria dados de outro tenant.
+  if (TENANT_GUARDED_RPCS.has(name) && !currentUserIsStaffOf(args._barbershop_id)) {
+    return {
+      data: null,
+      error: {
+        message: `Sem permissão para "${name}" nesta barbearia.`,
+        details: "Regra do modo offline.",
+        hint: "",
+        code: "MOCK_FORBIDDEN",
+      },
+      count: null,
+      status: 403,
+      statusText: "Forbidden",
+    };
   }
 
   return { data: handler(args), error: null, count: null, status: 200, statusText: "OK" };

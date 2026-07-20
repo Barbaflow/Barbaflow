@@ -18,6 +18,11 @@ interface Relation {
   localKey: string;
   /** Coluna da tabela de destino. */
   foreignKey: string;
+  /**
+   * `true` para relacionamentos um-para-muitos: o embed vira um array
+   * (possivelmente vazio) em vez de objeto/null.
+   */
+  many?: boolean;
 }
 
 /**
@@ -42,6 +47,23 @@ const RELATIONS: Record<string, Record<string, Relation>> = {
   services: {
     barbershops: { table: "barbershops", localKey: "barbershop_id", foreignKey: "id" },
     profiles: { table: "profiles", localKey: "barber_id", foreignKey: "user_id" },
+  },
+  tickets: {
+    // Um-para-muitos: a comanda tem N pagamentos.
+    ticket_payments: {
+      table: "ticket_payments",
+      localKey: "id",
+      foreignKey: "ticket_id",
+      many: true,
+    },
+    ticket_items: {
+      table: "ticket_items",
+      localKey: "id",
+      foreignKey: "ticket_id",
+      many: true,
+    },
+    appointments: { table: "appointments", localKey: "appointment_id", foreignKey: "id" },
+    profiles: { table: "profiles", localKey: "client_id", foreignKey: "user_id" },
   },
   user_roles: {
     profiles: { table: "profiles", localKey: "user_id", foreignKey: "user_id" },
@@ -152,10 +174,20 @@ export function attachEmbeds(table: string, row: MockRow, embeds: EmbedSpec[]): 
     }
 
     const localValue = row[relation.localKey];
-    const match =
-      localValue === null || localValue === undefined
-        ? undefined
-        : getTableRows(relation.table).find((target) => target[relation.foreignKey] === localValue);
+    const missingKey = localValue === null || localValue === undefined;
+
+    if (relation.many) {
+      enriched[embed.alias] = missingKey
+        ? []
+        : getTableRows(relation.table).filter(
+            (target) => target[relation.foreignKey] === localValue,
+          );
+      continue;
+    }
+
+    const match = missingKey
+      ? undefined
+      : getTableRows(relation.table).find((target) => target[relation.foreignKey] === localValue);
 
     enriched[embed.alias] = match ?? null;
   }
@@ -165,7 +197,13 @@ export function attachEmbeds(table: string, row: MockRow, embeds: EmbedSpec[]): 
 
 /** `true` quando algum embed `!inner` não resolveu — a linha deve sair. */
 export function droppedByInnerJoin(row: MockRow, embeds: EmbedSpec[]): boolean {
-  return embeds.some((embed) => embed.inner && row[embed.alias] === null);
+  return embeds.some((embed) => {
+    if (!embed.inner) return false;
+    const value = row[embed.alias];
+    // Um-para-muitos com `!inner` exige pelo menos uma linha filha.
+    if (Array.isArray(value)) return value.length === 0;
+    return value === null;
+  });
 }
 
 /*
@@ -174,8 +212,9 @@ export function droppedByInnerJoin(row: MockRow, embeds: EmbedSpec[]): boolean {
  * 1. Projeção de colunas: o mock devolve a linha inteira, ignorando a lista
  *    de colunas do select. Um componente que leia uma coluna que esqueceu de
  *    selecionar funciona aqui e falharia no banco real.
- * 2. Só relacionamentos "muitos-para-um" (o embed é um objeto, nunca um array).
- *    Nenhum fluxo de agenda/agendamento depende de embed em lista.
+ * 2. Muitos-para-um devolve objeto/null; um-para-muitos devolve array (usado
+ *    por `tickets(… , ticket_payments(amount))`). Não há paginação nem
+ *    ordenação dentro do embed em lista.
  * 3. `appointments → profiles` é fixado em client_id; o schema real tem duas
  *    FKs para profiles e exigiria desambiguação explícita.
  * 4. Embeds aninhados (`a(b(c))`) não são suportados.

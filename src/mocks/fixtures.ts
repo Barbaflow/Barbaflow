@@ -54,13 +54,24 @@ const SERVICE_IDS = {
   combo: "aaaaaaa1-0000-4000-8000-000000000003",
   pezinho: "aaaaaaa1-0000-4000-8000-000000000004",
   platinado: "aaaaaaa1-0000-4000-8000-000000000005",
+  // Barbearia A — o admin também atende
+  corteAlex: "aaaaaaa1-0000-4000-8000-000000000006",
+  barbaAlex: "aaaaaaa1-0000-4000-8000-000000000007",
   // Barbearia B
   corteB: "aaaaaaa2-0000-4000-8000-000000000001",
   barbaB: "aaaaaaa2-0000-4000-8000-000000000002",
   comboB: "aaaaaaa2-0000-4000-8000-000000000003",
+  corteBeatriz: "aaaaaaa2-0000-4000-8000-000000000004",
 } as const;
 
 export const MOCK_SERVICE_IDS = SERVICE_IDS;
+
+/** Planos — `pro` libera a tela de relatórios (ver useCanAccessFeature). */
+export const MOCK_PLAN_IDS = {
+  free: "0c0c0c01-0000-4000-8000-000000000001",
+  pro: "0c0c0c01-0000-4000-8000-000000000002",
+  enterprise: "0c0c0c01-0000-4000-8000-000000000003",
+} as const;
 
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
@@ -104,7 +115,8 @@ const SLOT_STEP_MINUTES = 30;
 
 function buildBarbershops(): TableRow<"barbershops">[] {
   const base = {
-    plan_id: null,
+    // Plano pro: sem isso a rota /relatorios cai no paywall do plano free.
+    plan_id: MOCK_PLAN_IDS.pro,
     timezone: "America/Sao_Paulo",
     logo_url: null,
     complement: null,
@@ -260,14 +272,17 @@ interface RoleSeed {
 }
 
 const ROLES: readonly RoleSeed[] = [
-  // Barbearia A
+  // Barbearia A — o admin também atende, então tem as duas roles.
+  // Sem isso, /relatorios (que filtra por barber_id = user.id) vem vazio para ele.
   { userId: MOCK_USER_IDS.admin, barbershopId: MOCK_BARBERSHOP_ID, role: "admin_barbearia" },
+  { userId: MOCK_USER_IDS.admin, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberAna, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBruno, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteCarla, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   { userId: MOCK_USER_IDS.clienteCaio, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   // Barbearia B
   { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "admin_barbearia" },
+  { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBianca, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBreno, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteBento, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
@@ -341,6 +356,34 @@ function buildServices(): TableRow<"services">[] {
     // Barbearia B
     {
       ...base,
+      id: SERVICE_IDS.corteAlex,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      barber_id: MOCK_USER_IDS.admin,
+      name: "Corte executivo",
+      price: 80,
+      duration_minutes: 45,
+    },
+    {
+      ...base,
+      id: SERVICE_IDS.barbaAlex,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      barber_id: MOCK_USER_IDS.admin,
+      name: "Barba premium",
+      price: 70,
+      duration_minutes: 30,
+    },
+    // Barbearia B
+    {
+      ...base,
+      id: SERVICE_IDS.corteBeatriz,
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      barber_id: MOCK_USER_IDS.adminBeatriz,
+      name: "Corte assinatura",
+      price: 95,
+      duration_minutes: 45,
+    },
+    {
+      ...base,
       id: SERVICE_IDS.corteB,
       barbershop_id: MOCK_BARBERSHOP_B_ID,
       barber_id: MOCK_USER_IDS.barberBianca,
@@ -383,7 +426,23 @@ interface WeeklySeed {
 }
 
 const WEEKLY: readonly WeeklySeed[] = [
-  // Barbearia A — Ana atende de segunda a sexta; Bruno inclui sábado.
+  // Barbearia A — o admin atende de terça a sábado.
+  {
+    barberId: MOCK_USER_IDS.admin,
+    barbershopId: MOCK_BARBERSHOP_ID,
+    days: [2, 3, 4, 5, 6],
+    start: "09:00:00",
+    end: "17:00:00",
+  },
+  // Barbearia B — a admin também atende.
+  {
+    barberId: MOCK_USER_IDS.adminBeatriz,
+    barbershopId: MOCK_BARBERSHOP_B_ID,
+    days: [1, 2, 3, 4, 5],
+    start: "09:00:00",
+    end: "18:00:00",
+  },
+  // Ana atende de segunda a sexta; Bruno inclui sábado.
   {
     barberId: MOCK_USER_IDS.barberAna,
     barbershopId: MOCK_BARBERSHOP_ID,
@@ -482,6 +541,8 @@ function buildScheduleBlocks(): TableRow<"schedule_blocks">[] {
 /* Agendamentos                                                        */
 /* ------------------------------------------------------------------ */
 
+type AppointmentStatus = Database["public"]["Enums"]["appointment_status"];
+
 interface AppointmentSeed {
   id: string;
   barbershopId: string;
@@ -491,8 +552,157 @@ interface AppointmentSeed {
   dayOffset: number;
   start: string;
   durationMinutes: number;
-  status: Database["public"]["Enums"]["appointment_status"];
+  status: AppointmentStatus;
   notes?: string;
+}
+
+/* ---------- gerador determinístico do histórico ---------- */
+
+/**
+ * Gerador congruente linear. É determinístico de propósito: o seed precisa
+ * ser idêntico a cada `resetMockDatabase()`, senão os gráficos mudariam a
+ * cada restauração e os testes não poderiam afirmar nada.
+ */
+function createRandom(seed: number): () => number {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+/** Quantos dias para trás o histórico cobre (suficiente para filtros de 30 dias e mês anterior). */
+const HISTORY_DAYS_BACK = 75;
+
+/** Quantos dias para frente há agendamentos marcados. */
+const HISTORY_DAYS_AHEAD = 10;
+
+interface BarberPlan {
+  barbershopId: string;
+  barberId: string;
+  clientIds: readonly string[];
+}
+
+const BARBER_PLANS: readonly BarberPlan[] = [
+  {
+    barbershopId: MOCK_BARBERSHOP_ID,
+    barberId: MOCK_USER_IDS.admin,
+    clientIds: [MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.clienteCaio],
+  },
+  {
+    barbershopId: MOCK_BARBERSHOP_ID,
+    barberId: MOCK_USER_IDS.barberAna,
+    clientIds: [MOCK_USER_IDS.clienteCarla, MOCK_USER_IDS.clienteCaio],
+  },
+  {
+    barbershopId: MOCK_BARBERSHOP_ID,
+    barberId: MOCK_USER_IDS.barberBruno,
+    clientIds: [MOCK_USER_IDS.clienteCaio, MOCK_USER_IDS.clienteCarla],
+  },
+  {
+    barbershopId: MOCK_BARBERSHOP_B_ID,
+    barberId: MOCK_USER_IDS.adminBeatriz,
+    clientIds: [MOCK_USER_IDS.clienteBento],
+  },
+  {
+    barbershopId: MOCK_BARBERSHOP_B_ID,
+    barberId: MOCK_USER_IDS.barberBianca,
+    clientIds: [MOCK_USER_IDS.clienteBento],
+  },
+  {
+    barbershopId: MOCK_BARBERSHOP_B_ID,
+    barberId: MOCK_USER_IDS.barberBreno,
+    clientIds: [MOCK_USER_IDS.clienteBento],
+  },
+];
+
+/**
+ * Escolhe o status conforme a posição no tempo:
+ * passado vira majoritariamente "completed", com uma minoria de
+ * "cancelled"/"no_show"; futuro fica "scheduled" com alguns cancelamentos.
+ */
+function pickStatus(isPast: boolean, roll: number): AppointmentStatus {
+  if (!isPast) return roll < 0.12 ? "cancelled" : "scheduled";
+  if (roll < 0.72) return "completed";
+  if (roll < 0.86) return "cancelled";
+  return "no_show";
+}
+
+/**
+ * Gera o histórico percorrendo a grade semanal de cada profissional:
+ * só cria agendamento em dia atendido, fora de bloqueio e sem sobreposição,
+ * mantendo os dados coerentes com as regras de src/mocks/rules.ts.
+ */
+function generateAppointments(
+  weekly: TableRow<"weekly_schedule">[],
+  blocks: TableRow<"schedule_blocks">[],
+  services: TableRow<"services">[],
+): TableRow<"appointments">[] {
+  const rows: TableRow<"appointments">[] = [];
+  const random = createRandom(20260415);
+  let index = 0;
+
+  for (let offset = -HISTORY_DAYS_BACK; offset <= HISTORY_DAYS_AHEAD; offset += 1) {
+    const date = isoDateOffset(offset);
+    const dow = dayOfWeekOf(date);
+    const isPast = offset < 0;
+
+    for (const plan of BARBER_PLANS) {
+      const shift = weekly.find(
+        (item) =>
+          item.barber_id === plan.barberId &&
+          item.barbershop_id === plan.barbershopId &&
+          item.day_of_week === dow &&
+          item.is_active,
+      );
+      if (!shift) continue;
+
+      const blocked = blocks.some(
+        (block) => block.barber_id === plan.barberId && block.block_date === date,
+      );
+      if (blocked) continue;
+
+      const ownServices = services.filter(
+        (service) =>
+          service.barber_id === plan.barberId &&
+          service.barbershop_id === plan.barbershopId &&
+          service.active,
+      );
+      if (ownServices.length === 0) continue;
+
+      // 0 a 3 atendimentos por dia, encadeados sem sobreposição.
+      const count = Math.floor(random() * 4);
+      let cursor = timeToMinutes(shift.start_time) + Math.floor(random() * 3) * 30;
+      const shiftEnd = timeToMinutes(shift.end_time);
+
+      for (let n = 0; n < count; n += 1) {
+        const service = ownServices[Math.floor(random() * ownServices.length)];
+        const end = cursor + service.duration_minutes;
+        if (end > shiftEnd) break;
+
+        index += 1;
+        rows.push({
+          id: `ddddddd0-0000-4000-8000-${String(index).padStart(12, "0")}`,
+          barbershop_id: plan.barbershopId,
+          barber_id: plan.barberId,
+          client_id: plan.clientIds[Math.floor(random() * plan.clientIds.length)],
+          service_id: service.id,
+          date,
+          start_time: minutesToTime(cursor),
+          end_time: minutesToTime(end),
+          status: pickStatus(isPast, random()),
+          notes: null,
+          created_at: NOW_ISO,
+          updated_at: NOW_ISO,
+        });
+
+        // Intervalo de 0 ou 30 min entre atendimentos.
+        cursor = end + Math.floor(random() * 2) * 30;
+      }
+    }
+  }
+
+  return rows;
 }
 
 /**
@@ -570,7 +780,11 @@ const APPOINTMENTS: readonly AppointmentSeed[] = [
   },
 ];
 
-function buildAppointments(): TableRow<"appointments">[] {
+/**
+ * Agendamentos fixos ("âncoras"): ids estáveis, referenciados pelas
+ * avaliações e usados como alvo previsível nos testes.
+ */
+function buildAnchorAppointments(): TableRow<"appointments">[] {
   return APPOINTMENTS.map((seed) => ({
     id: seed.id,
     barbershop_id: seed.barbershopId,
@@ -585,6 +799,32 @@ function buildAppointments(): TableRow<"appointments">[] {
     created_at: NOW_ISO,
     updated_at: NOW_ISO,
   }));
+}
+
+/** Âncoras + histórico gerado, descartando o que colidiria com uma âncora. */
+function buildAppointments(
+  weekly: TableRow<"weekly_schedule">[],
+  blocks: TableRow<"schedule_blocks">[],
+  services: TableRow<"services">[],
+): TableRow<"appointments">[] {
+  const anchors = buildAnchorAppointments();
+
+  const generated = generateAppointments(weekly, blocks, services).filter(
+    (candidate) =>
+      !anchors.some(
+        (anchor) =>
+          anchor.barber_id === candidate.barber_id &&
+          anchor.date === candidate.date &&
+          overlaps(
+            timeToMinutes(candidate.start_time),
+            timeToMinutes(candidate.end_time),
+            timeToMinutes(anchor.start_time),
+            timeToMinutes(anchor.end_time),
+          ),
+      ),
+  );
+
+  return [...anchors, ...generated];
 }
 
 /* ------------------------------------------------------------------ */
@@ -696,6 +936,109 @@ function buildReviews(): TableRow<"reviews">[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Planos                                                              */
+/* ------------------------------------------------------------------ */
+
+function buildPlans(): TableRow<"plans">[] {
+  const base = { created_at: NOW_ISO, updated_at: NOW_ISO };
+  return [
+    {
+      ...base,
+      id: MOCK_PLAN_IDS.free,
+      name: "free",
+      price: 0,
+      appointment_limit: 50,
+      barber_limit: 1,
+      has_subscriptions: false,
+    },
+    {
+      ...base,
+      id: MOCK_PLAN_IDS.pro,
+      name: "pro",
+      price: 79.9,
+      appointment_limit: null,
+      barber_limit: 5,
+      has_subscriptions: true,
+    },
+    {
+      ...base,
+      id: MOCK_PLAN_IDS.enterprise,
+      name: "enterprise",
+      price: 199.9,
+      appointment_limit: null,
+      barber_limit: null,
+      has_subscriptions: true,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Comandas — exercitam a regra "total da comanda > preço do serviço"  */
+/* ------------------------------------------------------------------ */
+
+interface TicketBundle {
+  tickets: TableRow<"tickets">[];
+  payments: TableRow<"ticket_payments">[];
+}
+
+/**
+ * Fecha comanda para uma fração dos agendamentos concluídos, com um acréscimo
+ * fixo (produto vendido no balcão). Isso faz o faturamento divergir da soma
+ * pura dos preços de serviço — exatamente o caso que BarberReports trata ao
+ * preferir `tickets.total`.
+ */
+function buildTickets(
+  appointments: TableRow<"appointments">[],
+  services: TableRow<"services">[],
+): TicketBundle {
+  const tickets: TableRow<"tickets">[] = [];
+  const payments: TableRow<"ticket_payments">[] = [];
+
+  const completed = appointments.filter((item) => item.status === "completed");
+  let index = 0;
+
+  // Uma a cada três comandas concluídas é fechada com acréscimo de R$ 20.
+  for (let position = 0; position < completed.length; position += 3) {
+    const appointment = completed[position];
+    const service = services.find((item) => item.id === appointment.service_id);
+    if (!service) continue;
+
+    index += 1;
+    const subtotal = service.price + 20;
+    const ticketId = `0d0d0d01-0000-4000-8000-${String(index).padStart(12, "0")}`;
+
+    tickets.push({
+      id: ticketId,
+      barbershop_id: appointment.barbershop_id,
+      appointment_id: appointment.id,
+      barber_id: appointment.barber_id,
+      client_id: appointment.client_id,
+      subtotal,
+      discount_amount: 0,
+      discount_type: "value",
+      total: subtotal,
+      notes: null,
+      closed_at: NOW_ISO,
+      closed_by: appointment.barber_id,
+      created_at: NOW_ISO,
+      updated_at: NOW_ISO,
+    });
+
+    payments.push({
+      id: `0e0e0e01-0000-4000-8000-${String(index).padStart(12, "0")}`,
+      ticket_id: ticketId,
+      barbershop_id: appointment.barbershop_id,
+      payment_method_id: null,
+      method_name: index % 2 === 0 ? "Pix" : "Cartão de crédito",
+      amount: subtotal,
+      created_at: NOW_ISO,
+    });
+  }
+
+  return { tickets, payments };
+}
+
+/* ------------------------------------------------------------------ */
 /* Seed                                                                */
 /* ------------------------------------------------------------------ */
 
@@ -703,17 +1046,23 @@ function buildReviews(): TableRow<"reviews">[] {
 export function buildSeedDatabase(): MockDatabase {
   const weekly = buildWeeklySchedule();
   const blocks = buildScheduleBlocks();
-  const appointments = buildAppointments();
+  const services = buildServices();
+  const appointments = buildAppointments(weekly, blocks, services);
+  const { tickets, payments } = buildTickets(appointments, services);
 
   return {
     barbershops: buildBarbershops(),
     profiles: buildProfiles(),
     user_roles: buildUserRoles(),
-    services: buildServices(),
+    plans: buildPlans(),
+    services,
     weekly_schedule: weekly,
     schedule_blocks: blocks,
     appointments,
     availability: buildAvailability(weekly, blocks, appointments),
     reviews: buildReviews(),
+    tickets,
+    ticket_payments: payments,
+    client_blocks: [],
   };
 }
