@@ -99,22 +99,53 @@ export function BarberReports() {
     return { year: now.getFullYear(), month: now.getMonth() };
   });
 
+  // Escopo do relatório: o admin da barbearia vê todos os profissionais;
+  // o barbeiro vê apenas os próprios atendimentos.
+  // `null` enquanto o papel ainda está sendo resolvido — buscar antes disso
+  // traria o recorte errado e o gráfico piscaria com dados de escopo trocado.
+  const [isBarbershopAdmin, setIsBarbershopAdmin] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (!user || !barbershopId) return;
+    let cancelled = false;
+
+    supabase
+      .rpc("has_role_in_barbershop", {
+        _user_id: user.id,
+        _barbershop_id: barbershopId,
+        _role: "admin_barbearia",
+      })
+      .then(({ data }) => {
+        if (!cancelled) setIsBarbershopAdmin(Boolean(data));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, barbershopId]);
+
   const fetchMonthData = useCallback(async () => {
-    if (!user) return;
+    if (!user || isBarbershopAdmin === null) return;
     setLoading(true);
 
     const startDate = `${selectedMonth.year}-${String(selectedMonth.month + 1).padStart(2, "0")}-01`;
     const lastDay = new Date(selectedMonth.year, selectedMonth.month + 1, 0).getDate();
     const endDate = `${selectedMonth.year}-${String(selectedMonth.month + 1).padStart(2, "0")}-${lastDay}`;
 
-    const { data, error } = await supabase
+    // O recorte por barbearia é obrigatório para qualquer papel.
+    // Os filtros vêm antes de .order() porque, no supabase-js real, order()
+    // devolve um transform builder que já não expõe .eq().
+    const filtered = supabase
       .from("appointments")
       .select("id, date, status, service:services(name, price)")
       .eq("barbershop_id", barbershopId)
-      .eq("barber_id", user.id)
       .gte("date", startDate)
-      .lte("date", endDate)
-      .order("date", { ascending: true });
+      .lte("date", endDate);
+
+    // Só o barbeiro fica restrito aos próprios atendimentos.
+    const scoped = isBarbershopAdmin ? filtered : filtered.eq("barber_id", user.id);
+
+    const { data, error } = await scoped.order("date", { ascending: true });
 
     if (!error && data) {
       const apptIds = data.map((a) => a.id);
@@ -146,7 +177,7 @@ export function BarberReports() {
       );
     }
     setLoading(false);
-  }, [user, barbershopId, selectedMonth]);
+  }, [user, barbershopId, selectedMonth, isBarbershopAdmin]);
 
   useEffect(() => {
     fetchMonthData();
