@@ -417,6 +417,18 @@ function planOfBarbershop(barbershopId: string): MockRow | null {
 }
 
 /**
+ * Por que uma barbearia não tem limite validável: ela não existe, ou existe mas
+ * o `plan_id` está ausente/apontando para um plano inexistente. `null` = há um
+ * plano válido. Serve para o mock falhar de forma FECHADA com a mesma razão que
+ * o banco real usa, em vez de devolver um genérico "limite atingido".
+ */
+function planResolutionFailure(barbershopId: string): "no_barbershop" | "no_plan" | null {
+  const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+  if (!shop) return "no_barbershop";
+  return planOfBarbershop(barbershopId) ? null : "no_plan";
+}
+
+/**
  * Número de profissionais ativos/vinculados de uma barbearia — as linhas de
  * `user_roles` com papel de barbeiro ou admin. É a mesma contagem que a RPC
  * `check_barber_limit` faz no banco real.
@@ -431,12 +443,15 @@ export function countActiveBarbers(barbershopId: string): number {
 /**
  * `true` se a barbearia AINDA pode incluir um profissional (equivalente ao
  * booleano da RPC `check_barber_limit`). `null` no limite → ilimitado.
+ *
+ * FALHA FECHADA, como o banco: `check_barber_limit` (migration
+ * 20260720130000) devolve `false` quando a barbearia não existe ou quando o
+ * JOIN com `plans` não acha plano. O mock devolvia `true` nesses casos, o que
+ * dava capacidade ilimitada justamente ao estado inconsistente.
  */
 export function barbershopUnderBarberLimit(barbershopId: string): boolean {
-  const plan = planOfBarbershop(barbershopId);
-  // Sem plano: no banco a RPC devolveria NULL; aqui não bloqueamos a inclusão.
-  if (!plan) return true;
-  const limit = plan.barber_limit;
+  if (planResolutionFailure(barbershopId)) return false;
+  const limit = planOfBarbershop(barbershopId)?.barber_limit;
   if (limit === null || limit === undefined) return true;
   return countActiveBarbers(barbershopId) < Number(limit);
 }
@@ -444,16 +459,31 @@ export function barbershopUnderBarberLimit(barbershopId: string): boolean {
 /**
  * `true` se a barbearia ainda pode registrar um agendamento no mês
  * (equivalente à RPC `check_appointment_limit`, que lê o contador em cache).
+ *
+ * Mesma falha fechada: `check_appointment_limit` (migration 20260720120000)
+ * já retorna `false` para barbearia sem plano.
  */
 export function barbershopUnderAppointmentLimit(barbershopId: string): boolean {
+  if (planResolutionFailure(barbershopId)) return false;
   const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
-  if (!shop) return true;
-  const plan = planOfBarbershop(barbershopId);
-  if (!plan) return true;
-  const limit = plan.appointment_limit;
+  const limit = planOfBarbershop(barbershopId)?.appointment_limit;
   if (limit === null || limit === undefined) return true;
-  const used = Number(shop.appointments_this_month ?? 0);
+  const used = Number(shop?.appointments_this_month ?? 0);
   return used < Number(limit);
+}
+
+/**
+ * Mensagem do banco real para o estado em que o limite nem chega a ser
+ * calculável — o trigger `enforce_barber_limit` levanta exatamente estes dois
+ * erros (migration 20260720130000).
+ */
+function planFailureMessage(
+  failure: "no_barbershop" | "no_plan",
+  barbershopId: string,
+): string {
+  return failure === "no_barbershop"
+    ? `Barbearia "${barbershopId}" não existe.`
+    : `Barbearia "${barbershopId}" não tem plano associado — não é possível validar o limite do plano.`;
 }
 
 /**
@@ -468,6 +498,8 @@ export function checkInsertPlanLimit(table: string, row: MockRow): string | null
     if (!role || !BARBER_LIMIT_ROLES.has(role)) return null;
     const barbershopId = asString(row.barbershop_id);
     if (!barbershopId) return null;
+    const failure = planResolutionFailure(barbershopId);
+    if (failure) return planFailureMessage(failure, barbershopId);
     if (!barbershopUnderBarberLimit(barbershopId)) {
       const plan = planOfBarbershop(barbershopId);
       const limit = plan?.barber_limit;
@@ -480,6 +512,8 @@ export function checkInsertPlanLimit(table: string, row: MockRow): string | null
   if (table === "appointments") {
     const barbershopId = asString(row.barbershop_id);
     if (!barbershopId) return null;
+    const failure = planResolutionFailure(barbershopId);
+    if (failure) return planFailureMessage(failure, barbershopId);
     if (!barbershopUnderAppointmentLimit(barbershopId)) {
       const plan = planOfBarbershop(barbershopId);
       const limit = plan?.appointment_limit;

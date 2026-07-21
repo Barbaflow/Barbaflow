@@ -30,6 +30,7 @@ import {
   MOCK_SUPER_ADMIN_EMAIL,
   MOCK_USER_IDS,
 } from "@/mocks/fixtures";
+import { pickFutureFreeSlots } from "@/mocks/__harness__/slots";
 
 /* ------------------------------------------------------------------ */
 /* Infra de asserção                                                   */
@@ -289,6 +290,9 @@ async function testLimits(): Promise<void> {
   check("check_barber_limit(A pro) = true (ilimitado)", barberLimitA.data === true, String(barberLimitA.data));
 
   // Agenda um slot livre real do Ana e confirma que o contador mensal sobe.
+  // O slot é escolhido no FUTURO com margem (ver __harness__/slots.ts): a regra
+  // "não agendar no passado" continua ativa, o harness é que não escolhe mais
+  // um horário de hoje que já passou.
   const slotRes = await mockSupabaseClient
     .from("availability")
     .select("*")
@@ -296,9 +300,9 @@ async function testLimits(): Promise<void> {
     .eq("barber_id", MOCK_USER_IDS.barberAna)
     .eq("status", "livre")
     .order("date")
-    .order("start_time")
-    .limit(1);
-  const slot = firstRow(slotRes);
+    .order("start_time");
+  const slot = pickFutureFreeSlots(rowsOf(slotRes), 1)[0];
+  check("fixtures oferecem horário futuro para o teste de plano", slot !== undefined, "nenhum slot futuro");
 
   if (slot) {
     const before = firstRow(

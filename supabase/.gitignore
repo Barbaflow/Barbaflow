@@ -1,0 +1,6 @@
+# Supabase CLI local state — nunca versionar
+.branches
+.temp
+
+# Segredos locais do Supabase (nunca versionar)
+.env

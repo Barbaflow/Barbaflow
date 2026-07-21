@@ -1,19 +1,23 @@
--- Create sentinel barbershop for global roles
-INSERT INTO public.barbershops (id, name, subdomain, status, owner_id)
-VALUES (
-  '00000000-0000-0000-0000-000000000000',
-  '_system',
-  '_system',
-  'approved',
-  '051fc93b-2412-40a1-8f2b-9e3f56f0ddfe'
-)
-ON CONFLICT (id) DO NOTHING;
-
--- Assign super_admin role
-INSERT INTO public.user_roles (user_id, barbershop_id, role)
-VALUES (
-  '051fc93b-2412-40a1-8f2b-9e3f56f0ddfe',
-  '00000000-0000-0000-0000-000000000000',
-  'super_admin'
-)
-ON CONFLICT DO NOTHING;
+-- ============================================================================
+-- NO-OP intencional (corrigido para projeto novo).
+--
+-- A versão original desta migration semeava:
+--   * a barbearia sentinela `_system` (id 000...000) com owner_id de um usuário
+--     REAL do projeto antigo (auth.users);
+--   * o papel `super_admin` para esse mesmo usuário em `user_roles`.
+--
+-- Esses INSERTs referenciavam um UUID de `auth.users` que NÃO existe em um
+-- projeto Supabase novo/vazio. Como `barbershops.owner_id` e
+-- `user_roles.user_id` têm FK para `auth.users`, a migration original FALHARIA
+-- ao ser aplicada do zero (violação de chave estrangeira) e ainda amarraria o
+-- super_admin a uma identidade de outro projeto.
+--
+-- A criação da sentinela e a atribuição do papel super_admin foram movidas para
+-- um passo MANUAL, executado somente depois que o primeiro usuário
+-- administrativo real existir no novo projeto:
+--
+--   supabase/bootstrap/super-admin.example.sql
+--
+-- Este arquivo é mantido (histórico preservado, mesmo timestamp), mas sem
+-- nenhuma instrução SQL — aplica-se de forma limpa em uma base vazia.
+-- ============================================================================

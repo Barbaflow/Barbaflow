@@ -1,7 +1,8 @@
 
 -- Create public storage bucket for barbershop logos
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('logos', 'logos', true);
+VALUES ('logos', 'logos', true)
+ON CONFLICT (id) DO NOTHING;
 
 -- Anyone can view logos
 CREATE POLICY "Anyone can view logos"
