@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useBarbershop } from "@/hooks/use-barbershop";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,6 +32,7 @@ const STEPS = ["Barbearia", "Endereço", "Branding", "Revisão"] as const;
 
 export function OnboardingWizard() {
   const { user } = useAuth();
+  const { refreshBarbershop } = useBarbershop();
   const navigate = useNavigate();
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -169,6 +171,11 @@ export function OnboardingWizard() {
             "Abra o painel para concluir a configuração.",
         );
       }
+
+      // O contexto de tenant foi resolvido quando esta conta ainda não tinha
+      // barbearia. Sem re-resolver, as telas que autorizam por tenant (clientes,
+      // agenda, serviços) continuariam usando o fallback antigo nesta sessão.
+      refreshBarbershop();
 
       toast.success("Barbearia criada com sucesso!");
       navigate({ to: "/dashboard", search: { checkout: undefined } });

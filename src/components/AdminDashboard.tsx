@@ -434,6 +434,15 @@ export function AdminDashboard() {
                             <CalendarDays className="w-3.5 h-3.5" />
                             {shop.appointments_this_month} ags
                           </span>
+                          {/* Seleção EXPLÍCITA de tenant: abre a lista já com a
+                              barbearia escolhida, sem misturar tenants nem cair
+                              na sentinela. */}
+                          <Link to="/clientes" search={{ barbershop: shop.id }}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <Users className="w-3 h-3 mr-1" />
+                              Clientes
+                            </Button>
+                          </Link>
                           <Select
                             value={shop.plan_id || ""}
                             onValueChange={(val) => changePlan(shop.id, shop.name, val)}

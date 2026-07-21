@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { setActiveTenantTZ, DEFAULT_TENANT_TZ } from "@/lib/tz";
@@ -6,18 +6,39 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Barbershop = Tables<"barbershops">;
 
+/** Situação da resolução do tenant. Use isto para autorizar, não `isDefault`. */
+export type TenantStatus = "loading" | "resolved" | "none";
+
 interface BarbershopContextValue {
   barbershop: Barbershop | null;
+  /**
+   * LEGADO — sempre uma string, caindo em DEFAULT_BARBERSHOP_ID quando nada foi
+   * resolvido. Esse default é o MESMO uuid da barbearia fictícia do mock
+   * (`MOCK_BARBERSHOP_ID`), então no modo Supabase ele aponta para uma linha
+   * que NÃO EXISTE. Serve para telas que só precisam de um id para consultar;
+   * NUNCA use para decidir acesso — use `resolvedBarbershopId`.
+   */
   barbershopId: string;
+  /**
+   * Fonte única e explícita do tenant atual: `null` quando não há barbearia
+   * resolvida. Nunca vale um uuid de mock no modo Supabase.
+   */
+  resolvedBarbershopId: string | null;
+  tenantStatus: TenantStatus;
   loading: boolean;
   isDefault: boolean; // true when using fallback (no subdomain matched)
+  /** Re-resolve o tenant (ex.: logo após o onboarding criar a barbearia). */
+  refreshBarbershop: () => void;
 }
 
 const BarbershopContext = createContext<BarbershopContextValue>({
   barbershop: null,
   barbershopId: DEFAULT_BARBERSHOP_ID,
+  resolvedBarbershopId: null,
+  tenantStatus: "loading",
   loading: true,
   isDefault: true,
+  refreshBarbershop: () => {},
 });
 
 /**
@@ -49,8 +70,28 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
   const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
   const [loading, setLoading] = useState(true);
   const [isDefault, setIsDefault] = useState(true);
+  // Incrementado para forçar nova resolução (troca de sessão, onboarding).
+  const [resolveToken, setResolveToken] = useState(0);
+  const refreshBarbershop = useCallback(() => setResolveToken((n) => n + 1), []);
+
+  // A resolução acontecia UMA única vez, no mount. Quem entrasse sem barbearia
+  // — ou criasse a sua no meio da sessão, pelo onboarding — ficava com o
+  // fallback antigo para sempre, e as telas que autorizam por tenant passavam a
+  // comparar o usuário com um id que não é o dele. Re-resolvemos quando a
+  // sessão muda (login/logout/refresh) e sob demanda via refreshBarbershop().
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
+        setResolveToken((n) => n + 1);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
     const subdomain = extractSubdomain();
 
     if (subdomain) {
@@ -61,18 +102,23 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
         .eq("status", "approved")
         .single()
         .then(({ data, error }) => {
+          if (cancelled) return;
           if (data && !error) {
             setBarbershop(data);
             setIsDefault(false);
             setLoading(false);
           } else {
-            resolveFromUserRoles();
+            resolveFromUserRoles(() => cancelled);
           }
         });
     } else {
-      resolveFromUserRoles();
+      resolveFromUserRoles(() => cancelled);
     }
-  }, []);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resolveToken]);
 
   // Sincroniza o fuso horário ativo do tenant assim que a barbearia carrega
   // (e em qualquer atualização realtime). Isso garante que todayISOInTenantTZ
@@ -107,8 +153,9 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
     };
   }, [barbershop?.id]);
 
-  async function resolveFromUserRoles() {
+  async function resolveFromUserRoles(isCancelled: () => boolean = () => false) {
     const { data: { user } } = await supabase.auth.getUser();
+    if (isCancelled()) return;
 
     if (user) {
       const { data: roleData } = await supabase
@@ -151,22 +198,39 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
       }
     }
 
+    // Último recurso: a barbearia de DEFAULT_BARBERSHOP_ID. No modo mock ela
+    // existe e é o tenant de demonstração; no modo Supabase quase nunca existe,
+    // e é justamente por isso que `resolvedBarbershopId` fica null quando o
+    // SELECT não devolve nada — em vez de fingir um tenant.
     const { data } = await supabase
       .from("barbershops")
       .select("*")
       .eq("id", DEFAULT_BARBERSHOP_ID)
-      .single();
+      .maybeSingle();
 
-    if (data) {
-      setBarbershop(data);
-    }
+    if (isCancelled()) return;
+
+    setBarbershop(data ?? null);
+    setIsDefault(true);
     setLoading(false);
   }
 
   const barbershopId = barbershop?.id ?? DEFAULT_BARBERSHOP_ID;
+  const resolvedBarbershopId = barbershop?.id ?? null;
+  const tenantStatus: TenantStatus = loading ? "loading" : barbershop ? "resolved" : "none";
 
   return (
-    <BarbershopContext.Provider value={{ barbershop, barbershopId, loading, isDefault }}>
+    <BarbershopContext.Provider
+      value={{
+        barbershop,
+        barbershopId,
+        resolvedBarbershopId,
+        tenantStatus,
+        loading,
+        isDefault,
+        refreshBarbershop,
+      }}
+    >
       {children}
     </BarbershopContext.Provider>
   );

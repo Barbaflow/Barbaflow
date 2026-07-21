@@ -1,0 +1,57 @@
+-- ============================================================================
+-- EXECUTE de get_barbershop_clients para authenticated
+-- ----------------------------------------------------------------------------
+-- PROBLEMA COMPROVADO
+--
+-- A migration 20260721140000 fechou EXECUTE de PUBLIC em todas as funções de
+-- `public` e reabriu nominalmente só as RPCs consumidas pelo aplicativo. A
+-- auditoria que montou aquela lista varreu o código procurando `.rpc("nome")`
+-- — e `src/routes/clientes.tsx` chama esta função assim:
+--
+--     await (supabase.rpc as any)("get_barbershop_clients", { _barbershop_id })
+--
+-- O cast escondeu a chamada do meu levantamento, e `get_barbershop_clients`
+-- ficou sem EXECUTE. Reproduzido no Supabase local, com um super_admin
+-- autenticado:
+--
+--     POST /rest/v1/rpc/get_barbershop_clients
+--     → 403 {"code":"42501",
+--            "message":"permission denied for function get_barbershop_clients"}
+--
+-- Ou seja: mesmo com o tenant correto, a lista de clientes nunca carregaria.
+--
+-- Recontagem feita agora, já cobrindo chamadas com cast: as 11 RPCs usadas pelo
+-- app são accept_team_invitation, check_client_noshow_block, create_walkin_client,
+-- generate_availability_from_schedule, get_barber_display_names,
+-- get_barbershop_clients, get_client_phone, get_noshow_report,
+-- get_public_barbers, has_role e has_role_in_barbershop. Todas já tinham
+-- EXECUTE — esta era a única faltando.
+--
+-- ----------------------------------------------------------------------------
+-- POR QUE CONCEDER A `authenticated` NÃO AFROUXA O ISOLAMENTO
+--
+-- A função é SECURITY DEFINER, STABLE, `search_path = public`, e valida o
+-- tenant no próprio corpo, antes de qualquer leitura:
+--
+--     IF NOT ( has_role_in_barbershop(auth.uid(), _barbershop_id, 'admin_barbearia')
+--              OR has_role_in_barbershop(auth.uid(), _barbershop_id, 'barbeiro')
+--              OR has_role(auth.uid(), 'super_admin') )
+--     THEN RAISE EXCEPTION 'forbidden'; END IF;
+--
+-- O `_barbershop_id` vem do cliente, mas trocá-lo por outro tenant não dá
+-- acesso a nada: a checagem é sobre `auth.uid()` e o tenant PEDIDO. Um cliente
+-- comum recebe `forbidden` para qualquer barbearia, inclusive a própria.
+--
+-- `anon` NÃO recebe EXECUTE: sem sessão, `auth.uid()` é nulo e a função só
+-- devolveria `forbidden` — expor a assinatura no schema cache seria superfície
+-- sem propósito. `service_role` também não recebe: o backend não consome esta
+-- RPC (e bypassa RLS quando precisa). Nenhum SELECT amplo em `profiles` é
+-- concedido — a função lê os perfis como SECURITY DEFINER, restrita aos
+-- clientes daquela barbearia.
+--
+-- Escopo: um único GRANT. Nenhuma policy é alterada, nenhum dado é inserido,
+-- RLS permanece como está. Posterior a 20260722150000; nenhuma das 65
+-- migrations anteriores é modificada.
+-- ============================================================================
+
+GRANT EXECUTE ON FUNCTION public.get_barbershop_clients(uuid) TO authenticated;
