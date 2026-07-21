@@ -112,6 +112,16 @@ const SERVICE_IDS = {
 
 export const MOCK_SERVICE_IDS = SERVICE_IDS;
 
+/** Ids estáveis de agendamentos-âncora usados pelos testes de avaliação. */
+export const MOCK_APPOINTMENT_IDS = {
+  /** Barbearia A — concluído e sem avaliação (Caio). */
+  completedUnreviewedA: "ddddddd1-0000-4000-8000-000000000005",
+  /** Barbearia A — concluído e já avaliado (Carla). */
+  completedReviewedA: "ddddddd1-0000-4000-8000-000000000003",
+  /** Barbearia A — agendado (Carla): não pode ser avaliado. */
+  scheduledA: "ddddddd1-0000-4000-8000-000000000001",
+} as const;
+
 /** Planos — `pro` libera a tela de relatórios (ver useCanAccessFeature). */
 export const MOCK_PLAN_IDS = {
   free: "0c0c0c01-0000-4000-8000-000000000001",
@@ -1014,6 +1024,18 @@ const APPOINTMENTS: readonly AppointmentSeed[] = [
     status: "no_show",
   },
   {
+    // Concluído e AINDA sem avaliação — alvo do fluxo pós-atendimento (Caio).
+    id: "ddddddd1-0000-4000-8000-000000000005",
+    barbershopId: MOCK_BARBERSHOP_ID,
+    barberId: MOCK_USER_IDS.barberAna,
+    clientId: MOCK_USER_IDS.clienteCaio,
+    serviceId: SERVICE_IDS.corte,
+    dayOffset: -6,
+    start: "11:00:00",
+    durationMinutes: 30,
+    status: "completed",
+  },
+  {
     id: "ddddddd2-0000-4000-8000-000000000001",
     barbershopId: MOCK_BARBERSHOP_B_ID,
     barberId: MOCK_USER_IDS.barberBianca,
@@ -1172,6 +1194,7 @@ function buildReviews(): TableRow<"reviews">[] {
   };
 
   return [
+    // Barbearia A — notas variadas (média e contagem são derivadas do store).
     {
       ...base,
       id: "0b0b0b01-0000-4000-8000-000000000001",
@@ -1182,6 +1205,36 @@ function buildReviews(): TableRow<"reviews">[] {
       comment: "Atendimento impecável (avaliação fictícia).",
     },
     {
+      // Sem appointment_id: o schema permite avaliação avulsa (appointment nulo).
+      ...base,
+      id: "0b0b0b01-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteCaio,
+      appointment_id: null,
+      rating: 4,
+      comment: "Bom corte, voltarei (avaliação fictícia).",
+    },
+    {
+      ...base,
+      id: "0b0b0b01-0000-4000-8000-000000000003",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.clienteDiego,
+      appointment_id: null,
+      rating: 5,
+      comment: "Recomendo demais (avaliação fictícia).",
+    },
+    {
+      // Nota baixa e sem comentário — exercita o card sem texto.
+      ...base,
+      id: "0b0b0b01-0000-4000-8000-000000000004",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      client_id: MOCK_USER_IDS.walkinEva,
+      appointment_id: null,
+      rating: 3,
+      comment: null,
+    },
+    // Barbearia B
+    {
       ...base,
       id: "0b0b0b02-0000-4000-8000-000000000001",
       barbershop_id: MOCK_BARBERSHOP_B_ID,
@@ -1190,6 +1243,176 @@ function buildReviews(): TableRow<"reviews">[] {
       rating: 4,
       comment: "Muito bom (avaliação fictícia).",
     },
+    {
+      ...base,
+      id: "0b0b0b02-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      client_id: MOCK_USER_IDS.clienteBruna,
+      appointment_id: null,
+      rating: 5,
+      comment: "Experiência premium (avaliação fictícia).",
+    },
+    // Barbearias C, D e E ficam sem avaliações → estado vazio (média 0).
+  ];
+}
+
+/**
+ * Recalcula `rating_avg`/`rating_count` de cada barbearia a partir das reviews,
+ * exatamente como o trigger `recalc_barbershop_rating` do banco real
+ * (ROUND(AVG(rating), 2); 0 quando não há avaliações). Nada de número fixo.
+ */
+export function ratingAggregateFor(
+  barbershopId: string,
+  reviews: ReadonlyArray<{ barbershop_id?: unknown; rating?: unknown }>,
+): { rating_avg: number; rating_count: number } {
+  const own = reviews.filter((review) => review.barbershop_id === barbershopId);
+  const count = own.length;
+  if (count === 0) return { rating_avg: 0, rating_count: 0 };
+  const sum = own.reduce((total, review) => total + Number(review.rating ?? 0), 0);
+  return { rating_avg: Math.round((sum / count) * 100) / 100, rating_count: count };
+}
+
+function applyRatingAggregates(
+  barbershops: TableRow<"barbershops">[],
+  reviews: TableRow<"reviews">[],
+): TableRow<"barbershops">[] {
+  return barbershops.map((shop) => ({
+    ...shop,
+    ...ratingAggregateFor(String(shop.id), reviews),
+  }));
+}
+
+/* ------------------------------------------------------------------ */
+/* Notificações internas                                               */
+/* ------------------------------------------------------------------ */
+
+/** Ids estáveis de notificações usados pelos testes. */
+export const MOCK_NOTIFICATION_IDS = {
+  /** Notificação NÃO lida da Carla (alvo do "marcar como lida"). */
+  carlaUnread: "0a1a2a01-0000-4000-8000-000000000001",
+} as const;
+
+function minutesAgoISO(minutes: number): string {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - minutes);
+  return d.toISOString();
+}
+
+/**
+ * Notificações fictícias, distintas por papel e por tenant, cobrindo lidas e
+ * não lidas. Cada linha pertence a um `user_id` — a isolação é por usuário.
+ * Reproduzem os mesmos `type`/título que os triggers do banco gerariam.
+ */
+function buildNotifications(): TableRow<"notifications">[] {
+  return [
+    /* ---- Barbearia A ---- */
+    // Cliente Carla: confirmação (não lida), conclusão (lida) e resposta à
+    // avaliação (não lida).
+    {
+      id: MOCK_NOTIFICATION_IDS.carlaUnread,
+      user_id: MOCK_USER_IDS.clienteCarla,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000001",
+      type: "appointment_confirmed",
+      title: "Agendamento confirmado",
+      message: "Seu agendamento de Corte masculino na Barbearia Modelo foi confirmado.",
+      read: false,
+      created_at: minutesAgoISO(30),
+    },
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000002",
+      user_id: MOCK_USER_IDS.clienteCarla,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000003",
+      type: "appointment_completed",
+      title: "Serviço concluído",
+      message: "Seu Barba na Barbearia Modelo foi concluído. Obrigado!",
+      read: true,
+      created_at: minutesAgoISO(60 * 24 * 3),
+    },
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000003",
+      user_id: MOCK_USER_IDS.clienteCarla,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000003",
+      type: "review_reply",
+      title: "Resposta à sua avaliação",
+      message: 'Barbearia Modelo respondeu à sua avaliação: "Obrigado pela preferência!"',
+      read: false,
+      created_at: minutesAgoISO(120),
+    },
+    // Cliente Caio: confirmação (não lida).
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000004",
+      user_id: MOCK_USER_IDS.clienteCaio,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000002",
+      type: "appointment_confirmed",
+      title: "Agendamento confirmado",
+      message: "Seu agendamento de Corte + Barba na Barbearia Modelo foi confirmado.",
+      read: false,
+      created_at: minutesAgoISO(45),
+    },
+    // Barbeira Ana: novos agendamentos (uma não lida, uma lida).
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000005",
+      user_id: MOCK_USER_IDS.barberAna,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000001",
+      type: "new_appointment",
+      title: "Novo agendamento",
+      message: "Carla Cliente agendou Corte masculino.",
+      read: false,
+      created_at: minutesAgoISO(31),
+    },
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000006",
+      user_id: MOCK_USER_IDS.barberAna,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000005",
+      type: "new_appointment",
+      title: "Novo agendamento",
+      message: "Caio Cliente agendou Corte masculino.",
+      read: true,
+      created_at: minutesAgoISO(60 * 24 * 6),
+    },
+    // Admin Alex: novo agendamento (lida).
+    {
+      id: "0a1a2a01-0000-4000-8000-000000000007",
+      user_id: MOCK_USER_IDS.admin,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: "ddddddd1-0000-4000-8000-000000000001",
+      type: "new_appointment",
+      title: "Novo agendamento",
+      message: "Carla Cliente agendou Corte masculino.",
+      read: true,
+      created_at: minutesAgoISO(31),
+    },
+
+    /* ---- Barbearia B (isolada da A) ---- */
+    {
+      id: "0a1a2a02-0000-4000-8000-000000000001",
+      user_id: MOCK_USER_IDS.clienteBento,
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      appointment_id: "ddddddd2-0000-4000-8000-000000000001",
+      type: "appointment_confirmed",
+      title: "Agendamento confirmado",
+      message: "Seu agendamento de Corte navalhado na Navalha de Ouro foi confirmado.",
+      read: false,
+      created_at: minutesAgoISO(50),
+    },
+    {
+      id: "0a1a2a02-0000-4000-8000-000000000002",
+      user_id: MOCK_USER_IDS.adminBeatriz,
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      appointment_id: "ddddddd2-0000-4000-8000-000000000001",
+      type: "new_appointment",
+      title: "Novo agendamento",
+      message: "Bento Cliente agendou Corte navalhado.",
+      read: false,
+      created_at: minutesAgoISO(51),
+    },
+    // Diego (A) e demais contas ficam sem notificações → estado vazio.
   ];
 }
 
@@ -1810,8 +2033,12 @@ export function buildSeedDatabase(): MockDatabase {
     paymentMethods,
   );
 
+  const reviews = buildReviews();
+  // rating_avg/rating_count derivam das reviews (nada fixo), como o trigger real.
+  const barbershops = applyRatingAggregates(buildBarbershops(), reviews);
+
   return {
-    barbershops: buildBarbershops(),
+    barbershops,
     profiles: buildProfiles(),
     user_roles: buildUserRoles(),
     plans: buildPlans(),
@@ -1822,7 +2049,8 @@ export function buildSeedDatabase(): MockDatabase {
     schedule_blocks: blocks,
     appointments,
     availability: buildAvailability(weekly, blocks, appointments),
-    reviews: buildReviews(),
+    reviews,
+    notifications: buildNotifications(),
     products,
     payment_methods: paymentMethods,
     tickets,

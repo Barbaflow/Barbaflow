@@ -391,6 +391,10 @@ export function authorizeWrite(
       return authorizePlanChangeLog();
     case "subscriptions":
       return authorizeSubscription();
+    case "reviews":
+      return authorizeReview(operation, row, existing);
+    case "notifications":
+      return authorizeNotification(operation, row, existing);
     default:
       return null;
   }
@@ -515,6 +519,140 @@ export function validatePlanChangeLog(row: MockRow): string | null {
   }
 
   return null;
+}
+
+/* ================================================================== */
+/* Avaliações (reviews)                                               */
+/* ================================================================== */
+
+/** Mesmo limite de caracteres da UI (ReviewDialog / ReviewsShowcase). */
+const REVIEW_TEXT_MAX = 500;
+
+function isIntegerInRange(value: unknown, min: number, max: number): boolean {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= min && parsed <= max;
+}
+
+/**
+ * Valida uma avaliação. No INSERT cobre as mesmas condições da policy real:
+ * nota 1..5, e — quando há appointment_id — o agendamento precisa ser do
+ * cliente, da mesma barbearia e estar `completed`, com uma única avaliação por
+ * (cliente, agendamento). No UPDATE valida apenas os campos alterados.
+ */
+export function validateReview(row: MockRow, existing?: MockRow): string | null {
+  if (existing) {
+    if (row.rating !== undefined && !isIntegerInRange(row.rating, 1, 5)) {
+      return "Avaliação: a nota deve ser um número inteiro de 1 a 5.";
+    }
+    if (row.comment != null && String(row.comment).length > REVIEW_TEXT_MAX) {
+      return "Avaliação: o comentário deve ter no máximo 500 caracteres.";
+    }
+    if (row.reply != null && String(row.reply).length > REVIEW_TEXT_MAX) {
+      return "Avaliação: a resposta deve ter no máximo 500 caracteres.";
+    }
+    return null;
+  }
+
+  const barbershopId = asString(row.barbershop_id);
+  const clientId = asString(row.client_id);
+  if (!barbershopId || !clientId) {
+    return "Avaliação: barbearia e cliente são obrigatórios.";
+  }
+  if (!barbershopExists(barbershopId)) {
+    return `Avaliação: barbearia "${barbershopId}" não existe.`;
+  }
+  if (!isIntegerInRange(row.rating, 1, 5)) {
+    return "Avaliação: a nota deve ser um número inteiro de 1 a 5.";
+  }
+  if (row.comment != null && String(row.comment).length > REVIEW_TEXT_MAX) {
+    return "Avaliação: o comentário deve ter no máximo 500 caracteres.";
+  }
+
+  const appointmentId = asString(row.appointment_id);
+  if (appointmentId) {
+    const appointment = getTableRows("appointments").find((item) => item.id === appointmentId);
+    if (!appointment) return "Avaliação: agendamento não encontrado.";
+    if (appointment.client_id !== clientId) {
+      return "Avaliação: este agendamento não pertence ao cliente.";
+    }
+    if (appointment.barbershop_id !== barbershopId) {
+      return "Avaliação: o agendamento pertence a outra barbearia.";
+    }
+    if (appointment.status !== "completed") {
+      return "Avaliação: só é possível avaliar um atendimento concluído.";
+    }
+    // Única avaliação por (cliente, agendamento) — como a constraint real.
+    const duplicated = getTableRows("reviews").some(
+      (item) => item.client_id === clientId && item.appointment_id === appointmentId,
+    );
+    if (duplicated) return "Avaliação: este atendimento já foi avaliado.";
+  }
+
+  return null;
+}
+
+function reviewTenantOf(row: MockRow, existing?: MockRow): string {
+  return asString(existing?.barbershop_id) ?? asString(row.barbershop_id) ?? "";
+}
+
+/**
+ * Autoriza escrita em `reviews`. INSERT: só em nome do próprio cliente
+ * (`client_id = auth.uid()`). UPDATE/DELETE: autor OU staff/super_admin da
+ * barbearia (união das policies de autor e de resposta/moderação).
+ */
+function authorizeReview(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+
+  if (operation === "insert") {
+    if (asString(row.client_id) !== actor.id) {
+      return "Avaliação: só é possível avaliar em seu próprio nome.";
+    }
+    return null;
+  }
+
+  const author = asString(existing?.client_id) ?? asString(row.client_id);
+  const shopId = reviewTenantOf(row, existing);
+  if (author === actor.id) return null;
+  if (actorIsStaffOf(shopId) || actorIsSuperAdmin()) return null;
+
+  return "Avaliação: sem permissão para alterar esta avaliação.";
+}
+
+/* ================================================================== */
+/* Notificações internas                                              */
+/* ================================================================== */
+
+/**
+ * Autoriza escrita em `notifications`. As notificações são criadas pelos
+ * gatilhos internos (o cliente não insere). UPDATE/DELETE só nas próprias
+ * (marcar como lida) — espelha a RLS `user_id = auth.uid()`.
+ */
+function authorizeNotification(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+
+  if (operation === "insert") {
+    return "Notificações são geradas pelo sistema, não podem ser criadas pelo usuário.";
+  }
+
+  const owner = asString(existing?.user_id) ?? asString(row.user_id);
+  if (owner !== actor.id) {
+    return "Notificações: você só pode alterar as suas próprias notificações.";
+  }
+  return null;
+}
+
+/**
+ * Restringe o que o ator pode LER. Notificações são privadas: cada usuário só
+ * enxerga as suas (mesmo que a consulta esqueça o filtro por user_id). As
+ * demais tabelas permanecem legíveis como antes.
+ */
+export function filterReadableRows(table: string, rows: MockRow[]): MockRow[] {
+  if (table !== "notifications") return rows;
+  const actor = getMockActor();
+  if (!actor) return [];
+  return rows.filter((row) => row.user_id === actor.id);
 }
 
 /* ================================================================== */
