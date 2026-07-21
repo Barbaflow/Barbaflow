@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.5"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -211,7 +231,7 @@ export type Database = {
           owner_id: string | null
           pdf_slogan: string | null
           pdf_template: string | null
-          plan_id: string | null
+          plan_id: string
           primary_color: string
           qr_size: string | null
           rating_avg: number
@@ -249,7 +269,7 @@ export type Database = {
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
-          plan_id?: string | null
+          plan_id?: string
           primary_color?: string
           qr_size?: string | null
           rating_avg?: number
@@ -287,7 +307,7 @@ export type Database = {
           owner_id?: string | null
           pdf_slogan?: string | null
           pdf_template?: string | null
-          plan_id?: string | null
+          plan_id?: string
           primary_color?: string
           qr_size?: string | null
           rating_avg?: number
@@ -646,6 +666,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          anonymized_at: string | null
           avatar_url: string | null
           created_at: string
           full_name: string | null
@@ -655,6 +676,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          anonymized_at?: string | null
           avatar_url?: string | null
           created_at?: string
           full_name?: string | null
@@ -664,6 +686,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          anonymized_at?: string | null
           avatar_url?: string | null
           created_at?: string
           full_name?: string | null
@@ -1230,6 +1253,10 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      barbershop_is_system_sentinel: {
+        Args: { _barbershop_id: string }
+        Returns: boolean
+      }
       check_appointment_limit: {
         Args: { _barbershop_id: string }
         Returns: boolean
@@ -1243,6 +1270,7 @@ export type Database = {
         Args: { _barbershop_id: string; _full_name: string; _phone?: string }
         Returns: string
       }
+      default_free_plan_id: { Args: never; Returns: string }
       generate_availability_from_schedule: {
         Args: {
           _barber_id: string
@@ -1316,7 +1344,12 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_trusted_backend: { Args: never; Returns: boolean }
       notify_expired_client_blocks: { Args: never; Returns: number }
+      role_counts_toward_barber_limit: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
     }
     Enums: {
       app_role: "cliente" | "barbeiro" | "admin_barbearia" | "super_admin"
@@ -1450,6 +1483,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       app_role: ["cliente", "barbeiro", "admin_barbearia", "super_admin"],
@@ -1461,3 +1497,4 @@ export const Constants = {
     },
   },
 } as const
+

@@ -87,9 +87,15 @@ export function AdminDashboard() {
   }, []);
 
   const fetchBarbershops = useCallback(async () => {
+    // A sentinela `_system` existe só para ancorar o papel global super_admin
+    // (ver supabase/bootstrap). Ela não é uma barbearia de verdade: não tem
+    // equipe, não é moderada e mudar plano/status dela não significa nada.
+    // Todos os outros pontos do app já a excluem (use-barbershop,
+    // PublicBookingWizard, barbearias, dashboard) — este era o que faltava.
     const { data: shops } = await supabase
       .from("barbershops")
       .select("*")
+      .neq("subdomain", "_system")
       .order("created_at", { ascending: false });
 
     if (!shops) {

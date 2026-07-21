@@ -96,7 +96,12 @@ export function OnboardingWizard() {
         return;
       }
 
-      // 2. Create barbershop with address
+      // 2. Create barbershop with address.
+      //
+      // `plan_id` não é enviado: a coluna tem DEFAULT
+      // `default_free_plan_id()` (migration 20260722130000), e o trigger
+      // `trg_enforce_barbershop_plan` recusa com 42501 qualquer plano
+      // escolhido por payload de usuário comum. Toda barbearia nasce free.
       const { data: shop, error: insertError } = await supabase
         .from("barbershops")
         .insert({

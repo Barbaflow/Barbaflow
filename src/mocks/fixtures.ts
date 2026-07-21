@@ -487,6 +487,10 @@ function buildProfiles(): TableRow<"profiles">[] {
     full_name: person.fullName,
     phone: person.phone,
     avatar_url: null,
+    // Nenhum perfil fictício representa conta excluída. A coluna existe desde
+    // a migration 20260722120000 e só é preenchida pelo gatilho
+    // `on_auth_user_deleted`, que anonimiza o perfil de um usuário removido.
+    anonymized_at: null,
     created_at: NOW_ISO,
     updated_at: NOW_ISO,
   }));
