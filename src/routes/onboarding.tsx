@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useAuth } from "@/hooks/use-auth";
 import { OnboardingWizard } from "@/components/OnboardingWizard";
+import { supabase } from "@/integrations/supabase/client";
 import { Scissors } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export const Route = createFileRoute("/onboarding")({
   head: () => ({
@@ -23,6 +24,8 @@ export const Route = createFileRoute("/onboarding")({
 function OnboardingPage() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  // null = ainda verificando; true = pode criar; false = já tem, redirecionando.
+  const [canCreate, setCanCreate] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -30,7 +33,46 @@ function OnboardingPage() {
     }
   }, [user, loading, navigate]);
 
-  if (loading || !user) {
+  // Guard: quem já tem papel de equipe ou já é dono de uma barbearia não passa
+  // por aqui de novo. Sem isto, um dono órfão (barbearia criada, vínculo não)
+  // criaria uma SEGUNDA barbearia ao voltar para /onboarding.
+  useEffect(() => {
+    if (loading || !user) return;
+    let cancelled = false;
+
+    (async () => {
+      const [{ data: roles }, { data: owned }] = await Promise.all([
+        supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .in("role", ["admin_barbearia", "barbeiro", "super_admin"])
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("barbershops")
+          .select("id")
+          .eq("owner_id", user.id)
+          .neq("subdomain", "_system")
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (cancelled) return;
+
+      if (roles || owned) {
+        setCanCreate(false);
+        navigate({ to: "/dashboard", search: { checkout: undefined }, replace: true });
+        return;
+      }
+      setCanCreate(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, loading, navigate]);
+
+  if (loading || !user || canCreate !== true) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
