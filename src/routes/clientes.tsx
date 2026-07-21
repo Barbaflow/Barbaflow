@@ -62,12 +62,28 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
 
+/** Sentinela `_system` — nunca é um tenant operacional. */
+const SYSTEM_BARBERSHOP_ID = "00000000-0000-0000-0000-000000000000";
+
+/** Estados possíveis da autorização desta tela. */
+type AccessState =
+  | "checking"        // sessão/papel/tenant ainda resolvendo
+  | "granted"
+  | "forbidden"       // autenticado, mas sem papel suficiente
+  | "no-tenant"       // sem barbearia vinculada
+  | "needs-selection" // super_admin sem barbearia escolhida
+  | "error";          // falha de rede/banco na verificação
+
 export const Route = createFileRoute("/clientes")({
   head: () => ({
     meta: [
       { title: "Clientes — BarbaFlow" },
       { name: "description", content: "Gerencie os clientes da sua barbearia." },
     ],
+  }),
+  // Seleção explícita de tenant pelo super_admin (ação do AdminDashboard).
+  validateSearch: (search: Record<string, unknown>): { barbershop?: string } => ({
+    barbershop: typeof search.barbershop === "string" ? search.barbershop : undefined,
   }),
   component: ClientesPage,
 });
@@ -128,10 +144,13 @@ const SORT_OPTIONS: { key: SortKey; label: string; defaultDir: SortDir }[] = [
 
 function ClientesPage() {
   const { user, loading: authLoading } = useAuth();
-  const { barbershop, barbershopId, loading: shopLoading } = useBarbershop();
+  const { barbershop, resolvedBarbershopId, tenantStatus } = useBarbershop();
   const navigate = useNavigate();
+  const routeSearch = Route.useSearch();
 
-  const [hasAccess, setHasAccess] = useState<boolean | null>(null);
+  const [access, setAccess] = useState<AccessState>("checking");
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [isSuper, setIsSuper] = useState<boolean | null>(null);
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
@@ -251,33 +270,98 @@ function ClientesPage() {
     }
   }, [authLoading, user, navigate]);
 
-  // Check access (must be admin or barber of the shop)
+  // Resolução do tenant desta tela, em ordem explícita de prioridade:
+  //   1. ?barbershop=<id> — só vale para super_admin (ação do AdminDashboard);
+  //   2. tenant resolvido pelo papel/propriedade do usuário;
+  //   3. nenhum — a tela pede seleção em vez de consultar um id inventado.
+  // A sentinela nunca é usada como tenant operacional.
+  const selectedId = routeSearch.barbershop ?? null;
+  const tenantId =
+    isSuper && selectedId && selectedId !== SYSTEM_BARBERSHOP_ID
+      ? selectedId
+      : resolvedBarbershopId;
+
+  // Descobre super_admin antes de decidir o tenant (a seleção por URL depende).
   useEffect(() => {
-    if (!user || !barbershopId) return;
+    if (!user) return;
+    let cancelled = false;
+    supabase
+      .rpc("has_role", { _user_id: user.id, _role: "super_admin" })
+      .then(({ data }) => {
+        if (!cancelled) setIsSuper(Boolean(data));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
+  // Checagem de acesso — só roda depois que sessão, papel global e tenant
+  // terminaram de resolver. Antes disso o estado permanece "verificando",
+  // nunca "acesso negado".
+  useEffect(() => {
+    if (!user || isSuper === null || tenantStatus === "loading") return;
+
+    if (!tenantId) {
+      // Sem tenant operacional. Distinguimos os dois motivos para a mensagem
+      // não mentir: quem só tem papel de `cliente` tem barbearia — o que falta
+      // é permissão; quem não tem papel nenhum ainda não criou a sua.
+      if (isSuper) {
+        setAccess("needs-selection");
+        return;
+      }
+      let cancelledRoles = false;
+      supabase
+        .from("user_roles")
+        .select("id")
+        .eq("user_id", user.id)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelledRoles) setAccess(data ? "forbidden" : "no-tenant");
+        });
+      return () => {
+        cancelledRoles = true;
+      };
+    }
+
+    let cancelled = false;
     (async () => {
-      const [{ data: isAdmin }, { data: isBarber }, { data: isSuper }] = await Promise.all([
+      if (isSuper) {
+        if (!cancelled) setAccess("granted");
+        return;
+      }
+      const [{ data: isAdmin, error: e1 }, { data: isBarber, error: e2 }] = await Promise.all([
         supabase.rpc("has_role_in_barbershop", {
           _user_id: user.id,
-          _barbershop_id: barbershopId,
+          _barbershop_id: tenantId,
           _role: "admin_barbearia",
         }),
         supabase.rpc("has_role_in_barbershop", {
           _user_id: user.id,
-          _barbershop_id: barbershopId,
+          _barbershop_id: tenantId,
           _role: "barbeiro",
         }),
-        supabase.rpc("has_role", { _user_id: user.id, _role: "super_admin" }),
       ]);
-      setHasAccess(Boolean(isAdmin) || Boolean(isBarber) || Boolean(isSuper));
+      if (cancelled) return;
+      if (e1 || e2) {
+        setAccessError((e1 ?? e2)?.message ?? "Falha ao verificar permissão.");
+        setAccess("error");
+        return;
+      }
+      setAccess(isAdmin || isBarber ? "granted" : "forbidden");
     })();
-  }, [user, barbershopId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user, isSuper, tenantId, tenantStatus]);
 
   const fetchClients = useCallback(async () => {
-    if (!hasAccess || !barbershopId) return;
+    if (access !== "granted" || !tenantId) return;
     setLoading(true);
     // RPC not yet in generated types — cast safely
     const { data, error } = await (supabase.rpc as any)("get_barbershop_clients", {
-      _barbershop_id: barbershopId,
+      _barbershop_id: tenantId,
     });
     if (error) {
       toast.error("Não foi possível carregar os clientes");
@@ -293,7 +377,7 @@ function ClientesPage() {
       const { data: notesData } = await (supabase
         .from as any)("client_notes")
         .select("client_id")
-        .eq("barbershop_id", barbershopId);
+        .eq("barbershop_id", tenantId);
       if (notesData) {
         const counts: Record<string, number> = {};
         for (const n of notesData as { client_id: string }[]) {
@@ -304,11 +388,11 @@ function ClientesPage() {
     } else {
       setNoteCounts({});
     }
-  }, [hasAccess, barbershopId]);
+  }, [access, tenantId]);
 
   useEffect(() => {
-    if (hasAccess) fetchClients();
-  }, [hasAccess, fetchClients]);
+    if (access === "granted") fetchClients();
+  }, [access, fetchClients]);
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -391,6 +475,8 @@ function ClientesPage() {
   }, [rows]);
 
   const handleBlock = async () => {
+    // Guarda de tenant: estes fluxos só existem com barbearia resolvida.
+    if (!tenantId) return;
     if (!blockTarget || !user) return;
     if (blockDays < 1 || blockDays > 365) {
       toast.error("Informe entre 1 e 365 dias");
@@ -399,7 +485,7 @@ function ClientesPage() {
     setSubmitting(true);
     const blockedUntil = new Date(Date.now() + blockDays * 86_400_000).toISOString();
     const { error } = await supabase.from("client_blocks").insert({
-      barbershop_id: barbershopId,
+      barbershop_id: tenantId,
       client_id: blockTarget.client_id,
       blocked_until: blockedUntil,
       reason: blockReason.trim() || null,
@@ -420,10 +506,12 @@ function ClientesPage() {
   };
 
   const handleUnblock = async (row: ClientRow) => {
+    // Guarda de tenant: estes fluxos só existem com barbearia resolvida.
+    if (!tenantId) return;
     const { error } = await supabase
       .from("client_blocks")
       .delete()
-      .eq("barbershop_id", barbershopId)
+      .eq("barbershop_id", tenantId)
       .eq("client_id", row.client_id)
       .gt("blocked_until", new Date().toISOString());
     if (error) {
@@ -435,13 +523,15 @@ function ClientesPage() {
   };
 
   const openHistory = async (row: ClientRow) => {
+    // Guarda de tenant: estes fluxos só existem com barbearia resolvida.
+    if (!tenantId) return;
     setHistoryTarget(row);
     setHistoryLoading(true);
     setHistory([]);
     const { data, error } = await supabase
       .from("appointments")
       .select("id, date, start_time, status, service:services(name, price)")
-      .eq("barbershop_id", barbershopId)
+      .eq("barbershop_id", tenantId)
       .eq("client_id", row.client_id)
       .order("date", { ascending: false })
       .order("start_time", { ascending: false })
@@ -470,6 +560,8 @@ function ClientesPage() {
   };
 
   const openNotes = async (row: ClientRow) => {
+    // Guarda de tenant: estes fluxos só existem com barbearia resolvida.
+    if (!tenantId) return;
     setNotesTarget(row);
     setNotesLoading(true);
     setNotes([]);
@@ -478,7 +570,7 @@ function ClientesPage() {
     setEditingText("");
     const { data, error } = await (supabase.from as any)("client_notes")
       .select("id, note, pinned, created_by, updated_by, created_at, updated_at")
-      .eq("barbershop_id", barbershopId)
+      .eq("barbershop_id", tenantId)
       .eq("client_id", row.client_id)
       .order("pinned", { ascending: false })
       .order("created_at", { ascending: false });
@@ -506,7 +598,7 @@ function ClientesPage() {
     setSavingNote(true);
     const { data, error } = await (supabase.from as any)("client_notes")
       .insert({
-        barbershop_id: barbershopId,
+        barbershop_id: tenantId,
         client_id: notesTarget.client_id,
         note: text,
         created_by: user.id,
@@ -658,7 +750,10 @@ function ClientesPage() {
     toast.success(`${filtered.length} clientes exportados`);
   };
 
-  if (authLoading || shopLoading || hasAccess === null) {
+  // Enquanto sessão, papel global ou tenant não terminaram de resolver, a tela
+  // fica em carregamento. Nunca mostramos "acesso negado" por resolução
+  // incompleta — era exatamente esse o falso negativo do bug.
+  if (authLoading || isSuper === null || tenantStatus === "loading" || access === "checking") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
@@ -666,16 +761,39 @@ function ClientesPage() {
     );
   }
 
-  if (!hasAccess) {
+  if (access !== "granted") {
+    const estados = {
+      "needs-selection": {
+        titulo: "Selecione uma barbearia",
+        texto:
+          "Como super admin você pode ver os clientes de qualquer barbearia — mas precisa escolher qual. Abra o painel administrativo e use “Clientes” na barbearia desejada.",
+      },
+      "no-tenant": {
+        titulo: "Nenhuma barbearia vinculada",
+        texto:
+          "Sua conta ainda não está vinculada a uma barbearia. Conclua a criação da sua barbearia para gerenciar clientes.",
+      },
+      forbidden: {
+        titulo: "Acesso negado",
+        texto:
+          "Apenas administradores e barbeiros desta barbearia podem acessar a lista de clientes.",
+      },
+      error: {
+        titulo: "Não foi possível verificar seu acesso",
+        texto: accessError ?? "Tente novamente em instantes.",
+      },
+      checking: { titulo: "", texto: "" },
+      granted: { titulo: "", texto: "" },
+    } as const;
+    const { titulo, texto } = estados[access];
+
     return (
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <Card className="max-w-md">
           <CardContent className="p-8 text-center space-y-4">
             <ShieldAlert className="w-12 h-12 text-destructive mx-auto" />
-            <h1 className="font-display text-xl">Acesso negado</h1>
-            <p className="text-sm text-muted-foreground">
-              Apenas administradores e barbeiros desta barbearia podem acessar a lista de clientes.
-            </p>
+            <h1 className="font-display text-xl">{titulo}</h1>
+            <p className="text-sm text-muted-foreground">{texto}</p>
             <Link to="/dashboard" search={{ checkout: undefined }}>
               <Button variant="outline">Voltar ao painel</Button>
             </Link>
