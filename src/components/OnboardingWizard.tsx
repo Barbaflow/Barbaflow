@@ -36,6 +36,7 @@ export function OnboardingWizard() {
 
   const [step, setStep] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const submittingRef = useRef(false);
 
   // Form state
   const [name, setName] = useState("");
@@ -79,6 +80,11 @@ export function OnboardingWizard() {
       setStep(1);
       return;
     }
+    // Guarda de reentrância: `submitting` só vale depois do re-render, então um
+    // clique duplo rápido dispararia dois INSERTs e criaria duas barbearias.
+    // O ref bloqueia na hora.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
 
     try {
@@ -92,6 +98,7 @@ export function OnboardingWizard() {
       if (existing) {
         toast.error("Subdomínio já está em uso. Escolha outro.");
         setStep(0);
+        submittingRef.current = false;
         setSubmitting(false);
         return;
       }
@@ -116,6 +123,13 @@ export function OnboardingWizard() {
         .single();
 
       if (insertError || !shop) {
+        // 23505 = unique_violation. A checagem acima é só conveniência de UI;
+        // quem garante a unicidade é a constraint, e entre a leitura e o
+        // INSERT alguém pode ter registrado o mesmo subdomínio.
+        if (insertError?.code === "23505") {
+          setStep(0);
+          throw new Error("Subdomínio já está em uso. Escolha outro.");
+        }
         throw new Error(insertError?.message || "Erro ao criar barbearia.");
       }
 
@@ -136,18 +150,33 @@ export function OnboardingWizard() {
         }
       }
 
-      // 4. Assign admin role only — barbers join via invitation link
-      await supabase.from("user_roles").insert({
+      // 4. Assign admin role only — barbers join via invitation link.
+      //
+      // O erro PRECISA ser verificado: até a migration 20260722150000 a policy
+      // de INSERT de user_roles recusava este passo com 42501 (exigia que o
+      // usuário já fosse admin da barbearia), e como o retorno era ignorado o
+      // wizard anunciava sucesso deixando uma barbearia órfã — criada, com
+      // dono, e sem ninguém capaz de administrá-la.
+      const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: user.id,
         barbershop_id: shop.id,
         role: "admin_barbearia" as const,
       });
+
+      if (roleError) {
+        throw new Error(
+          `A barbearia foi criada, mas o vínculo de administrador falhou: ${roleError.message}. ` +
+            "Abra o painel para concluir a configuração.",
+        );
+      }
 
       toast.success("Barbearia criada com sucesso!");
       navigate({ to: "/dashboard", search: { checkout: undefined } });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Erro inesperado.");
     } finally {
+      // Libera a guarda para que uma falha possa ser corrigida e reenviada.
+      submittingRef.current = false;
       setSubmitting(false);
     }
   };

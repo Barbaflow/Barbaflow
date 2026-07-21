@@ -3,8 +3,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { AdminDashboard } from "@/components/AdminDashboard";
 import { BarberDashboard } from "@/components/BarberDashboard";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/dashboard")({
@@ -26,6 +27,12 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
 });
 
+/** Estados sintéticos de papel — não existem em public.app_role. */
+const NEEDS_ONBOARDING = "__needs_onboarding__";
+const ORPHAN_OWNER = "__orphan_owner__";
+
+type OrphanShop = { id: string; name: string; subdomain: string };
+
 function DashboardPage() {
   const { user, loading } = useAuth();
   const { barbershopId, barbershop, loading: barbershopLoading } = useBarbershop();
@@ -33,8 +40,11 @@ function DashboardPage() {
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const [orphanShop, setOrphanShop] = useState<OrphanShop | null>(null);
+  const [repairing, setRepairing] = useState(false);
   const toastShown = useRef(false);
   const clientRedirectDone = useRef(false);
+  const onboardingRedirectDone = useRef(false);
 
   useEffect(() => {
     if (checkout === "success" && !toastShown.current) {
@@ -73,19 +83,52 @@ function DashboardPage() {
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
-          .then(({ data }) => {
+          .then(async ({ data }) => {
             const allRoles = (data || []).map((r) => r.role);
             if (allRoles.includes("admin_barbearia")) {
               setRole("admin_barbearia");
-            } else if (allRoles.includes("barbeiro")) {
-              setRole("barbeiro");
-            } else {
-              setRole(allRoles[0] || "cliente");
+              setRoleLoading(false);
+              return;
             }
+            if (allRoles.includes("barbeiro")) {
+              setRole("barbeiro");
+              setRoleLoading(false);
+              return;
+            }
+            if (allRoles.length > 0) {
+              setRole(allRoles[0]);
+              setRoleLoading(false);
+              return;
+            }
+
+            // Nenhum papel. Antes isto virava "cliente" e o usuário era
+            // despachado para /meus-agendamentos — sem nunca chegar ao
+            // onboarding. Agora distinguimos os dois casos possíveis:
+            //   * já é dono de uma barbearia → o vínculo de admin faltou
+            //     (barbearia órfã); oferecemos a recuperação, nunca uma
+            //     segunda barbearia;
+            //   * não é dono de nada → primeiro acesso: vai para /onboarding.
+            const { data: owned } = await supabase
+              .from("barbershops")
+              .select("id, name, subdomain")
+              .eq("owner_id", user.id)
+              .neq("subdomain", "_system")
+              .limit(1)
+              .maybeSingle();
+
+            setOrphanShop(owned ?? null);
+            setRole(owned ? ORPHAN_OWNER : NEEDS_ONBOARDING);
             setRoleLoading(false);
           });
       });
   }, [user, barbershopId, barbershopLoading]);
+
+  // Sem papel e sem barbearia: onboarding é o destino, automaticamente.
+  useEffect(() => {
+    if (roleLoading || role !== NEEDS_ONBOARDING || onboardingRedirectDone.current) return;
+    onboardingRedirectDone.current = true;
+    navigate({ to: "/onboarding", replace: true });
+  }, [role, roleLoading, navigate]);
 
   // Cliente: redirect to the barbershop's booking page (or history as fallback)
   useEffect(() => {
@@ -99,6 +142,24 @@ function DashboardPage() {
       }
     }
   }, [role, roleLoading, barbershop, navigate]);
+
+  /** Cria o vínculo de admin que faltou, sem criar outra barbearia. */
+  const repairOrphanOwner = useCallback(async () => {
+    if (!user || !orphanShop || repairing) return;
+    setRepairing(true);
+    const { error } = await supabase.from("user_roles").insert({
+      user_id: user.id,
+      barbershop_id: orphanShop.id,
+      role: "admin_barbearia" as const,
+    });
+    if (error) {
+      setRepairing(false);
+      toast.error("Não foi possível concluir a configuração.", { description: error.message });
+      return;
+    }
+    toast.success("Configuração concluída!");
+    window.location.reload();
+  }, [user, orphanShop, repairing]);
 
   if (loading || !user || roleLoading || barbershopLoading) {
     return (
@@ -120,7 +181,27 @@ function DashboardPage() {
     return <BarberDashboard />;
   }
 
-  // Cliente — handled by redirect effect above
+  // Dono sem vínculo de admin: barbearia existe, papel não. Nunca criamos uma
+  // segunda barbearia — oferecemos concluir o vínculo que faltou.
+  if (role === ORPHAN_OWNER && orphanShop) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <div className="max-w-md w-full text-center space-y-5">
+          <h1 className="font-display text-2xl text-foreground">Configuração incompleta</h1>
+          <p className="text-sm text-muted-foreground">
+            Sua barbearia <strong className="text-foreground">{orphanShop.name}</strong> foi criada,
+            mas o vínculo de administrador não foi concluído. Nenhuma barbearia nova será criada —
+            basta finalizar o vínculo existente.
+          </p>
+          <Button onClick={repairOrphanOwner} disabled={repairing} className="w-full">
+            {repairing ? "Concluindo…" : "Concluir configuração"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Cliente e "precisa de onboarding" — tratados pelos efeitos de redirect acima
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
