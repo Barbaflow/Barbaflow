@@ -74,11 +74,15 @@ export const Route = createFileRoute("/hooks/process-account-deletions")({
               .eq("status", "scheduled")
               .gte("date", today);
 
-            // Remove personal records
+            // Remove personal records.
+            // O profile NÃO é apagado aqui: o trigger `on_auth_user_deleted`
+            // (migration 20260722120000) anonimiza a linha quando o usuário sai
+            // de auth.users, preservando o autor do histórico da barbearia.
+            // Deixar a regra só no banco faz este fluxo e a exclusão pelo
+            // painel do Supabase terminarem no mesmo estado.
             await admin.from("notifications").delete().eq("user_id", userId);
             await admin.from("client_blocks").delete().eq("client_id", userId);
             await admin.from("user_roles").delete().eq("user_id", userId);
-            await admin.from("profiles").delete().eq("user_id", userId);
 
             // Remove avatar files
             const { data: avatarFiles } = await admin.storage.from("avatars").list(userId);
