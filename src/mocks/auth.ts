@@ -5,7 +5,15 @@
  * A sessão é persistida em localStorage, então o login sobrevive ao reload.
  */
 import type { Session, User } from "@supabase/supabase-js";
-import { MOCK_ADMIN_B_EMAIL, MOCK_ADMIN_EMAIL, MOCK_USER_IDS } from "./fixtures";
+import {
+  MOCK_ADMIN_B_EMAIL,
+  MOCK_ADMIN_C_EMAIL,
+  MOCK_ADMIN_D_EMAIL,
+  MOCK_ADMIN_EMAIL,
+  MOCK_NO_BARBERSHOP_EMAIL,
+  MOCK_SUPER_ADMIN_EMAIL,
+  MOCK_USER_IDS,
+} from "./fixtures";
 import { MOCK_SESSION_STORAGE_KEY, setMockActor } from "./session";
 
 const SESSION_KEY = MOCK_SESSION_STORAGE_KEY;
@@ -91,6 +99,35 @@ export const MOCK_ACCOUNTS: readonly MockAccount[] = [
     fullName: "Bento Cliente",
     phone: "+5521900000004",
     description: "Cliente · Barbearia B",
+  },
+  // Plataforma e onboarding
+  {
+    id: MOCK_USER_IDS.superRita,
+    email: MOCK_SUPER_ADMIN_EMAIL,
+    fullName: "Rita Root",
+    phone: "+5511900000090",
+    description: "Super admin · Plataforma",
+  },
+  {
+    id: MOCK_USER_IDS.novoOnboarding,
+    email: MOCK_NO_BARBERSHOP_EMAIL,
+    fullName: "Novato Sem Barbearia",
+    phone: "+5511900000091",
+    description: "Sem barbearia · Onboarding",
+  },
+  {
+    id: MOCK_USER_IDS.adminCarlos,
+    email: MOCK_ADMIN_C_EMAIL,
+    fullName: "Carlos Dono",
+    phone: "+5519900000001",
+    description: "Admin · Barbearia C (free)",
+  },
+  {
+    id: MOCK_USER_IDS.adminDenise,
+    email: MOCK_ADMIN_D_EMAIL,
+    fullName: "Denise Dona",
+    phone: "+5531900000001",
+    description: "Admin · Barbearia D (enterprise)",
   },
 ];
 

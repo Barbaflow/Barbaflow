@@ -30,6 +30,23 @@ export const MOCK_BARBERSHOP_ID = DEFAULT_BARBERSHOP_ID;
 /** Barbearia B — usada para provar o isolamento entre tenants. */
 export const MOCK_BARBERSHOP_B_ID = "b1b2c3d4-e5f6-7890-abcd-ef0987654321";
 
+/** Barbearia C — plano free, no limite de profissionais (rebaixada de pro). */
+export const MOCK_BARBERSHOP_C_ID = "c1c2c3d4-e5f6-7890-abcd-ef1122334455";
+
+/** Barbearia D — plano enterprise (ilimitado). */
+export const MOCK_BARBERSHOP_D_ID = "d1d2c3d4-e5f6-7890-abcd-ef1122334455";
+
+/** Barbearia E — plano free, ainda pendente de aprovação. */
+export const MOCK_BARBERSHOP_E_ID = "e1e2c3d4-e5f6-7890-abcd-ef1122334455";
+
+/**
+ * Barbearia sentinela para papéis globais (super_admin), espelhando o
+ * `_system` do banco real. Diferente do banco, NÃO criamos a linha física:
+ * o papel super_admin é semente e as listagens públicas/admin já filtram
+ * este id — assim o painel não exibe uma barbearia fantasma.
+ */
+export const MOCK_SYSTEM_BARBERSHOP_ID = "00000000-0000-0000-0000-000000000000";
+
 export const MOCK_USER_IDS = {
   // Barbearia A
   admin: "11111111-1111-4111-8111-111111111111",
@@ -48,12 +65,31 @@ export const MOCK_USER_IDS = {
   clienteBento: "88888888-8888-4888-8888-888888888888",
   /** Cliente da B sem telefone. */
   clienteBruna: "89898989-8989-4989-8989-898989898989",
+  // Plataforma e onboarding
+  /** super_admin global — acessa o painel administrativo. */
+  superRita: "51515151-5151-4151-8151-515151515151",
+  /** Conta autenticável SEM barbearia — candidata ao onboarding. */
+  novoOnboarding: "52525252-5252-4252-8252-525252525252",
+  // Barbearia C (plano free, no limite de profissionais)
+  adminCarlos: "53535353-5353-4353-8353-535353535353",
+  barberCaco: "54545454-5454-4454-8454-545454545454",
+  // Barbearia D (plano enterprise) e E (plano free, pendente)
+  adminDenise: "56565656-5656-4656-8656-565656565656",
+  adminElena: "57575757-5757-4757-8757-575757575757",
 } as const;
 
 export const MOCK_ADMIN_EMAIL = "admin@barbearia.teste";
 export const MOCK_ADMIN_B_EMAIL = "beatriz@navalha.teste";
 /** Destinatário do convite de equipe que pode ser aceito no seed. */
 export const MOCK_CLIENT_BENTO_EMAIL = "bento@cliente.teste";
+/** super_admin da plataforma (painel administrativo). */
+export const MOCK_SUPER_ADMIN_EMAIL = "root@barbaflow.teste";
+/** Conta sem barbearia, usada para exercitar o onboarding. */
+export const MOCK_NO_BARBERSHOP_EMAIL = "novato@barbaflow.teste";
+/** Admin da Barbearia C (plano free) — usado nos testes de permissão. */
+export const MOCK_ADMIN_C_EMAIL = "carlos@corterapido.teste";
+/** Admin da Barbearia D (plano enterprise) — usado no teste de plano ilimitado. */
+export const MOCK_ADMIN_D_EMAIL = "denise@imperio.teste";
 
 const SERVICE_IDS = {
   // Barbearia A
@@ -70,6 +106,8 @@ const SERVICE_IDS = {
   barbaB: "aaaaaaa2-0000-4000-8000-000000000002",
   comboB: "aaaaaaa2-0000-4000-8000-000000000003",
   corteBeatriz: "aaaaaaa2-0000-4000-8000-000000000004",
+  // Barbearia C — serviço do Caco, para o teste de limite de agendamentos.
+  corteC: "aaaaaaa3-0000-4000-8000-000000000001",
 } as const;
 
 export const MOCK_SERVICE_IDS = SERVICE_IDS;
@@ -120,6 +158,64 @@ const SLOT_STEP_MINUTES = 30;
 /* ------------------------------------------------------------------ */
 /* Barbearias                                                          */
 /* ------------------------------------------------------------------ */
+
+/**
+ * Colunas que o banco real preenche por DEFAULT ao criar uma barbearia
+ * (o onboarding não as envia). Fonte única, reutilizada pelo seed das novas
+ * barbearias e pelo `applyInsertDefaults` do query builder, para que uma
+ * barbearia recém-criada no onboarding nasça completa e no plano free.
+ *
+ * `status: "approved"` espelha o DEFAULT atual do schema ("ativada
+ * automaticamente"). `plan_id: free` é o plano inicial — no banco real não há
+ * DEFAULT nem trigger para isso, então o mock assume a convenção do app
+ * (usePlan trata ausência como free) e a materializa, garantindo que os
+ * limites do plano free valham já na primeira barbearia.
+ */
+export const NEW_BARBERSHOP_DEFAULTS = {
+  plan_id: MOCK_PLAN_IDS.free,
+  status: "approved",
+  appointments_this_month: 0,
+  timezone: "America/Sao_Paulo",
+  primary_color: "#C8A96E",
+  secondary_color: "#1A1A1A",
+  logo_url: null,
+  complement: null,
+  cancel_min_hours: 2,
+  reschedule_min_hours: 2,
+  noshow_policy_enabled: false,
+  noshow_max_count: 3,
+  noshow_block_days: 7,
+  rating_avg: 0,
+  rating_count: 0,
+  cep: null,
+  street: null,
+  number: null,
+  neighborhood: null,
+  city: null,
+  state: null,
+  whatsapp_message: null,
+  pdf_template: null,
+  pdf_slogan: null,
+  qr_size: null,
+  receipt_title: null,
+  receipt_subtitle: null,
+  receipt_footer: null,
+  receipt_thank_you_message: null,
+  receipt_whatsapp_intro: null,
+} as const satisfies Partial<TableRow<"barbershops">>;
+
+/** Barbearia "enxuta" para os testes de plano/limite: só o essencial. */
+function simpleShop(
+  overrides: Partial<TableRow<"barbershops">> &
+    Pick<TableRow<"barbershops">, "id" | "name" | "subdomain" | "owner_id">,
+): TableRow<"barbershops"> {
+  return {
+    ...NEW_BARBERSHOP_DEFAULTS,
+    created_at: NOW_ISO,
+    updated_at: NOW_ISO,
+    ...overrides,
+  };
+}
 
 function buildBarbershops(): TableRow<"barbershops">[] {
   const base = {
@@ -201,6 +297,50 @@ function buildBarbershops(): TableRow<"barbershops">[] {
       receipt_thank_you_message: "Foi um prazer atender você.",
       receipt_whatsapp_intro: "Seu comprovante:",
     },
+    // Barbearia C — plano free e JÁ no limite de agendamentos do mês (50/50).
+    // Foi rebaixada de pro para free mantendo 2 profissionais (admin + Caco),
+    // acima do limite free de 1 — cenário real de downgrade.
+    simpleShop({
+      id: MOCK_BARBERSHOP_C_ID,
+      name: "Corte Rápido (offline)",
+      subdomain: "corte-rapido",
+      owner_id: MOCK_USER_IDS.adminCarlos,
+      plan_id: MOCK_PLAN_IDS.free,
+      status: "approved",
+      appointments_this_month: 50,
+      city: "Campinas",
+      state: "SP",
+      primary_color: "#4F8A8B",
+      secondary_color: "#151515",
+    }),
+    // Barbearia D — plano enterprise (tudo ilimitado).
+    simpleShop({
+      id: MOCK_BARBERSHOP_D_ID,
+      name: "Império Barber (offline)",
+      subdomain: "imperio",
+      owner_id: MOCK_USER_IDS.adminDenise,
+      plan_id: MOCK_PLAN_IDS.enterprise,
+      status: "approved",
+      appointments_this_month: 128,
+      city: "Belo Horizonte",
+      state: "MG",
+      primary_color: "#B8860B",
+      secondary_color: "#0E0E0E",
+    }),
+    // Barbearia E — plano free e ainda PENDENTE (aguarda aprovação do super_admin).
+    simpleShop({
+      id: MOCK_BARBERSHOP_E_ID,
+      name: "Lâmina Nova (offline)",
+      subdomain: "lamina-nova",
+      owner_id: MOCK_USER_IDS.adminElena,
+      plan_id: MOCK_PLAN_IDS.free,
+      status: "pending",
+      appointments_this_month: 4,
+      city: "Curitiba",
+      state: "PR",
+      primary_color: "#9C27B0",
+      secondary_color: "#101014",
+    }),
   ];
 }
 
@@ -289,6 +429,45 @@ const PEOPLE: readonly PersonSeed[] = [
     fullName: "Bruna Cliente",
     phone: null,
   },
+  // Plataforma e novas barbearias
+  {
+    userId: MOCK_USER_IDS.superRita,
+    profileId: "bbbbbbb0-0000-4000-8000-000000000001",
+    fullName: "Rita Root",
+    phone: "+5511900000090",
+  },
+  {
+    // Conta autenticável sem barbearia: tem profile (criado no cadastro), mas
+    // nenhum papel nem barbearia — o candidato do onboarding.
+    userId: MOCK_USER_IDS.novoOnboarding,
+    profileId: "bbbbbbb0-0000-4000-8000-000000000002",
+    fullName: "Novato Sem Barbearia",
+    phone: "+5511900000091",
+  },
+  {
+    userId: MOCK_USER_IDS.adminCarlos,
+    profileId: "bbbbbbb3-0000-4000-8000-000000000001",
+    fullName: "Carlos Dono",
+    phone: "+5519900000001",
+  },
+  {
+    userId: MOCK_USER_IDS.barberCaco,
+    profileId: "bbbbbbb3-0000-4000-8000-000000000002",
+    fullName: "Caco Máquina",
+    phone: "+5519900000002",
+  },
+  {
+    userId: MOCK_USER_IDS.adminDenise,
+    profileId: "bbbbbbb4-0000-4000-8000-000000000001",
+    fullName: "Denise Dona",
+    phone: "+5531900000001",
+  },
+  {
+    userId: MOCK_USER_IDS.adminElena,
+    profileId: "bbbbbbb5-0000-4000-8000-000000000001",
+    fullName: "Elena Dona",
+    phone: "+5541900000001",
+  },
 ];
 
 function buildProfiles(): TableRow<"profiles">[] {
@@ -333,6 +512,16 @@ const ROLES: readonly RoleSeed[] = [
   { userId: MOCK_USER_IDS.barberBreno, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteBento, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
   { userId: MOCK_USER_IDS.clienteBruna, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
+  // Plataforma: super_admin é global, ancorado na barbearia sentinela `_system`.
+  { userId: MOCK_USER_IDS.superRita, barbershopId: MOCK_SYSTEM_BARBERSHOP_ID, role: "super_admin" },
+  // Barbearia C (free): admin + 1 barbeiro = 2 profissionais, ACIMA do limite
+  // free de 1 (downgrade). Exercita o bloqueio de novos profissionais.
+  { userId: MOCK_USER_IDS.adminCarlos, barbershopId: MOCK_BARBERSHOP_C_ID, role: "admin_barbearia" },
+  { userId: MOCK_USER_IDS.barberCaco, barbershopId: MOCK_BARBERSHOP_C_ID, role: "barbeiro" },
+  // Barbearia D (enterprise): só o admin/dona por enquanto.
+  { userId: MOCK_USER_IDS.adminDenise, barbershopId: MOCK_BARBERSHOP_D_ID, role: "admin_barbearia" },
+  // Barbearia E (free, pendente): só a dona.
+  { userId: MOCK_USER_IDS.adminElena, barbershopId: MOCK_BARBERSHOP_E_ID, role: "admin_barbearia" },
 ];
 
 function buildUserRoles(): TableRow<"user_roles">[] {
@@ -456,6 +645,16 @@ function buildServices(): TableRow<"services">[] {
       price: 200,
       duration_minutes: 120,
     },
+    // Barbearia C — serviço do Caco (para o teste de limite de agendamentos).
+    {
+      ...base,
+      id: SERVICE_IDS.corteC,
+      barbershop_id: MOCK_BARBERSHOP_C_ID,
+      barber_id: MOCK_USER_IDS.barberCaco,
+      name: "Corte simples",
+      price: 40,
+      duration_minutes: 30,
+    },
   ];
 }
 
@@ -518,6 +717,14 @@ const WEEKLY: readonly WeeklySeed[] = [
     days: [3, 4, 5, 6],
     start: "11:00:00",
     end: "20:00:00",
+  },
+  // Barbearia C — Caco atende a semana inteira (base para o teste de limite).
+  {
+    barberId: MOCK_USER_IDS.barberCaco,
+    barbershopId: MOCK_BARBERSHOP_C_ID,
+    days: [1, 2, 3, 4, 5, 6],
+    start: "09:00:00",
+    end: "18:00:00",
   },
 ];
 
@@ -1080,6 +1287,13 @@ function buildTeamInvitations(): TableRow<"team_invitations">[] {
 /* Planos                                                              */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Planos idênticos ao seed do banco real (migrations):
+ *   free  → 50 agendamentos/mês, 1 profissional, sem assinaturas, R$ 0
+ *   pro   → ilimitado (agendamentos e profissionais), assinaturas, R$ 99
+ *   enterprise → ilimitado, assinaturas, R$ 299
+ * `null` significa "ilimitado" para os dois limites, como no schema.
+ */
 function buildPlans(): TableRow<"plans">[] {
   const base = { created_at: NOW_ISO, updated_at: NOW_ISO };
   return [
@@ -1096,19 +1310,135 @@ function buildPlans(): TableRow<"plans">[] {
       ...base,
       id: MOCK_PLAN_IDS.pro,
       name: "pro",
-      price: 79.9,
+      price: 99,
       appointment_limit: null,
-      barber_limit: 5,
+      barber_limit: null,
       has_subscriptions: true,
     },
     {
       ...base,
       id: MOCK_PLAN_IDS.enterprise,
       name: "enterprise",
-      price: 199.9,
+      price: 299,
       appointment_limit: null,
       barber_limit: null,
       has_subscriptions: true,
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
+/* Assinaturas (espelho Paddle) e histórico de mudança de plano        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Espelho local da tabela `subscriptions` (registro Paddle). No modo offline
+ * nenhuma assinatura é criada de verdade — estas linhas existem só para os
+ * três estados que o schema realmente referencia em `has_active_subscription`:
+ * `active`, `trialing` e uma cancelada/expirada (fora do conjunto ativo).
+ *
+ * `environment: "live"` casa com o ambiente que o app resolve offline (sem
+ * VITE_PAYMENTS_CLIENT_TOKEN, `create-portal-session`/checkout resolvem "live").
+ */
+function buildSubscriptions(): TableRow<"subscriptions">[] {
+  const future = new Date();
+  future.setDate(future.getDate() + 20);
+  const start = new Date();
+  start.setDate(start.getDate() - 10);
+  const past = new Date();
+  past.setDate(past.getDate() - 5);
+
+  const base = {
+    environment: "live",
+    created_at: NOW_ISO,
+    updated_at: NOW_ISO,
+  };
+
+  return [
+    // Ativa — dono da Barbearia A (plano pro).
+    {
+      ...base,
+      id: "0505ab01-0000-4000-8000-000000000001",
+      user_id: MOCK_USER_IDS.admin,
+      paddle_subscription_id: "mock-sub-active-a",
+      paddle_customer_id: "mock-cus-a",
+      product_id: "mock-prod-pro",
+      price_id: "pro_monthly",
+      status: "active",
+      current_period_start: start.toISOString(),
+      current_period_end: future.toISOString(),
+      cancel_at_period_end: false,
+    },
+    // Em período de teste — dona da Barbearia D (plano enterprise).
+    {
+      ...base,
+      id: "0505ab01-0000-4000-8000-000000000002",
+      user_id: MOCK_USER_IDS.adminDenise,
+      paddle_subscription_id: "mock-sub-trial-d",
+      paddle_customer_id: "mock-cus-d",
+      product_id: "mock-prod-enterprise",
+      price_id: "enterprise_monthly",
+      status: "trialing",
+      current_period_start: start.toISOString(),
+      current_period_end: future.toISOString(),
+      cancel_at_period_end: false,
+    },
+    // Cancelada/expirada — dona da Barbearia B. `has_active_subscription`
+    // devolve false (status fora de active/trialing e período no passado).
+    {
+      ...base,
+      id: "0505ab01-0000-4000-8000-000000000003",
+      user_id: MOCK_USER_IDS.adminBeatriz,
+      paddle_subscription_id: "mock-sub-canceled-b",
+      paddle_customer_id: "mock-cus-b",
+      product_id: "mock-prod-pro",
+      price_id: "pro_monthly",
+      status: "canceled",
+      current_period_start: start.toISOString(),
+      current_period_end: past.toISOString(),
+      cancel_at_period_end: true,
+    },
+  ];
+}
+
+/**
+ * Histórico de mudanças de plano feitas administrativamente (super_admin).
+ * `changed_by` é sempre a Rita (super_admin), como no AdminDashboard real.
+ */
+function buildPlanChangeLogs(): TableRow<"plan_change_logs">[] {
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString();
+  };
+
+  return [
+    // Barbearia A: free → pro (upgrade inicial).
+    {
+      id: "0106cd01-0000-4000-8000-000000000001",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      old_plan_id: MOCK_PLAN_IDS.free,
+      new_plan_id: MOCK_PLAN_IDS.pro,
+      changed_by: MOCK_USER_IDS.superRita,
+      created_at: daysAgo(30),
+    },
+    // Barbearia D: pro → enterprise.
+    {
+      id: "0106cd01-0000-4000-8000-000000000002",
+      barbershop_id: MOCK_BARBERSHOP_D_ID,
+      old_plan_id: MOCK_PLAN_IDS.pro,
+      new_plan_id: MOCK_PLAN_IDS.enterprise,
+      changed_by: MOCK_USER_IDS.superRita,
+      created_at: daysAgo(14),
+    },
+    // Barbearia C: pro → free (downgrade que a deixou acima do limite).
+    {
+      id: "0106cd01-0000-4000-8000-000000000003",
+      barbershop_id: MOCK_BARBERSHOP_C_ID,
+      old_plan_id: MOCK_PLAN_IDS.pro,
+      new_plan_id: MOCK_PLAN_IDS.free,
+      changed_by: MOCK_USER_IDS.superRita,
+      created_at: daysAgo(3),
     },
   ];
 }
@@ -1485,6 +1815,8 @@ export function buildSeedDatabase(): MockDatabase {
     profiles: buildProfiles(),
     user_roles: buildUserRoles(),
     plans: buildPlans(),
+    subscriptions: buildSubscriptions(),
+    plan_change_logs: buildPlanChangeLogs(),
     services,
     weekly_schedule: weekly,
     schedule_blocks: blocks,

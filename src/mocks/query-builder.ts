@@ -12,8 +12,10 @@
  */
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from "./relations";
+import { NEW_BARBERSHOP_DEFAULTS } from "./fixtures";
 import {
   authorizeWrite,
+  checkInsertPlanLimit,
   type MockOperation,
   validateAppointment,
   validateBarberOwnedRow,
@@ -21,6 +23,7 @@ import {
   validateClientBlock,
   validateClientNote,
   validatePaymentMethod,
+  validatePlanChangeLog,
   validateProduct,
   validateScheduleBlock,
   validateService,
@@ -127,6 +130,8 @@ function validateWrite(
       return validateUserRole(row, existing);
     case "team_invitations":
       return validateTeamInvitation(row, existing);
+    case "plan_change_logs":
+      return validatePlanChangeLog(row);
     default:
       return null;
   }
@@ -140,20 +145,30 @@ function validateRemoval(table: string, row: MockRow): string | null {
 
 /**
  * Valores que o banco real preencheria por DEFAULT e que o app não envia.
- * Sem isso um convite nasceria sem token, status ou validade.
+ * Sem isso um convite nasceria sem token/validade, e uma barbearia criada no
+ * onboarding nasceria sem plano inicial nem status.
  */
 function applyInsertDefaults(table: string, row: MockRow): MockRow {
-  if (table !== "team_invitations") return row;
+  if (table === "team_invitations") {
+    const expires = new Date();
+    expires.setDate(expires.getDate() + 7);
 
-  const expires = new Date();
-  expires.setDate(expires.getDate() + 7);
+    return {
+      status: "pending",
+      token: `mock-invite-${newId()}`,
+      expires_at: expires.toISOString(),
+      ...row,
+    };
+  }
 
-  return {
-    status: "pending",
-    token: `mock-invite-${newId()}`,
-    expires_at: expires.toISOString(),
-    ...row,
-  };
+  // Onboarding: a barbearia recém-criada recebe o plano inicial (free) e o
+  // status padrão (approved), além das colunas NOT NULL que o app não envia.
+  // O payload sempre vence (ex.: se o app definir plan_id, ele é respeitado).
+  if (table === "barbershops") {
+    return { ...NEW_BARBERSHOP_DEFAULTS, ...row };
+  }
+
+  return row;
 }
 
 /** Erro no formato que os componentes já tratam (checam apenas `error`). */
@@ -199,6 +214,29 @@ function newId(): string {
     return crypto.randomUUID();
   }
   return `mock-${Date.now().toString(16)}-${Math.floor(Math.random() * 1e9).toString(16)}`;
+}
+
+/**
+ * Soma 1 ao `appointments_this_month` da barbearia de cada agendamento criado,
+ * como faz o trigger `increment_appointment_counter` no banco real. É esse
+ * contador em cache que `check_appointment_limit` consulta.
+ */
+function incrementAppointmentCounters(created: readonly MockRow[]): void {
+  const perShop = new Map<string, number>();
+  for (const row of created) {
+    const shopId = typeof row.barbershop_id === "string" ? row.barbershop_id : null;
+    if (!shopId) continue;
+    perShop.set(shopId, (perShop.get(shopId) ?? 0) + 1);
+  }
+  if (perShop.size === 0) return;
+
+  const shops = getTableRows("barbershops").map((shop) => {
+    const bump = perShop.get(String(shop.id));
+    if (!bump) return shop;
+    const current = Number(shop.appointments_this_month ?? 0);
+    return { ...shop, appointments_this_month: current + bump };
+  });
+  setTableRows("barbershops", shops);
 }
 
 /** Comparação frouxa suficiente para os tipos que aparecem nas fixtures. */
@@ -440,6 +478,13 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           const denied = this.authorize("insert", candidate);
           if (denied) return denied;
 
+          // Limite do plano (profissionais / agendamentos) na camada de escrita,
+          // espelhando as RPCs e o trigger do banco — não só a UI.
+          const overLimit = checkInsertPlanLimit(this.table, candidate);
+          if (overLimit) {
+            return fail<MockRow[]>([], ruleError(overLimit), 409);
+          }
+
           const problem = validateWrite(this.table, candidate, undefined, accepted);
           if (problem) {
             return fail<MockRow[]>([], ruleError(problem), 409);
@@ -448,6 +493,11 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         }
 
         setTableRows(this.table, [...all, ...created]);
+        // Espelha o trigger `increment_appointment_counter`: cada agendamento
+        // criado soma 1 ao contador mensal da barbearia (base do limite free).
+        if (this.table === "appointments") {
+          incrementAppointmentCounters(created);
+        }
         affected = created;
         break;
       }

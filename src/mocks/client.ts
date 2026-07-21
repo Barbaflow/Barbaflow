@@ -9,7 +9,11 @@ import { getMockSessionEmail, getMockSessionUserId, mockAuth } from "./auth";
 import { MockQueryBuilder, type MockResult } from "./query-builder";
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { dayOfWeekOf, minutesToTime, timeToMinutes } from "./fixtures";
-import { effectiveInvitationStatus } from "./rules";
+import {
+  barbershopUnderAppointmentLimit,
+  barbershopUnderBarberLimit,
+  effectiveInvitationStatus,
+} from "./rules";
 
 /* ------------------------------------------------------------------ */
 /* RPCs                                                                */
@@ -366,9 +370,46 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
   /** Nenhuma política de falta ativa nos dados fictícios. */
   check_client_noshow_block: () => ({ blocked: false }),
 
-  check_appointment_limit: () => true,
-  check_barber_limit: () => true,
-  has_active_subscription: () => true,
+  /**
+   * Ainda cabe um profissional na barbearia? Espelha a RPC real
+   * `check_barber_limit` (conta barbeiros/admins vinculados vs. barber_limit;
+   * `null` = ilimitado). Sessão/papel/tenant são checados pelo guard de RPC.
+   */
+  check_barber_limit: (args) => barbershopUnderBarberLimit(String(args._barbershop_id)),
+
+  /**
+   * Ainda cabe um agendamento no mês? Espelha `check_appointment_limit`
+   * (lê o contador `appointments_this_month` vs. appointment_limit).
+   */
+  check_appointment_limit: (args) =>
+    barbershopUnderAppointmentLimit(String(args._barbershop_id)),
+
+  /**
+   * Assinatura ativa do usuário (active/trialing, no ambiente e período
+   * vigentes). Espelha a RPC `has_active_subscription`. Valida a sessão e só
+   * responde sobre o próprio usuário — ou qualquer um, se for super_admin.
+   */
+  has_active_subscription: (args) => {
+    const sessionUserId = getMockSessionUserId();
+    if (!sessionUserId) return false;
+
+    const targetUserId = String(args.user_uuid ?? "");
+    if (targetUserId !== sessionUserId && !currentUserIsSuperAdmin()) {
+      // Isolamento: não confirma a assinatura de outro usuário.
+      return false;
+    }
+
+    const checkEnv = typeof args.check_env === "string" ? args.check_env : "live";
+    const nowISO = new Date().toISOString();
+
+    return getTableRows("subscriptions").some((row) => {
+      if (row.user_id !== targetUserId) return false;
+      if (row.environment !== checkEnv) return false;
+      if (row.status !== "active" && row.status !== "trialing") return false;
+      const end = row.current_period_end;
+      return end === null || end === undefined || String(end) > nowISO;
+    });
+  },
 };
 
 /** Passo da grade de horários gerada pelas RPCs, em minutos. */
@@ -404,10 +445,23 @@ const TENANT_GUARDED_RPCS = new Set([
   "get_noshow_report",
   "create_walkin_client",
   "generate_availability_from_schedule",
+  // Limites do plano: só quem trabalha na barbearia (ou o super_admin) pode
+  // consultar o estado do limite daquele tenant.
+  "check_barber_limit",
+  "check_appointment_limit",
 ]);
 
 /** Papéis que dão acesso a dados agregados da barbearia. */
 const STAFF_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+/** `true` se o usuário da sessão é super_admin (global). */
+function currentUserIsSuperAdmin(): boolean {
+  const userId = getMockSessionUserId();
+  if (!userId) return false;
+  return getTableRows("user_roles").some(
+    (row) => row.user_id === userId && row.role === "super_admin",
+  );
+}
 
 /**
  * `true` quando o usuário da sessão é staff de alguma barbearia em que o
@@ -459,8 +513,13 @@ function runRpc(name: string, args: RpcArgs): MockResult<unknown> {
   }
 
   // Isolamento entre tenants: uma RPC agregada só responde para quem trabalha
-  // naquela barbearia. Sem isso o mock vazaria dados de outro tenant.
-  if (TENANT_GUARDED_RPCS.has(name) && !currentUserIsStaffOf(args._barbershop_id)) {
+  // naquela barbearia (ou o super_admin, global). Sem isso o mock vazaria
+  // dados de outro tenant.
+  if (
+    TENANT_GUARDED_RPCS.has(name) &&
+    !currentUserIsStaffOf(args._barbershop_id) &&
+    !currentUserIsSuperAdmin()
+  ) {
     return {
       data: null,
       error: {
