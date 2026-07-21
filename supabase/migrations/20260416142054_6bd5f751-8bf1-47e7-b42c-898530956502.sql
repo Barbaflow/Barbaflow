@@ -1,6 +1,7 @@
 
 INSERT INTO storage.buckets (id, name, public)
-VALUES ('product-images', 'product-images', true);
+VALUES ('product-images', 'product-images', true)
+ON CONFLICT (id) DO NOTHING;
 
 CREATE POLICY "Anyone can view product images"
 ON storage.objects FOR SELECT

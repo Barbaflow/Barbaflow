@@ -23,6 +23,7 @@ import {
   MOCK_USER_IDS,
   ratingAggregateFor,
 } from "@/mocks/fixtures";
+import { pickFutureFreeSlots } from "@/mocks/__harness__/slots";
 
 type Row = Record<string, unknown>;
 
@@ -181,7 +182,12 @@ async function testNotificationsBasics(): Promise<void> {
   );
 }
 
-/** Retorna um par de horários livres distintos do Ana na Barbearia A. */
+/**
+ * Retorna horários livres distintos do Ana na Barbearia A, sempre no FUTURO
+ * com margem (ver `__harness__/slots.ts`). A regra "não agendar no passado"
+ * segue valendo; o harness é que deixa de escolher um horário já vencido, o
+ * que o tornava dependente da hora de execução.
+ */
 async function freeAnaSlots(count: number): Promise<Row[]> {
   const slots = rowsOf(
     await mockSupabaseClient
@@ -193,16 +199,7 @@ async function freeAnaSlots(count: number): Promise<Row[]> {
       .order("date")
       .order("start_time"),
   );
-  const seen = new Set<string>();
-  const distinct: Row[] = [];
-  for (const slot of slots) {
-    const key = `${String(slot.date)} ${String(slot.start_time)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    distinct.push(slot);
-    if (distinct.length === count) break;
-  }
-  return distinct;
+  return pickFutureFreeSlots(slots, count) as Row[];
 }
 
 async function testNotificationEvents(): Promise<void> {
