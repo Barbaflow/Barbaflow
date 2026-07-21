@@ -264,22 +264,62 @@ function tenantOf(row: MockRow, existing?: MockRow): string {
 
 /* ---------------- por tabela ---------------- */
 
+/** Campos administrativos da barbearia: só o super_admin (AdminDashboard) os altera. */
+const BARBERSHOP_ADMIN_FIELDS = ["plan_id", "status"] as const;
+
 function authorizeBarbershop(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
-  // Criar barbearia é o onboarding: qualquer usuário autenticado pode.
+  const actor = getMockActor();
+
+  // Criar barbearia é o onboarding — permitido a qualquer usuário autenticado,
+  // mas SOMENTE para si mesmo: owner_id precisa ser o próprio usuário
+  // (espelha a policy real `WITH CHECK (owner_id = auth.uid())`).
   if (operation === "insert") {
-    return getMockActor() ? null : NO_SESSION;
+    if (!actor) return NO_SESSION;
+    if (asString(row.owner_id) !== actor.id) {
+      return "Onboarding: só é possível criar uma barbearia para o próprio usuário.";
+    }
+    return null;
   }
+
+  if (!actor) return NO_SESSION;
 
   const shopId = asString(existing?.id) ?? asString(row.id) ?? "";
 
-  // super_admin administra a plataforma (aprovar barbearia, trocar plano):
-  // comportamento preservado, sem ampliar para outras tabelas.
+  // Alterar plano ou status é uma operação administrativa da plataforma:
+  // reservada ao super_admin (o único caminho na interface é o AdminDashboard).
+  // Um admin_barbearia — mesmo dono — não muda plan_id/status por payload.
+  if (operation === "update" && existing) {
+    const changesAdminField = BARBERSHOP_ADMIN_FIELDS.some(
+      (field) => field in row && row[field] !== existing[field],
+    );
+    if (changesAdminField && !actorIsSuperAdmin()) {
+      return "Apenas o super admin pode alterar o plano ou o status de uma barbearia.";
+    }
+  }
+
+  // super_admin administra a plataforma; o admin da barbearia gerencia as
+  // demais configurações (nome, cores, políticas) da própria barbearia.
   if (actorIsSuperAdmin()) return null;
   if (actorIsAdminOf(shopId)) return null;
 
-  return getMockActor()
-    ? "Apenas o administrador desta barbearia pode alterar as configurações."
-    : NO_SESSION;
+  return "Apenas o administrador desta barbearia pode alterar as configurações.";
+}
+
+/** Escritas em `plan_change_logs`: apenas super_admin (espelha a RLS real). */
+function authorizePlanChangeLog(): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+  if (actorIsSuperAdmin()) return null;
+  return "Apenas o super admin pode registrar mudanças de plano.";
+}
+
+/**
+ * Escritas em `subscriptions`: no banco real só o service_role (webhook Paddle)
+ * grava. No modo offline não há service_role nem Paddle, então nenhuma escrita
+ * de assinatura pelo cliente é aceita — evita "marcar como pago" sem cobrança.
+ */
+function authorizeSubscription(): string | null {
+  return "Modo offline: assinaturas não podem ser gravadas pelo cliente (dependem do webhook do Paddle).";
 }
 
 function authorizeUserRole(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
@@ -347,9 +387,134 @@ export function authorizeWrite(
       return authorizeTeamInvitation(operation, row, existing);
     case "services":
       return authorizeService(operation, row, existing);
+    case "plan_change_logs":
+      return authorizePlanChangeLog();
+    case "subscriptions":
+      return authorizeSubscription();
     default:
       return null;
   }
+}
+
+/* ================================================================== */
+/* Planos: limites e histórico                                        */
+/* ================================================================== */
+
+/** Papéis que consomem uma "vaga de profissional" (contam no barber_limit). */
+const BARBER_LIMIT_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+/** Plano vinculado à barbearia, ou `null` se ela não tiver plano. */
+function planOfBarbershop(barbershopId: string): MockRow | null {
+  const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+  if (!shop) return null;
+  const planId = asString(shop.plan_id);
+  if (!planId) return null;
+  return getTableRows("plans").find((row) => row.id === planId) ?? null;
+}
+
+/**
+ * Número de profissionais ativos/vinculados de uma barbearia — as linhas de
+ * `user_roles` com papel de barbeiro ou admin. É a mesma contagem que a RPC
+ * `check_barber_limit` faz no banco real.
+ */
+export function countActiveBarbers(barbershopId: string): number {
+  return getTableRows("user_roles").filter(
+    (row) =>
+      row.barbershop_id === barbershopId && BARBER_LIMIT_ROLES.has(String(row.role)),
+  ).length;
+}
+
+/**
+ * `true` se a barbearia AINDA pode incluir um profissional (equivalente ao
+ * booleano da RPC `check_barber_limit`). `null` no limite → ilimitado.
+ */
+export function barbershopUnderBarberLimit(barbershopId: string): boolean {
+  const plan = planOfBarbershop(barbershopId);
+  // Sem plano: no banco a RPC devolveria NULL; aqui não bloqueamos a inclusão.
+  if (!plan) return true;
+  const limit = plan.barber_limit;
+  if (limit === null || limit === undefined) return true;
+  return countActiveBarbers(barbershopId) < Number(limit);
+}
+
+/**
+ * `true` se a barbearia ainda pode registrar um agendamento no mês
+ * (equivalente à RPC `check_appointment_limit`, que lê o contador em cache).
+ */
+export function barbershopUnderAppointmentLimit(barbershopId: string): boolean {
+  const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+  if (!shop) return true;
+  const plan = planOfBarbershop(barbershopId);
+  if (!plan) return true;
+  const limit = plan.appointment_limit;
+  if (limit === null || limit === undefined) return true;
+  const used = Number(shop.appointments_this_month ?? 0);
+  return used < Number(limit);
+}
+
+/**
+ * Barra, na camada de escrita, as inclusões que estouram o limite do plano —
+ * não só na UI. Aplicada apenas em INSERT:
+ *   - `user_roles` de um profissional → limite de profissionais;
+ *   - `appointments` → limite de agendamentos do mês.
+ */
+export function checkInsertPlanLimit(table: string, row: MockRow): string | null {
+  if (table === "user_roles") {
+    const role = asString(row.role);
+    if (!role || !BARBER_LIMIT_ROLES.has(role)) return null;
+    const barbershopId = asString(row.barbershop_id);
+    if (!barbershopId) return null;
+    if (!barbershopUnderBarberLimit(barbershopId)) {
+      const plan = planOfBarbershop(barbershopId);
+      const limit = plan?.barber_limit;
+      return `Limite de profissionais do plano atingido${
+        limit !== null && limit !== undefined ? ` (${limit})` : ""
+      }. Faça upgrade para adicionar mais.`;
+    }
+  }
+
+  if (table === "appointments") {
+    const barbershopId = asString(row.barbershop_id);
+    if (!barbershopId) return null;
+    if (!barbershopUnderAppointmentLimit(barbershopId)) {
+      const plan = planOfBarbershop(barbershopId);
+      const limit = plan?.appointment_limit;
+      return `Limite de agendamentos do plano atingido${
+        limit !== null && limit !== undefined ? ` (${limit}/mês)` : ""
+      }. Faça upgrade para continuar agendando.`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Valida um registro de mudança de plano: barbearia e planos referenciados
+ * precisam existir (FKs de `plan_change_logs`).
+ */
+export function validatePlanChangeLog(row: MockRow): string | null {
+  const barbershopId = asString(row.barbershop_id);
+  const newPlanId = asString(row.new_plan_id);
+  const changedBy = asString(row.changed_by);
+
+  if (!barbershopId || !newPlanId || !changedBy) {
+    return "Histórico de plano: barbearia, novo plano e autor são obrigatórios.";
+  }
+  if (!barbershopExists(barbershopId)) {
+    return `Histórico de plano: barbearia "${barbershopId}" não existe.`;
+  }
+
+  const plans = getTableRows("plans");
+  if (!plans.some((plan) => plan.id === newPlanId)) {
+    return `Histórico de plano: o novo plano "${newPlanId}" não existe.`;
+  }
+
+  const oldPlanId = asString(row.old_plan_id);
+  if (oldPlanId && !plans.some((plan) => plan.id === oldPlanId)) {
+    return `Histórico de plano: o plano anterior "${oldPlanId}" não existe.`;
+  }
+
+  return null;
 }
 
 /* ================================================================== */
@@ -388,6 +553,14 @@ export function validateBarbershop(row: MockRow, existing?: MockRow): string | n
       (shop) => shop.subdomain === slug && shop.id !== (existing?.id ?? row.id),
     );
     if (taken) return `Configurações: o link "${slug}" já está em uso por outra barbearia.`;
+  }
+
+  /* ---- plano precisa existir (FK barbershops.plan_id → plans.id) ---- */
+  if (row.plan_id !== undefined && row.plan_id !== null) {
+    const planExists = getTableRows("plans").some((plan) => plan.id === row.plan_id);
+    if (!planExists) {
+      return `Configurações: o plano "${asString(row.plan_id)}" não existe.`;
+    }
   }
 
   /* ---- políticas ---- */
@@ -524,6 +697,11 @@ export function validateTeamInvitation(row: MockRow, existing?: MockRow): string
     );
     if (duplicated) {
       return "Convite: já existe um convite pendente para este email nesta barbearia.";
+    }
+
+    /* ---- limite de profissionais do plano (mesma regra da UI) ---- */
+    if (!barbershopUnderBarberLimit(barbershopId)) {
+      return "Convite: limite de profissionais do plano atingido. Faça upgrade para adicionar mais.";
     }
   }
 
