@@ -6,6 +6,7 @@
  * isso a validação vive aqui, no caminho de escrita, e não nos componentes.
  */
 import { getTableRows, type MockRow } from "./store";
+import { getMockActor } from "./session";
 import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
 
 /** Papéis que podem atender clientes. */
@@ -196,6 +197,345 @@ export function validateBarberOwnedRow(row: MockRow, label: string): string | nu
  */
 export function validateService(row: MockRow): string | null {
   return validateBarberOwnedRow(row, "Serviço");
+}
+
+/* ================================================================== */
+/* Autorização das escritas administrativas                           */
+/* ================================================================== */
+
+/**
+ * Quem pode executar cada operação administrativa.
+ *
+ * As demais funções deste arquivo validam *o dado* (tenant coerente,
+ * aritmética, unicidade). Aqui validamos *o executor* — a sessão fictícia
+ * lida de src/mocks/session.ts. Uma violação aqui vira MOCK_FORBIDDEN;
+ * uma violação de dado vira MOCK_RULE.
+ *
+ * Isto não é RLS: cobre as escritas que passam pelo query builder. As RPCs
+ * têm a própria checagem de tenant em src/mocks/client.ts.
+ */
+export type MockOperation = "insert" | "update" | "delete";
+
+function rolesOfActorIn(barbershopId: string): Set<string> {
+  const actor = getMockActor();
+  if (!actor) return new Set();
+
+  return new Set(
+    getTableRows("user_roles")
+      .filter((row) => row.user_id === actor.id && row.barbershop_id === barbershopId)
+      .map((row) => String(row.role)),
+  );
+}
+
+function actorIsAdminOf(barbershopId: string): boolean {
+  return rolesOfActorIn(barbershopId).has("admin_barbearia");
+}
+
+function actorIsStaffOf(barbershopId: string): boolean {
+  const roles = rolesOfActorIn(barbershopId);
+  return roles.has("admin_barbearia") || roles.has("barbeiro");
+}
+
+/** super_admin é global: não está preso a uma barbearia. */
+function actorIsSuperAdmin(): boolean {
+  const actor = getMockActor();
+  if (!actor) return false;
+
+  return getTableRows("user_roles").some(
+    (row) => row.user_id === actor.id && row.role === "super_admin",
+  );
+}
+
+/** Dono registrado da barbearia — usado só na exceção do onboarding. */
+function actorOwns(barbershopId: string): boolean {
+  const actor = getMockActor();
+  if (!actor) return false;
+
+  return getTableRows("barbershops").some(
+    (row) => row.id === barbershopId && row.owner_id === actor.id,
+  );
+}
+
+const NO_SESSION = "Sem sessão ativa: faça login para executar esta operação.";
+
+function tenantOf(row: MockRow, existing?: MockRow): string {
+  return asString(existing?.barbershop_id) ?? asString(row.barbershop_id) ?? "";
+}
+
+/* ---------------- por tabela ---------------- */
+
+function authorizeBarbershop(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  // Criar barbearia é o onboarding: qualquer usuário autenticado pode.
+  if (operation === "insert") {
+    return getMockActor() ? null : NO_SESSION;
+  }
+
+  const shopId = asString(existing?.id) ?? asString(row.id) ?? "";
+
+  // super_admin administra a plataforma (aprovar barbearia, trocar plano):
+  // comportamento preservado, sem ampliar para outras tabelas.
+  if (actorIsSuperAdmin()) return null;
+  if (actorIsAdminOf(shopId)) return null;
+
+  return getMockActor()
+    ? "Apenas o administrador desta barbearia pode alterar as configurações."
+    : NO_SESSION;
+}
+
+function authorizeUserRole(operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+
+  const barbershopId = tenantOf(row, existing);
+  const targetUser = asString(existing?.user_id) ?? asString(row.user_id);
+  const role = asString(existing?.role) ?? asString(row.role);
+
+  if (operation === "insert") {
+    // Auto-atribuição de cliente: o próprio usuário ao visitar a página
+    // pública da barbearia (use-auto-client-role / agendar.$slug).
+    if (role === "cliente" && targetUser === actor.id) return null;
+
+    // Onboarding: o dono recém-criado vira admin da própria barbearia.
+    if (role === "admin_barbearia" && targetUser === actor.id && actorOwns(barbershopId)) {
+      return null;
+    }
+  }
+
+  if (actorIsAdminOf(barbershopId)) return null;
+
+  return "Apenas o administrador desta barbearia pode gerenciar a equipe.";
+}
+
+function authorizeTeamInvitation(_operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  if (!getMockActor()) return NO_SESSION;
+
+  if (actorIsAdminOf(tenantOf(row, existing))) return null;
+  return "Apenas o administrador desta barbearia pode gerenciar convites.";
+}
+
+function authorizeService(_operation: MockOperation, row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+
+  const barbershopId = tenantOf(row, existing);
+  if (actorIsAdminOf(barbershopId)) return null;
+
+  // Um profissional pode manter os próprios serviços, mas não associar
+  // serviço a outra pessoa.
+  const targetBarber = asString(row.barber_id) ?? asString(existing?.barber_id);
+  if (actorIsStaffOf(barbershopId) && targetBarber === actor.id) return null;
+
+  return "Apenas o administrador desta barbearia pode associar serviços a outros profissionais.";
+}
+
+/**
+ * Ponto único de autorização. Devolve a mensagem de recusa, ou `null`
+ * quando a operação é permitida.
+ */
+export function authorizeWrite(
+  table: string,
+  operation: MockOperation,
+  row: MockRow,
+  existing?: MockRow,
+): string | null {
+  switch (table) {
+    case "barbershops":
+      return authorizeBarbershop(operation, row, existing);
+    case "user_roles":
+      return authorizeUserRole(operation, row, existing);
+    case "team_invitations":
+      return authorizeTeamInvitation(operation, row, existing);
+    case "services":
+      return authorizeService(operation, row, existing);
+    default:
+      return null;
+  }
+}
+
+/* ================================================================== */
+/* Configurações da barbearia                                         */
+/* ================================================================== */
+
+/** Slugs que não podem virar subdomínio (colidem com rotas/hosts do app). */
+const RESERVED_SLUGS = new Set(["_system", "www", "app", "api", "admin", "agendar", "dashboard"]);
+
+/** Letras minúsculas, números e hífen; 3 a 63 caracteres; sem hífen nas pontas. */
+const SLUG_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,61}[a-z0-9])?$/;
+
+/**
+ * Valida a barbearia. Cobre slug (único e bem formado), políticas e a
+ * tentativa de trocar o tenant por payload.
+ */
+export function validateBarbershop(row: MockRow, existing?: MockRow): string | null {
+  /* ---- não trocar de tenant por payload ---- */
+  if (existing && row.id !== undefined && row.id !== existing.id) {
+    return "Configurações: não é possível alterar o id da barbearia.";
+  }
+
+  /* ---- slug ---- */
+  if (row.subdomain !== undefined) {
+    const slug = asString(row.subdomain);
+    if (!slug) return "Configurações: o link público não pode ficar vazio.";
+    if (!SLUG_PATTERN.test(slug)) {
+      return "Configurações: o link público aceita apenas letras minúsculas, números e hífen (3 a 63 caracteres).";
+    }
+    // `_system` já existe no banco real como sentinela; segue reservado.
+    if (RESERVED_SLUGS.has(slug) && existing?.subdomain !== slug) {
+      return `Configurações: "${slug}" é um link reservado.`;
+    }
+
+    const taken = getTableRows("barbershops").some(
+      (shop) => shop.subdomain === slug && shop.id !== (existing?.id ?? row.id),
+    );
+    if (taken) return `Configurações: o link "${slug}" já está em uso por outra barbearia.`;
+  }
+
+  /* ---- políticas ---- */
+  for (const field of ["cancel_min_hours", "reschedule_min_hours", "noshow_max_count", "noshow_block_days"] as const) {
+    if (row[field] === undefined) continue;
+    const value = Number(row[field]);
+    if (!Number.isFinite(value) || value < 0) {
+      return `Configurações: "${field}" deve ser um número não negativo.`;
+    }
+  }
+
+  // Só espaços conta como vazio — senão a barbearia fica sem nome na tela.
+  if (row.name !== undefined && (asString(row.name) ?? "").trim() === "") {
+    return "Configurações: o nome da barbearia é obrigatório.";
+  }
+
+  return null;
+}
+
+/* ================================================================== */
+/* Equipe: papéis e convites                                          */
+/* ================================================================== */
+
+/** Papéis que a gestão de equipe pode atribuir. `super_admin` nunca entra. */
+const ASSIGNABLE_ROLES = new Set(["barbeiro", "admin_barbearia", "cliente"]);
+
+/** Papéis que a tela de equipe administra (os que aparecem na lista). */
+const TEAM_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+function adminRoleRowsOf(barbershopId: string): MockRow[] {
+  return getTableRows("user_roles").filter(
+    (row) => row.barbershop_id === barbershopId && row.role === "admin_barbearia",
+  );
+}
+
+/** Valida atribuição de papel: tenant, papel permitido e último admin. */
+export function validateUserRole(row: MockRow, existing?: MockRow): string | null {
+  const barbershopId = asString(row.barbershop_id);
+  const userId = asString(row.user_id);
+  const role = asString(row.role);
+
+  if (!barbershopId || !userId || !role) {
+    return "Equipe: barbearia, usuário e papel são obrigatórios.";
+  }
+  if (!barbershopExists(barbershopId)) {
+    return `Equipe: barbearia "${barbershopId}" não existe.`;
+  }
+  if (!ASSIGNABLE_ROLES.has(role)) {
+    return `Equipe: o papel "${role}" não pode ser atribuído pela gestão de equipe.`;
+  }
+
+  /* ---- duplicidade do mesmo papel ---- */
+  const duplicated = getTableRows("user_roles").some(
+    (item) =>
+      item.id !== (existing?.id ?? row.id) &&
+      item.user_id === userId &&
+      item.barbershop_id === barbershopId &&
+      item.role === role,
+  );
+  if (duplicated) return "Equipe: este usuário já tem esse papel nesta barbearia.";
+
+  /* ---- rebaixar o último admin ---- */
+  if (existing && existing.role === "admin_barbearia" && role !== "admin_barbearia") {
+    const admins = adminRoleRowsOf(String(existing.barbershop_id));
+    if (admins.length <= 1) {
+      return "Equipe: esta barbearia ficaria sem administrador.";
+    }
+  }
+
+  return null;
+}
+
+/** Impede remover o último administrador da barbearia. */
+export function validateUserRoleRemoval(row: MockRow): string | null {
+  if (row.role !== "admin_barbearia") return null;
+
+  const admins = adminRoleRowsOf(String(row.barbershop_id));
+  if (admins.length <= 1) {
+    return "Equipe: não é possível remover o último administrador da barbearia.";
+  }
+  return null;
+}
+
+/* ---------------- convites ---------------- */
+
+const INVITATION_STATUSES = new Set(["pending", "accepted", "expired", "cancelled"]);
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Convite vencido pela data, ainda marcado como pendente. */
+export function invitationIsExpired(row: MockRow): boolean {
+  const expiresAt = asString(row.expires_at);
+  if (!expiresAt) return false;
+  return expiresAt <= new Date().toISOString();
+}
+
+/** Estado efetivo do convite, já considerando a data de expiração. */
+export function effectiveInvitationStatus(row: MockRow): string {
+  const status = String(row.status ?? "pending");
+  if (status === "pending" && invitationIsExpired(row)) return "expired";
+  return status;
+}
+
+export function validateTeamInvitation(row: MockRow, existing?: MockRow): string | null {
+  const barbershopId = asString(row.barbershop_id);
+  const email = asString(row.email);
+  const role = asString(row.role);
+
+  if (!barbershopId || !email) {
+    return "Convite: barbearia e email são obrigatórios.";
+  }
+  if (!barbershopExists(barbershopId)) {
+    return `Convite: barbearia "${barbershopId}" não existe.`;
+  }
+  if (!EMAIL_PATTERN.test(email)) {
+    return "Convite: email inválido.";
+  }
+  if (role && !TEAM_ROLES.has(role)) {
+    return `Convite: o papel "${role}" não pode ser convidado.`;
+  }
+
+  const status = asString(row.status);
+  if (status && !INVITATION_STATUSES.has(status)) {
+    return `Convite: status "${status}" inválido.`;
+  }
+
+  /* ---- um convite pendente por email e barbearia ---- */
+  if (!existing) {
+    const duplicated = getTableRows("team_invitations").some(
+      (item) =>
+        item.barbershop_id === barbershopId &&
+        String(item.email).toLowerCase() === email.toLowerCase() &&
+        effectiveInvitationStatus(item) === "pending",
+    );
+    if (duplicated) {
+      return "Convite: já existe um convite pendente para este email nesta barbearia.";
+    }
+  }
+
+  /* ---- convite consumido não volta atrás ---- */
+  if (existing) {
+    const current = effectiveInvitationStatus(existing);
+    if (current !== "pending" && status === "pending") {
+      return `Convite: um convite ${current} não pode voltar a ficar pendente.`;
+    }
+  }
+
+  return null;
 }
 
 /* ================================================================== */

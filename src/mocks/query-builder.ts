@@ -13,17 +13,23 @@
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from "./relations";
 import {
+  authorizeWrite,
+  type MockOperation,
   validateAppointment,
   validateBarberOwnedRow,
+  validateBarbershop,
   validateClientBlock,
   validateClientNote,
   validatePaymentMethod,
   validateProduct,
   validateScheduleBlock,
   validateService,
+  validateTeamInvitation,
   validateTicket,
   validateTicketItem,
   validateTicketPayment,
+  validateUserRole,
+  validateUserRoleRemoval,
 } from "./rules";
 
 export interface MockPostgrestError {
@@ -115,14 +121,49 @@ function validateWrite(
       return validateProduct(row);
     case "payment_methods":
       return validatePaymentMethod(row);
+    case "barbershops":
+      return validateBarbershop(row, existing);
+    case "user_roles":
+      return validateUserRole(row, existing);
+    case "team_invitations":
+      return validateTeamInvitation(row, existing);
     default:
       return null;
   }
 }
 
+/** Regras que impedem certas remoções (hoje: o último admin da barbearia). */
+function validateRemoval(table: string, row: MockRow): string | null {
+  if (table === "user_roles") return validateUserRoleRemoval(row);
+  return null;
+}
+
+/**
+ * Valores que o banco real preencheria por DEFAULT e que o app não envia.
+ * Sem isso um convite nasceria sem token, status ou validade.
+ */
+function applyInsertDefaults(table: string, row: MockRow): MockRow {
+  if (table !== "team_invitations") return row;
+
+  const expires = new Date();
+  expires.setDate(expires.getDate() + 7);
+
+  return {
+    status: "pending",
+    token: `mock-invite-${newId()}`,
+    expires_at: expires.toISOString(),
+    ...row,
+  };
+}
+
 /** Erro no formato que os componentes já tratam (checam apenas `error`). */
 function ruleError(message: string): MockPostgrestError {
   return { message, details: "Regra do modo offline.", hint: "", code: "MOCK_RULE" };
+}
+
+/** Recusa por falta de permissão do usuário da sessão. */
+function forbiddenError(message: string): MockPostgrestError {
+  return { message, details: "Permissão do modo offline.", hint: "", code: "MOCK_FORBIDDEN" };
 }
 
 /** Tabelas cujos updates sempre revalidam (não só quando mexem na agenda). */
@@ -134,6 +175,9 @@ const ALWAYS_REVALIDATED_ON_UPDATE = new Set([
   "client_blocks",
   "products",
   "payment_methods",
+  "barbershops",
+  "user_roles",
+  "team_invitations",
 ]);
 
 /** Colunas cuja alteração exige revalidar grade, bloqueio e conflito. */
@@ -353,6 +397,19 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
     return this.predicates.every((p) => p.test(row[p.column]));
   }
 
+  /**
+   * Checa a permissão do usuário da sessão. Devolve a resposta de recusa
+   * pronta (403 / MOCK_FORBIDDEN) ou `null` quando pode seguir.
+   */
+  private authorize(
+    operation: MockOperation,
+    row: MockRow,
+    existing?: MockRow,
+  ): MockResult<MockRow[]> | null {
+    const denied = authorizeWrite(this.table, operation, row, existing);
+    return denied ? fail<MockRow[]>([], forbiddenError(denied), 403) : null;
+  }
+
   /** Filtros sobre embeds, aplicados depois que os joins são resolvidos. */
   private matchesNested(row: MockRow): boolean {
     return this.nestedPredicates.every((p) => {
@@ -373,13 +430,16 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           id: newId(),
           created_at: timestamp,
           updated_at: timestamp,
-          ...row,
+          ...applyInsertDefaults(this.table, row),
         }));
 
         // Cada linha é validada contra as anteriores do mesmo lote: sem isso,
         // duas parcelas de R$100 numa comanda de R$100 passariam as duas.
         const accepted: MockRow[] = [];
         for (const candidate of created) {
+          const denied = this.authorize("insert", candidate);
+          if (denied) return denied;
+
           const problem = validateWrite(this.table, candidate, undefined, accepted);
           if (problem) {
             return fail<MockRow[]>([], ruleError(problem), 409);
@@ -421,6 +481,12 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           return updated;
         });
 
+        for (const updated of pending) {
+          const original = all.find((row) => row.id === updated.id);
+          const denied = this.authorize("update", updated, original);
+          if (denied) return denied;
+        }
+
         // Reagendamento revalida conflito. Mudanças que não mexem no
         // encaixe (cancelar, concluir, marcar falta, editar observação)
         // passam direto: revalidá-las impediria, por exemplo, cancelar um
@@ -442,6 +508,17 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
 
       case "delete": {
         affected = all.filter((row) => this.matches(row));
+
+        for (const row of affected) {
+          const denied = this.authorize("delete", row, row);
+          if (denied) return denied;
+
+          const problem = validateRemoval(this.table, row);
+          if (problem) {
+            return fail<MockRow[]>([], ruleError(problem), 409);
+          }
+        }
+
         setTableRows(
           this.table,
           all.filter((row) => !this.matches(row)),
