@@ -12,10 +12,16 @@
  */
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from "./relations";
-import { NEW_BARBERSHOP_DEFAULTS } from "./fixtures";
+import { NEW_BARBERSHOP_DEFAULTS, ratingAggregateFor } from "./fixtures";
+import {
+  notifyOnAppointmentInsert,
+  notifyOnAppointmentUpdate,
+  notifyOnReviewReply,
+} from "./notify";
 import {
   authorizeWrite,
   checkInsertPlanLimit,
+  filterReadableRows,
   type MockOperation,
   validateAppointment,
   validateBarberOwnedRow,
@@ -25,6 +31,7 @@ import {
   validatePaymentMethod,
   validatePlanChangeLog,
   validateProduct,
+  validateReview,
   validateScheduleBlock,
   validateService,
   validateTeamInvitation,
@@ -132,6 +139,8 @@ function validateWrite(
       return validateTeamInvitation(row, existing);
     case "plan_change_logs":
       return validatePlanChangeLog(row);
+    case "reviews":
+      return validateReview(row, existing);
     default:
       return null;
   }
@@ -193,6 +202,7 @@ const ALWAYS_REVALIDATED_ON_UPDATE = new Set([
   "barbershops",
   "user_roles",
   "team_invitations",
+  "reviews",
 ]);
 
 /** Colunas cuja alteração exige revalidar grade, bloqueio e conflito. */
@@ -235,6 +245,28 @@ function incrementAppointmentCounters(created: readonly MockRow[]): void {
     if (!bump) return shop;
     const current = Number(shop.appointments_this_month ?? 0);
     return { ...shop, appointments_this_month: current + bump };
+  });
+  setTableRows("barbershops", shops);
+}
+
+/**
+ * Recalcula `rating_avg`/`rating_count` das barbearias afetadas por uma escrita
+ * em `reviews`, como o trigger `recalc_barbershop_rating` do banco real.
+ */
+function recomputeReviewAggregates(affected: readonly MockRow[]): void {
+  const shopIds = new Set(
+    affected
+      .map((row) => (typeof row.barbershop_id === "string" ? row.barbershop_id : null))
+      .filter((id): id is string => id !== null),
+  );
+  if (shopIds.size === 0) return;
+
+  const reviews = getTableRows("reviews");
+  const timestamp = new Date().toISOString();
+  const shops = getTableRows("barbershops").map((shop) => {
+    const shopId = String(shop.id);
+    if (!shopIds.has(shopId)) return shop;
+    return { ...shop, ...ratingAggregateFor(shopId, reviews), updated_at: timestamp };
   });
   setTableRows("barbershops", shops);
 }
@@ -458,7 +490,11 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   }
 
   private run(): MockResult<MockRow[] | MockRow | null> {
-    const all = getTableRows(this.table);
+    // `barbearias_publicas` é uma VIEW: lê as barbearias aprovadas. Só leitura.
+    const all =
+      this.table === "barbearias_publicas"
+        ? getTableRows("barbershops").filter((row) => row.status === "approved")
+        : getTableRows(this.table);
     const timestamp = new Date().toISOString();
     let affected: MockRow[];
 
@@ -497,6 +533,11 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         // criado soma 1 ao contador mensal da barbearia (base do limite free).
         if (this.table === "appointments") {
           incrementAppointmentCounters(created);
+          for (const appointment of created) notifyOnAppointmentInsert(appointment);
+        }
+        // Nova avaliação recalcula a média/contagem da barbearia (trigger real).
+        if (this.table === "reviews") {
+          recomputeReviewAggregates(created);
         }
         affected = created;
         break;
@@ -552,6 +593,22 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         }
 
         setTableRows(this.table, next);
+
+        // Efeitos colaterais espelhando os triggers do banco.
+        if (this.table === "appointments") {
+          for (const updated of pending) {
+            const original = all.find((row) => row.id === updated.id);
+            if (original) notifyOnAppointmentUpdate(original, updated);
+          }
+        }
+        if (this.table === "reviews") {
+          for (const updated of pending) {
+            const original = all.find((row) => row.id === updated.id);
+            if (original) notifyOnReviewReply(original, updated);
+          }
+          recomputeReviewAggregates(pending);
+        }
+
         affected = pending;
         break;
       }
@@ -573,12 +630,19 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           this.table,
           all.filter((row) => !this.matches(row)),
         );
+        // Excluir avaliação recalcula a média da barbearia afetada.
+        if (this.table === "reviews") {
+          recomputeReviewAggregates(affected);
+        }
         break;
       }
 
       case "select":
       default: {
         affected = all.filter((row) => this.matches(row));
+
+        // Isolamento de leitura: notificações são privadas ao usuário da sessão.
+        affected = filterReadableRows(this.table, affected);
 
         // Joins primeiro, para que filtros como `.in("appointments.barber_id", …)`
         // e o descarte de `!inner` possam enxergar o objeto embutido.

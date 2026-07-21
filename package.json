@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "harness": "node scripts/run-plan-harness.mjs"
+    "harness": "node scripts/run-plan-harness.mjs",
+    "harness:notifications": "node scripts/run-notifications-reviews-harness.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
