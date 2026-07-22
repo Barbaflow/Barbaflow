@@ -219,22 +219,29 @@ export function ManualAppointmentDialog({
         if (data) setShopInfo({ name: data.name, subdomain: data.subdomain ?? null });
       });
     (async () => {
-      const { data: appts } = await supabase
-        .from("appointments")
-        .select("client_id")
-        .eq("barbershop_id", barbershopId);
-      const ids = Array.from(new Set((appts ?? []).map((a) => a.client_id)));
+      // Clientes da barbearia pela RPC que já valida o tenant. Antes isto lia
+      // `profiles` direto — inclusive o telefone —, o que só funcionava porque
+      // a tabela era legível por qualquer autenticado. Ela virou privada na
+      // migration 20260722240000; `get_barbershop_clients` devolve nome, avatar
+      // e telefone apenas para quem tem papel NESTA barbearia.
+      const { data: linhas } = await supabase.rpc("get_barbershop_clients", {
+        _barbershop_id: barbershopId,
+      });
+      const ids = Array.from(new Set((linhas ?? []).map((c) => c.client_id)));
       if (ids.length === 0) {
         setClients([]);
         setLoadingClients(false);
         return;
       }
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, phone, avatar_url")
-        .in("user_id", ids)
-        .order("full_name", { ascending: true });
-      setClients((profiles ?? []) as Client[]);
+      const clientes: Client[] = (linhas ?? [])
+        .map((c) => ({
+          user_id: c.client_id,
+          full_name: c.client_name,
+          phone: c.client_phone,
+          avatar_url: c.client_avatar,
+        }))
+        .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? "", "pt-BR"));
+      setClients(clientes);
       setLoadingClients(false);
 
       // Batch-check noshow block status (parallel RPCs, one per client)

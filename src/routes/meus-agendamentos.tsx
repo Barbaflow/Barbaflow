@@ -1,4 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { AppointmentHistory } from "@/components/AppointmentHistory";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Scissors } from "lucide-react";
@@ -24,10 +25,31 @@ export const Route = createFileRoute("/meus-agendamentos")({
   component: MeusAgendamentosPage,
 });
 
+/**
+ * Área PESSOAL do usuário autenticado.
+ *
+ * Ela não herda o tenant administrativo. Antes, a lista era filtrada por
+ * `useBarbershop().barbershopId` — o campo legado —, então um admin ou
+ * barbeiro que também fosse cliente de outra barbearia via apenas as reservas
+ * da barbearia onde TRABALHA, e as suas reservas pessoais em outros lugares
+ * sumiam. A autorização aqui é a identidade (`auth.uid()` na policy de
+ * `appointments`), nunca o papel administrativo.
+ */
+
 function MeusAgendamentosPage() {
   const { user, loading } = useAuth();
-  const { barbershopId, barbershop, isDefault } = useBarbershop();
+  const navigate = useNavigate();
+  // Só para o cabeçalho. O tenant NÃO participa da consulta desta tela.
+  const { barbershop } = useBarbershop();
   const name = barbershop?.name || "BarbaFlow";
+
+  // Área pessoal exige sessão. Guardamos a rota para voltar depois do login,
+  // em vez de deixar o usuário perdido numa tela vazia.
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate({ to: "/login", search: { redirect: "/meus-agendamentos" }, replace: true });
+    }
+  }, [user, loading, navigate]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,7 +80,7 @@ function MeusAgendamentosPage() {
             </Link>
           )}
           {!user && !loading && (
-            <Link to="/login">
+            <Link to="/login" search={{ redirect: "/meus-agendamentos" }}>
               <Button variant="gold" size="sm">Entrar</Button>
             </Link>
           )}
@@ -73,7 +95,9 @@ function MeusAgendamentosPage() {
           Histórico completo dos seus horários.
         </p>
 
-        <AppointmentHistory barbershopId={isDefault ? undefined : barbershopId} />
+        {/* Sem `barbershopId`: a tela mostra as reservas do usuário em TODAS as
+            barbearias. Ver comentário do componente. */}
+        <AppointmentHistory />
       </main>
     </div>
   );

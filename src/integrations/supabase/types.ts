@@ -1340,6 +1340,14 @@ export type Database = {
           start_time: string
         }[]
       }
+      get_public_profile_summaries: {
+        Args: { _user_ids: string[] }
+        Returns: {
+          avatar_url: string
+          full_name: string
+          user_id: string
+        }[]
+      }
       has_active_subscription: {
         Args: { check_env?: string; user_uuid: string }
         Returns: boolean

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
+import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { supabase } from "@/integrations/supabase/client";
 import { Star, Loader2, Trash2, MessageSquareReply, Pencil, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -84,13 +85,15 @@ export function ReviewsShowcase({ barbershopId, pageSize = 6 }: ReviewsShowcaseP
       const clientIds: string[] = Array.from(
         new Set((data as any[]).map((r) => r.client_id as string)),
       );
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", clientIds);
-
+      // `profiles` deixou de ser legível por qualquer autenticado
+      // (migration 20260722240000). Nome e avatar de quem avaliou vêm da RPC de
+      // resumo público, que devolve só esses dois campos.
+      const resumos = await fetchProfileSummaries(clientIds);
       const profileMap = new Map(
-        (profiles || []).map((p) => [p.user_id, p]),
+        Object.entries(resumos).map(([userId, r]) => [
+          userId,
+          { user_id: userId, full_name: r.full_name, avatar_url: r.avatar_url },
+        ]),
       );
 
       return data.map((r: any) => {

@@ -124,6 +124,22 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
   },
 
   /**
+   * Resumo público de perfil — espelha a RPC real (migration 20260722240000),
+   * criada porque `profiles` deixou de ser legível por qualquer autenticado.
+   * Retorno mínimo: nome e avatar, nunca telefone nem e-mail.
+   */
+  get_public_profile_summaries: (args) => {
+    const ids = Array.isArray(args._user_ids) ? args._user_ids : [];
+    return getTableRows("profiles")
+      .filter((row) => ids.includes(row.user_id) && !row.anonymized_at)
+      .map((row) => ({
+        user_id: row.user_id,
+        full_name: String(row.full_name ?? "").trim() || null,
+        avatar_url: row.avatar_url ?? null,
+      }));
+  },
+
+  /**
    * Clientes da barbearia, agregados a partir dos agendamentos.
    * Nunca cruza a fronteira do tenant: só lê linhas do _barbershop_id pedido.
    */
