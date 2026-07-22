@@ -25,6 +25,7 @@ import { Plus, Trash2, CalendarOff, Palmtree, PartyPopper, UserX } from "lucide-
 import { toast } from "sonner";
 
 interface ScheduleBlocksProps {
+  /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
   barbershopId: string;
 }
 
@@ -123,11 +124,18 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
   };
 
   const handleDelete = async (id: string) => {
-    const { error } = await supabase.from("schedule_blocks").delete().eq("id", id);
-    if (!error) {
-      toast.success("Bloqueio removido.");
-      setBlocks((prev) => prev.filter((b) => b.id !== id));
+    const { error } = await supabase
+      .from("schedule_blocks")
+      .delete()
+      // Escopo explícito do tenant, como no restante da tela.
+      .eq("barbershop_id", barbershopId)
+      .eq("id", id);
+    if (error) {
+      toast.error("Erro ao remover o bloqueio.", { description: error.message });
+      return;
     }
+    toast.success("Bloqueio removido.");
+    setBlocks((prev) => prev.filter((b) => b.id !== id));
   };
 
   const formatDate = (dateStr: string) => {

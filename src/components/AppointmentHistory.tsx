@@ -243,7 +243,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
             </p>
           )}
         </div>
-        <Link to="/configuracoes">
+        <Link to="/configuracoes" search={{ barbershop: undefined }}>
           <Button variant="outline" size="sm">
             {clientPhone ? "Alterar" : "Adicionar"}
           </Button>

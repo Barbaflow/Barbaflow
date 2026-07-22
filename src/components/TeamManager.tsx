@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useBarbershop } from "@/hooks/use-barbershop";
 import { usePlan } from "@/hooks/use-plan";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,13 +50,20 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
   cancelled: { label: "Cancelado", variant: "destructive" },
 };
 
+/**
+ * `barbershopId` é sempre um tenant JÁ RESOLVIDO. A prop não aceita `null` de
+ * propósito: quem renderiza precisa ter provado que existe barbearia — não há
+ * id "padrão" aqui, e no modo Supabase o antigo fallback apontava para a
+ * barbearia fictícia do mock.
+ */
 export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
-  const { barbershop } = useBarbershop();
-  const { barberLimit, planName } = usePlan();
+  // Limite do plano DESTE tenant — não do tenant do usuário logado.
+  const { barberLimit, planName } = usePlan(barbershopId);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("barbeiro");
   const [sending, setSending] = useState(false);
@@ -65,6 +71,12 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   const adminIsAlsoBarber = members.some(
     (m) => m.user_id === user?.id && m.role === "barbeiro"
+  );
+  // "Me adicionar como barbeiro" só faz sentido para quem É admin DESTA
+  // barbearia. Um super_admin operando outro tenant não deve entrar na equipe
+  // alheia por engano.
+  const isAdminOfThisBarbershop = members.some(
+    (m) => m.user_id === user?.id && m.role === "admin_barbearia"
   );
 
   const handleAddSelfAsBarber = async () => {
@@ -76,7 +88,7 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       role: "barbeiro" as const,
     });
     if (error) {
-      toast.error("Erro ao se adicionar como barbeiro.");
+      toast.error("Erro ao se adicionar como barbeiro.", { description: error.message });
     } else {
       toast.success("Você foi adicionado como barbeiro!");
       fetchTeam();
@@ -89,13 +101,23 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
 
     // Fetch members
-    const { data: roles } = await supabase
+    const { data: roles, error: rolesError } = await supabase
       .from("user_roles")
       .select("id, user_id, role")
       .eq("barbershop_id", barbershopId)
       .in("role", ["barbeiro", "admin_barbearia"]);
+
+    if (rolesError) {
+      // Erro do banco não pode virar "equipe vazia": são estados diferentes.
+      setLoadError(rolesError.message);
+      setMembers([]);
+      setInvitations([]);
+      setLoading(false);
+      return;
+    }
 
     if (roles && roles.length > 0) {
       const userIds = roles.map((r) => r.user_id);
@@ -169,7 +191,9 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       if (error.code === "23505") {
         toast.error("Já existe um convite pendente para este email.");
       } else {
-        toast.error("Erro ao enviar convite.");
+        // O limite de profissionais é enforçado no banco (trigger). Mostrar a
+        // mensagem real diferencia "limite do plano" de "erro genérico".
+        toast.error("Erro ao enviar convite.", { description: error.message });
       }
     } else {
       toast.success(`Convite enviado para ${inviteEmail.trim()}`);
@@ -184,10 +208,13 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
     const { error } = await supabase
       .from("team_invitations")
       .update({ status: "cancelled" })
+      // Escopo explícito do tenant: a RLS já barra, mas a tela não depende
+      // apenas dela para não sair do próprio tenant.
+      .eq("barbershop_id", barbershopId)
       .eq("id", id);
 
     if (error) {
-      toast.error("Erro ao cancelar convite.");
+      toast.error("Erro ao cancelar convite.", { description: error.message });
     } else {
       toast.success("Convite cancelado.");
       fetchTeam();
@@ -198,10 +225,13 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
     const { error } = await supabase
       .from("user_roles")
       .delete()
+      .eq("barbershop_id", barbershopId)
       .eq("id", roleId);
 
     if (error) {
-      toast.error("Erro ao remover membro.");
+      // O banco protege o ÚLTIMO admin_barbearia (constraint trigger diferido);
+      // mostrar a mensagem real evita transformar essa regra em "erro genérico".
+      toast.error("Erro ao remover membro.", { description: error.message });
     } else {
       toast.success(`${memberName || "Membro"} removido da equipe.`);
       fetchTeam();
@@ -227,10 +257,25 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
     );
   }
 
+  if (loadError) {
+    return (
+      <Card className="bg-card border-destructive/40">
+        <CardContent className="flex flex-col items-center justify-center py-10 text-center gap-3">
+          <AlertCircle className="w-8 h-8 text-destructive" />
+          <p className="text-sm text-foreground">Não foi possível carregar a equipe.</p>
+          <p className="text-xs text-muted-foreground max-w-md">{loadError}</p>
+          <Button size="sm" variant="outline" onClick={fetchTeam}>
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Admin self-add as barber */}
-      {!adminIsAlsoBarber && (
+      {isAdminOfThisBarbershop && !adminIsAlsoBarber && (
         <Card className="bg-card border-primary/30">
           <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
             <div className="flex items-center gap-3">

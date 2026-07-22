@@ -17,6 +17,7 @@ import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
+import { ServicesManager } from "@/components/ServicesManager";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
 import { CloseTicketDialog } from "@/components/CloseTicketDialog";
@@ -400,7 +401,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
 
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
         {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} />}
-        {activeTab === "services" && <ServicesTab />}
+        {activeTab === "services" && <ServicesTab isAdmin={isAdmin} />}
         {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
         {activeTab === "schedule" && <ScheduleTab />}
@@ -1409,260 +1410,44 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
 // ─── Services Tab ────────────────────────────────────────
 
-function ServicesTab() {
-  const { user } = useAuth();
-  const { barbershopId } = useBarbershop();
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showAdd, setShowAdd] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [newDuration, setNewDuration] = useState("30");
-  const [newPrice, setNewPrice] = useState("");
-  const [saving, setSaving] = useState(false);
+function ServicesTab({ isAdmin }: { isAdmin: boolean }) {
+  // Tenant real: `resolvedBarbershopId` é null enquanto não há barbearia
+  // resolvida. O antigo `barbershopId` caía em DEFAULT_BARBERSHOP_ID — o uuid
+  // da barbearia fictícia do mock —, e no modo Supabase a aba consultava um
+  // tenant inexistente em vez de dizer que não há barbearia.
+  const { resolvedBarbershopId, tenantStatus } = useBarbershop();
 
-  // Edit state
-  const [editingService, setEditingService] = useState<Service | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editDuration, setEditDuration] = useState("");
-  const [editPrice, setEditPrice] = useState("");
-  const [editSaving, setEditSaving] = useState(false);
-
-  const openEdit = (svc: Service) => {
-    setEditingService(svc);
-    setEditName(svc.name);
-    setEditDuration(String(svc.duration_minutes));
-    setEditPrice(String(svc.price));
-  };
-
-  const handleEdit = async () => {
-    if (!editingService || !editName.trim() || !editPrice) return;
-    setEditSaving(true);
-    const { error } = await supabase
-      .from("services")
-      .update({
-        name: editName.trim(),
-        duration_minutes: parseInt(editDuration),
-        price: parseFloat(editPrice),
-      })
-      .eq("id", editingService.id);
-    setEditSaving(false);
-    if (error) {
-      toast.error("Erro ao atualizar serviço.");
-    } else {
-      toast.success("Serviço atualizado!");
-      setEditingService(null);
-      fetchServices();
-    }
-  };
-
-  const fetchServices = useCallback(async () => {
-    const { data } = await supabase
-      .from("services")
-      .select("id, name, duration_minutes, price, active, barber_id")
-      .eq("barbershop_id", barbershopId)
-      .order("name");
-    setServices(data || []);
-    setLoading(false);
-  }, [barbershopId]);
-
-  useEffect(() => {
-    fetchServices();
-  }, [fetchServices]);
-
-  const handleAdd = async () => {
-    if (!newName.trim() || !newPrice || !user) return;
-    setSaving(true);
-    const { error } = await supabase.from("services").insert({
-      name: newName.trim(),
-      duration_minutes: parseInt(newDuration),
-      price: parseFloat(newPrice),
-      barbershop_id: barbershopId,
-      barber_id: user.id,
-      active: true,
-    });
-    setSaving(false);
-    if (error) {
-      toast.error("Erro ao adicionar serviço.");
-    } else {
-      toast.success("Serviço adicionado!");
-      setNewName("");
-      setNewPrice("");
-      setShowAdd(false);
-      fetchServices();
-    }
-  };
-
-  const toggleActive = async (id: string, currentActive: boolean) => {
-    await supabase.from("services").update({ active: !currentActive }).eq("id", id);
-    fetchServices();
-    toast.success(currentActive ? "Serviço desativado." : "Serviço ativado!");
-  };
-
-  const deleteService = async (id: string) => {
-    const { error } = await supabase.from("services").delete().eq("id", id);
-    if (error) {
-      toast.error("Erro ao excluir serviço.");
-    } else {
-      toast.success("Serviço excluído!");
-      fetchServices();
-    }
-  };
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-display font-bold text-foreground">Serviços</h2>
-          <p className="text-sm text-muted-foreground">Gerencie os serviços oferecidos pela barbearia.</p>
-        </div>
-        <Dialog open={showAdd} onOpenChange={setShowAdd}>
-          <DialogTrigger asChild>
-            <Button size="sm">
-              <Plus className="w-4 h-4" />
-              Novo Serviço
-            </Button>
-          </DialogTrigger>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adicionar Serviço</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 pt-2">
-              <div>
-                <Label>Nome</Label>
-                <Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Ex: Corte masculino" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label>Duração (min)</Label>
-                  <Input type="number" value={newDuration} onChange={(e) => setNewDuration(e.target.value)} />
-                </div>
-                <div>
-                  <Label>Preço (R$)</Label>
-                  <Input type="number" value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="0.00" />
-                </div>
-              </div>
-              <Button onClick={handleAdd} disabled={saving || !newName.trim() || !newPrice} className="w-full">
-                {saving ? "Salvando..." : "Adicionar"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
+  if (tenantStatus === "loading") {
+    return (
+      <div className="space-y-3">
+        {[1, 2, 3].map((i) => (
+          <Skeleton key={i} className="h-16 rounded-xl" />
+        ))}
       </div>
+    );
+  }
 
-      {/* Edit dialog */}
-      <Dialog open={!!editingService} onOpenChange={(open) => !open && setEditingService(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Editar Serviço</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div>
-              <Label>Nome</Label>
-              <Input value={editName} onChange={(e) => setEditName(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Duração (min)</Label>
-                <Input type="number" value={editDuration} onChange={(e) => setEditDuration(e.target.value)} />
-              </div>
-              <div>
-                <Label>Preço (R$)</Label>
-                <Input type="number" value={editPrice} onChange={(e) => setEditPrice(e.target.value)} />
-              </div>
-            </div>
-            <Button onClick={handleEdit} disabled={editSaving || !editName.trim() || !editPrice} className="w-full">
-              {editSaving ? "Salvando..." : "Salvar alterações"}
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+  if (!resolvedBarbershopId) return <SemBarbearia recurso="os serviços" />;
 
-      {loading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <Skeleton key={i} className="h-16 rounded-xl" />)}
-        </div>
-      ) : services.length === 0 ? (
-        <Card className="bg-card border-border">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
-            <Wrench className="w-8 h-8 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">Nenhum serviço cadastrado ainda.</p>
-            <Button size="sm" onClick={() => setShowAdd(true)}>
-              <Plus className="w-4 h-4" />
-              Adicionar primeiro serviço
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-2">
-          {services.map((svc) => (
-            <Card key={svc.id} className={`bg-card border-border ${!svc.active ? "opacity-50" : ""}`}>
-              <CardContent className="p-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-foreground truncate">{svc.name}</p>
-                    {!svc.active && (
-                      <Badge variant="secondary" className="text-[10px]">Inativo</Badge>
-                    )}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {svc.duration_minutes} min · R$ {Number(svc.price).toFixed(2)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-8"
-                    onClick={() => openEdit(svc)}
-                  >
-                    <Edit className="w-3.5 h-3.5" />
-                    Editar
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-xs h-8"
-                    onClick={() => toggleActive(svc.id, svc.active)}
-                  >
-                    {svc.active ? "Desativar" : "Ativar"}
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:bg-destructive/10 h-8"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Excluir serviço</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Tem certeza que deseja excluir <strong>{svc.name}</strong>? Esta ação não pode ser desfeita.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => deleteService(svc.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          Excluir
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-    </div>
+  return <ServicesManager barbershopId={resolvedBarbershopId} canManageAll={isAdmin} />;
+}
+
+/** Estado "nenhuma barbearia vinculada" comum às abas administrativas. */
+function SemBarbearia({ recurso }: { recurso: string }) {
+  return (
+    <Card className="bg-card border-border">
+      <CardContent className="flex flex-col items-center justify-center py-12 text-center gap-3">
+        <ShieldAlert className="w-8 h-8 text-muted-foreground" />
+        <p className="text-sm text-foreground">Nenhuma barbearia vinculada</p>
+        <p className="text-xs text-muted-foreground max-w-md">
+          Sua conta ainda não está vinculada a uma barbearia, então não há {recurso} para
+          carregar. Conclua a criação da sua barbearia para continuar.
+        </p>
+      </CardContent>
+    </Card>
   );
 }
+
 // ─── Products Tab ────────────────────────────────────────
 
 function ProductsTab() {
@@ -2017,7 +1802,7 @@ function ProductsTab() {
 // ─── Team Tab ────────────────────────────────────────────
 
 function TeamTab() {
-  const { barbershopId } = useBarbershop();
+  const { resolvedBarbershopId, tenantStatus } = useBarbershop();
 
   return (
     <div className="space-y-6">
@@ -2025,7 +1810,15 @@ function TeamTab() {
         <h2 className="text-xl font-display font-bold text-foreground">Equipe</h2>
         <p className="text-sm text-muted-foreground">Gerencie barbeiros e administradores da sua barbearia.</p>
       </div>
-      <TeamManager barbershopId={barbershopId} />
+      {tenantStatus === "loading" ? (
+        <Skeleton className="h-60 rounded-xl" />
+      ) : resolvedBarbershopId ? (
+        // Só montamos o componente depois do tenant resolvido — sem asserção
+        // de não-nulo e sem id "padrão".
+        <TeamManager barbershopId={resolvedBarbershopId} />
+      ) : (
+        <SemBarbearia recurso="a equipe" />
+      )}
     </div>
   );
 }
@@ -2033,7 +1826,7 @@ function TeamTab() {
 // ─── Schedule Tab ────────────────────────────────────────
 
 function ScheduleTab() {
-  const { barbershopId } = useBarbershop();
+  const { resolvedBarbershopId, tenantStatus } = useBarbershop();
 
   return (
     <div className="space-y-8">
@@ -2041,10 +1834,16 @@ function ScheduleTab() {
         <h2 className="text-xl font-display font-bold text-foreground">Horários de Funcionamento</h2>
         <p className="text-sm text-muted-foreground">Configure a agenda semanal e bloqueios de datas.</p>
       </div>
-      <div className="space-y-6">
-        <WeeklyScheduleEditor barbershopId={barbershopId} />
-        <ScheduleBlocks barbershopId={barbershopId} />
-      </div>
+      {tenantStatus === "loading" ? (
+        <Skeleton className="h-60 rounded-xl" />
+      ) : resolvedBarbershopId ? (
+        <div className="space-y-6">
+          <WeeklyScheduleEditor barbershopId={resolvedBarbershopId} />
+          <ScheduleBlocks barbershopId={resolvedBarbershopId} />
+        </div>
+      ) : (
+        <SemBarbearia recurso="os horários" />
+      )}
     </div>
   );
 }
@@ -2052,7 +1851,7 @@ function ScheduleTab() {
 // ─── Settings Tab ────────────────────────────────────────
 
 function SettingsTab() {
-  const { barbershopId, barbershop } = useBarbershop();
+  const { resolvedBarbershopId, barbershop, tenantStatus } = useBarbershop();
 
   return (
     <div className="space-y-8">
@@ -2137,7 +1936,13 @@ function SettingsTab() {
       })()}
 
       <ProfilePhotoUpload />
-      <BarbershopSettings barbershopId={barbershopId} />
+      {tenantStatus === "loading" ? (
+        <Skeleton className="h-60 rounded-xl" />
+      ) : resolvedBarbershopId ? (
+        <BarbershopSettings barbershopId={resolvedBarbershopId} />
+      ) : (
+        <SemBarbearia recurso="as configurações da barbearia" />
+      )}
     </div>
   );
 }

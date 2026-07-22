@@ -14,32 +14,57 @@ interface Service {
 }
 
 interface ServicesListProps {
-  barbershopId?: string;
+  /**
+   * Tenant da vitrine. `null`/`undefined` significa "ainda não resolvido" ou
+   * "não há" — e NUNCA "traga tudo". Sem tenant a consulta não é disparada:
+   * antes, a ausência removia o filtro e a página misturava os serviços de
+   * todas as barbearias aprovadas.
+   */
+  barbershopId?: string | null;
+  /** `true` enquanto o tenant ainda está sendo resolvido pelo chamador. */
+  tenantLoading?: boolean;
 }
 
-export function ServicesList({ barbershopId }: ServicesListProps) {
+export function ServicesList({ barbershopId, tenantLoading = false }: ServicesListProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function fetchServices() {
-      let query = supabase
-        .from("services")
-        .select("*")
-        .eq("active", true);
-
-      if (barbershopId) {
-        query = query.eq("barbershop_id", barbershopId);
-      }
-
-      const { data, error } = await query.order("name");
-      if (!error && data) {
-        setServices(data);
-      }
-      setLoading(false);
+    if (!barbershopId) {
+      setServices([]);
+      setLoadError(null);
+      // Sem tenant não há o que carregar; só paramos de "carregar" quando quem
+      // renderiza também terminou de resolver, para não piscar lista vazia.
+      setLoading(tenantLoading);
+      return;
     }
-    fetchServices();
-  }, [barbershopId]);
+
+    let cancelled = false;
+    setLoading(true);
+    setLoadError(null);
+
+    supabase
+      .from("services")
+      .select("*")
+      .eq("active", true)
+      .eq("barbershop_id", barbershopId)
+      .order("name")
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          setLoadError(error.message);
+          setServices([]);
+        } else {
+          setServices(data ?? []);
+        }
+        setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [barbershopId, tenantLoading]);
 
   if (loading) {
     return (
@@ -49,6 +74,23 @@ export function ServicesList({ barbershopId }: ServicesListProps) {
             <CardContent className="p-6 h-32" />
           </Card>
         ))}
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="text-center py-12 space-y-2">
+        <p className="text-lg text-foreground">Não foi possível carregar os serviços.</p>
+        <p className="text-sm text-muted-foreground">{loadError}</p>
+      </div>
+    );
+  }
+
+  if (!barbershopId) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        <p className="text-lg">Escolha uma barbearia para ver os serviços.</p>
       </div>
     );
   }
