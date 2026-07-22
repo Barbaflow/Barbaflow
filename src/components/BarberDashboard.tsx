@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { addDaysISO, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -290,7 +291,8 @@ function DateTitleDroppable({
 
 export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
-  const { barbershopId, barbershop } = useBarbershop();
+  // Só o nome/logo. O id legado era lido aqui e nunca usado.
+  const { barbershop } = useBarbershop();
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
 
   const name = barbershop?.name || "BarbaFlow";
@@ -415,11 +417,19 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
 
 function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const { user } = useAuth();
-  const { barbershopId, barbershop } = useBarbershop();
+  // Tenant REAL. O antigo `barbershopId` nunca é null e cai em
+  // DEFAULT_BARBERSHOP_ID — o uuid da barbearia fictícia do mock —, então no
+  // modo Supabase a agenda consultava e GRAVAVA num tenant inventado. Com
+  // `resolvedBarbershopId` o valor é `null` enquanto não há barbearia, e as
+  // guardas abaixo passam a valer de fato.
+  const { resolvedBarbershopId: barbershopId, barbershop, tenantStatus } = useBarbershop();
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split("T")[0]);
+  // "Hoje" no fuso da barbearia. Com `new Date().toISOString()` a agenda abria
+  // no dia SEGUINTE toda noite a partir das 21:00 em UTC−3, porque o corte da
+  // data acontecia depois da conversão para UTC.
+  const [selectedDate, setSelectedDate] = useState(() => todayISOInTenantTZ());
   const [weekMetrics, setWeekMetrics] = useState({ totalWeek: 0, revenueWeek: 0 });
   const [selectedBarber, setSelectedBarber] = useState<string>("all");
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
@@ -548,6 +558,13 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
 
   const fetchAppointments = useCallback(async () => {
     if (!user) return;
+    // Sem tenant resolvido não há o que consultar — e consultar com o id
+    // legado traria a agenda de uma barbearia que não é a do usuário.
+    if (!barbershopId) {
+      setAppointments([]);
+      setLoading(tenantStatus === "loading");
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -660,23 +677,19 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       setTicketStatusMap(newTicketMap);
     }
     setLoading(false);
-  }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
+  }, [user, barbershopId, tenantStatus, selectedDate, isAdmin, selectedBarber]);
 
   const fetchWeekMetrics = useCallback(async () => {
-    if (!user) return;
-    const today = new Date(selectedDate + "T12:00:00");
-    const dayOfWeek = today.getDay();
-    const weekStart = new Date(today);
-    weekStart.setDate(today.getDate() - dayOfWeek);
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
+    if (!user || !barbershopId) return;
+    const weekStart = addDaysISO(selectedDate, -weekdayOfISO(selectedDate));
+    const weekEnd = addDaysISO(weekStart, 6);
 
     let query = supabase
       .from("appointments")
       .select("status, service:services(price)")
       .eq("barbershop_id", barbershopId)
-      .gte("date", weekStart.toISOString().split("T")[0])
-      .lte("date", weekEnd.toISOString().split("T")[0]);
+      .gte("date", weekStart)
+      .lte("date", weekEnd);
 
     if (!isAdmin) {
       query = query.eq("barber_id", user.id);
@@ -723,13 +736,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     };
   }, [barbershopId, fetchAppointments]);
 
-  const shiftDate = (dir: number) => {
-    const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() + dir);
-    setSelectedDate(d.toISOString().split("T")[0]);
-  };
+  const shiftDate = (dir: number) => setSelectedDate((d) => addDaysISO(d, dir));
 
-  const isToday = selectedDate === new Date().toISOString().split("T")[0];
+  const isToday = selectedDate === todayISOInTenantTZ();
 
   const metrics: DayMetrics = appointments.reduce(
     (acc, a) => {
@@ -778,9 +787,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             const dir = overId === "date-prev" ? -1 : 1;
             // Compute the new day from the *current* selectedDate at fire time.
             const apt = appointments.find((a) => a.id === draggedId);
-            const baseDate = new Date(selectedDate + "T12:00:00");
-            baseDate.setDate(baseDate.getDate() + dir);
-            const newDate = baseDate.toISOString().split("T")[0];
+            const newDate = addDaysISO(selectedDate, dir);
             shiftDate(dir);
             // Also open the reschedule dialog targeted at the new day.
             // dnd-kit will end the drag automatically when the source card
@@ -959,7 +966,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
               variant="outline"
               size="sm"
               className="text-xs"
-              onClick={() => setSelectedDate(new Date().toISOString().split("T")[0])}
+              onClick={() => setSelectedDate(todayISOInTenantTZ())}
             >
               Hoje
             </Button>

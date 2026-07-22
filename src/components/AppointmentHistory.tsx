@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { toISODateInTenantTZ } from "@/lib/tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Badge } from "@/components/ui/badge";
@@ -112,10 +113,10 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     }
 
     if (dateRange?.from) {
-      query = query.gte("date", dateRange.from.toISOString().split("T")[0]);
+      query = query.gte("date", toISODateInTenantTZ(dateRange.from));
     }
     if (dateRange?.to) {
-      query = query.lte("date", dateRange.to.toISOString().split("T")[0]);
+      query = query.lte("date", toISODateInTenantTZ(dateRange.to));
     }
 
     const { data, error: err } = await query;

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { todayISOInTenantTZ } from "@/lib/tz";
 import type { Service, AvailabilitySlot, Barber } from "./types";
@@ -74,10 +74,28 @@ export function useBookingData(barbershopId: string) {
     [barbershopId, selectedDate]
   );
 
-  // Realtime subscription
+  // O callback usa sempre a versão mais recente de fetchAvailability sem que ela
+  // entre nas dependências do efeito: como `fetchAvailability` muda a cada troca
+  // de data, o canal era destruído e recriado a cada clique no calendário.
+  const fetchRef = useRef(fetchAvailability);
   useEffect(() => {
+    fetchRef.current = fetchAvailability;
+  }, [fetchAvailability]);
+
+  // Realtime.
+  //
+  // O tópico era a string fixa "availability-realtime". O cliente Supabase
+  // deduplica canais por tópico e devolve o MESMO objeto já inscrito, então
+  // dois consumidores simultâneos (duas telas de agendamento montadas juntas)
+  // cairiam no erro "cannot add postgres_changes callbacks after subscribe()" —
+  // o mesmo defeito já corrigido em usePlan. O id por instância elimina a
+  // disputa; sem tenant resolvido, nenhum canal é aberto.
+  const instanceId = useId();
+  useEffect(() => {
+    if (!barbershopId) return;
+
     const channel = supabase
-      .channel("availability-realtime")
+      .channel(`availability-${barbershopId}-${instanceId}`)
       .on(
         "postgres_changes",
         {
@@ -86,14 +104,14 @@ export function useBookingData(barbershopId: string) {
           table: "availability",
           filter: `barbershop_id=eq.${barbershopId}`,
         },
-        () => fetchAvailability()
+        () => fetchRef.current()
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      void supabase.removeChannel(channel);
     };
-  }, [barbershopId, fetchAvailability]);
+  }, [barbershopId, instanceId]);
 
   return {
     services,

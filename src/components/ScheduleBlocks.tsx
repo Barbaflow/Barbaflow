@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { addDaysISO, todayISOInTenantTZ } from "@/lib/tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -57,7 +58,9 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
   const fetchBlocks = useCallback(async () => {
     if (!user) return;
     setLoading(true);
-    const today = new Date().toISOString().split("T")[0];
+    // "Hoje" da barbearia: `new Date().toISOString()` converte para UTC antes de
+    // cortar a data e, em UTC−3, a partir das 21:00 já escondia os bloqueios de hoje.
+    const today = todayISOInTenantTZ();
 
     const { data, error } = await supabase
       .from("schedule_blocks")
@@ -92,11 +95,8 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
 
     // Generate all dates in range
     const dates: string[] = [];
-    const current = new Date(newBlock.start_date + "T12:00:00");
-    const end = new Date(endDate + "T12:00:00");
-    while (current <= end) {
-      dates.push(current.toISOString().split("T")[0]);
-      current.setDate(current.getDate() + 1);
+    for (let d = newBlock.start_date; d <= endDate; d = addDaysISO(d, 1)) {
+      dates.push(d);
     }
 
     const rows = dates.map((d) => ({
@@ -218,7 +218,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
                   <Input
                     type="date"
                     value={newBlock.start_date}
-                    min={new Date().toISOString().split("T")[0]}
+                    min={todayISOInTenantTZ()}
                     onChange={(e) => setNewBlock({ ...newBlock, start_date: e.target.value })}
                     className="bg-background border-border"
                   />
@@ -228,7 +228,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
                   <Input
                     type="date"
                     value={newBlock.end_date}
-                    min={newBlock.start_date || new Date().toISOString().split("T")[0]}
+                    min={newBlock.start_date || todayISOInTenantTZ()}
                     onChange={(e) => setNewBlock({ ...newBlock, end_date: e.target.value })}
                     className="bg-background border-border"
                   />

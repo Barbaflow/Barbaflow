@@ -21,12 +21,40 @@ export const Route = createFileRoute("/relatorios")({
 });
 
 function RelatoriosPage() {
-  const { canAccess, loading } = useCanAccessFeature("reports");
+  const { canAccess, loading, failed, refreshPlan } = useCanAccessFeature("reports");
 
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Falha ao ler o plano não é "plano free": oferecer upgrade aqui mentiria
+  // para quem já assinou o Pro.
+  if (failed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <div className="max-w-md text-center space-y-6">
+          <h1 className="text-2xl font-display font-bold text-foreground">
+            Não foi possível verificar seu plano
+          </h1>
+          <p className="text-muted-foreground font-body">
+            Os relatórios dependem do seu plano e a consulta falhou. Tente novamente em instantes.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button variant="gold" size="lg" onClick={refreshPlan}>
+              Tentar novamente
+            </Button>
+            <Link to="/dashboard" search={{ checkout: undefined }}>
+              <Button variant="ghost" size="lg">
+                <ArrowLeft className="w-4 h-4" />
+                Voltar ao painel
+              </Button>
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }

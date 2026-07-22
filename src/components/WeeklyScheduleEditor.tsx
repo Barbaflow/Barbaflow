@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { addDaysISO, todayISOInTenantTZ } from "@/lib/tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -180,15 +181,16 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     if (!user) return;
     setGenerating(true);
 
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 14);
+    // Janela gerada a partir do "hoje" da barbearia. Com toISOString() o
+    // intervalo começava amanhã toda noite (UTC−3), e o dia corrente ficava sem
+    // horários gerados.
+    const startDate = todayISOInTenantTZ();
 
     const { data, error } = await supabase.rpc("generate_availability_from_schedule", {
       _barber_id: user.id,
       _barbershop_id: barbershopId,
-      _start_date: startDate.toISOString().split("T")[0],
-      _end_date: endDate.toISOString().split("T")[0],
+      _start_date: startDate,
+      _end_date: addDaysISO(startDate, 14),
     });
 
     if (error) {

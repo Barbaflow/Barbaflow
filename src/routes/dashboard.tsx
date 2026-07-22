@@ -35,7 +35,11 @@ type OrphanShop = { id: string; name: string; subdomain: string };
 
 function DashboardPage() {
   const { user, loading } = useAuth();
-  const { barbershopId, barbershop, loading: barbershopLoading } = useBarbershop();
+  // `resolvedBarbershopId` (null enquanto não resolvido) no lugar do legado
+  // `barbershopId`, que nunca é null e cai no uuid da barbearia do mock. Aqui
+  // ele só serve de dependência do efeito de papel — nenhuma consulta o usa —,
+  // mas ler o campo legado convidava a exatamente esse erro.
+  const { resolvedBarbershopId, barbershop, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
   const { checkout } = Route.useSearch();
   const [role, setRole] = useState<string | null>(null);
@@ -121,7 +125,7 @@ function DashboardPage() {
             setRoleLoading(false);
           });
       });
-  }, [user, barbershopId, barbershopLoading]);
+  }, [user, resolvedBarbershopId, barbershopLoading]);
 
   // Sem papel e sem barbearia: onboarding é o destino, automaticamente.
   useEffect(() => {

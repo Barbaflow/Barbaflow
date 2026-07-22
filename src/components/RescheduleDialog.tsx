@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -81,6 +82,10 @@ export function RescheduleDialog({
   const [loading, setLoading] = useState(false);
   const [selectedTime, setSelectedTime] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
+  // Trava reentrante síncrona: `setSubmitting(true)` só vale no próximo render,
+  // então dois cliques no mesmo tick entravam os dois aqui e gravavam duas
+  // alterações. O `disabled` do botão é o feedback; esta guarda é a proteção.
+  const submittingRef = useRef(false);
   const [selectedBarberId, setSelectedBarberId] = useState<string>("");
   const [barbers, setBarbers] = useState<Array<{ user_id: string; display: BarberDisplay }>>([]);
   const [barbersLoading, setBarbersLoading] = useState(false);
@@ -333,6 +338,8 @@ export function RescheduleDialog({
 
   const handleConfirm = async () => {
     if (!appointment || !selectedTime || !selectedBarberId) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + appointment.duration_minutes);
@@ -349,7 +356,12 @@ export function RescheduleDialog({
       .eq("id", appointment.id);
 
     if (error) {
-      toast.error(error.message || "Erro ao reagendar.");
+      // A constraint do banco também vale para UPDATE: mover para cima de outro
+      // atendimento é recusado. Sem tradução isso chegaria como texto do
+      // Postgres, e o horário escolhido continuaria selecionado na tela.
+      const { title, description } = agendaErrorMessage(error, "Erro ao reagendar.");
+      toast.error(title, { description });
+      if (isSlotConflict(error)) setSelectedTime("");
     } else {
       const crossDay =
         appointment.original_date && appointment.original_date !== appointment.date;
@@ -363,6 +375,7 @@ export function RescheduleDialog({
       onRescheduled();
       onOpenChange(false);
     }
+    submittingRef.current = false;
     setSubmitting(false);
   };
 
