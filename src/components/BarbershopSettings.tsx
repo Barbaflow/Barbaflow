@@ -70,8 +70,17 @@ const DEFAULT_WA_TEMPLATE =
 export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
   // Plano DESTA barbearia — não o do tenant do usuário logado.
-  const { planName, loading: planLoading } = usePlan(barbershopId);
-  const isFree = planName === "free";
+  const {
+    planName,
+    status: planStatus,
+    error: planError,
+    refreshPlan,
+  } = usePlan(barbershopId);
+  // O bloqueio de personalização só vale com o plano REALMENTE lido. Enquanto
+  // carrega, `planName` ainda é o padrão "free" — aplicá-lo faria a tela piscar
+  // o aviso de upgrade para quem já é Pro.
+  const isFree = (planStatus === "ready" || planStatus === "not-found") && planName === "free";
+  const planUnknown = planStatus === "error";
   const [data, setData] = useState<BarbershopData | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#C8A96E");
@@ -588,11 +597,31 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     );
   }
 
-  if (!data) {
+  if (!data || planStatus === "loading") {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="w-6 h-6 animate-spin text-gold" />
       </div>
+    );
+  }
+
+  // Plano não confirmado: falhar fechado é o lado seguro (não liberar um
+  // recurso pago por acidente), mas nunca em silêncio — o motivo aparece e há
+  // como tentar de novo.
+  if (planUnknown) {
+    return (
+      <Card className="border-destructive/40 bg-card">
+        <CardContent className="flex flex-col items-center justify-center py-10 text-center gap-3">
+          <ShieldAlert className="w-8 h-8 text-destructive" />
+          <p className="text-sm text-foreground">
+            Não foi possível confirmar o plano desta barbearia.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-md">{planError}</p>
+          <Button variant="outline" size="sm" onClick={refreshPlan}>
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
