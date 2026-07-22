@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner";
 
 interface WeeklyScheduleEditorProps {
+  /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
   barbershopId: string;
 }
 
@@ -116,25 +117,31 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     const { error } = await supabase
       .from("weekly_schedule")
       .update({ is_active: active })
+      // Escopo explícito do tenant: a tela nunca alcança a grade de outra
+      // barbearia, mesmo que um id estranho chegue até aqui.
+      .eq("barbershop_id", barbershopId)
       .eq("id", id);
 
-    if (!error) {
-      setSchedule((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, is_active: active } : s))
-      );
+    if (error) {
+      toast.error("Erro ao atualizar o horário.", { description: error.message });
+      return;
     }
+    setSchedule((prev) => prev.map((s) => (s.id === id ? { ...s, is_active: active } : s)));
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase
       .from("weekly_schedule")
       .delete()
+      .eq("barbershop_id", barbershopId)
       .eq("id", id);
 
-    if (!error) {
-      toast.success("Horário removido.");
-      setSchedule((prev) => prev.filter((s) => s.id !== id));
+    if (error) {
+      toast.error("Erro ao remover o horário.", { description: error.message });
+      return;
     }
+    toast.success("Horário removido.");
+    setSchedule((prev) => prev.filter((s) => s.id !== id));
   };
 
   const handleApplyTemplate = async () => {
@@ -185,7 +192,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     });
 
     if (error) {
-      toast.error("Erro ao gerar horários.");
+      toast.error("Erro ao gerar horários.", { description: error.message });
     } else {
       toast.success(`${data} horários gerados para os próximos 14 dias!`);
     }

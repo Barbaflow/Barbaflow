@@ -44,6 +44,7 @@ import {
   Crown,
   History,
   TrendingDown,
+  UserCog,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -279,7 +280,10 @@ export function AdminDashboard() {
                 <span className="hidden sm:inline">Churn</span>
               </Button>
             </Link>
-            <Link to="/configuracoes">
+            {/* Sem `?barbershop=`: o super_admin cai no próprio perfil e a tela
+                pede seleção para as seções de barbearia — nunca escolhe um
+                tenant silenciosamente. */}
+            <Link to="/configuracoes" search={{ barbershop: undefined }}>
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
                 <span className="hidden sm:inline">Config</span>
@@ -434,13 +438,35 @@ export function AdminDashboard() {
                             <CalendarDays className="w-3.5 h-3.5" />
                             {shop.appointments_this_month} ags
                           </span>
-                          {/* Seleção EXPLÍCITA de tenant: abre a lista já com a
-                              barbearia escolhida, sem misturar tenants nem cair
-                              na sentinela. */}
+                          {/* Seleção EXPLÍCITA de tenant: cada ação abre a tela
+                              já com a barbearia escolhida, sem misturar
+                              tenants, sem usar o primeiro papel encontrado e
+                              sem cair na sentinela `_system`. Sem o parâmetro,
+                              as telas pedem seleção em vez de consultar.
+                              `/equipe` não existe como rota: a equipe é uma
+                              seção de `/configuracoes`. */}
                           <Link to="/clientes" search={{ barbershop: shop.id }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
                               <Users className="w-3 h-3 mr-1" />
                               Clientes
+                            </Button>
+                          </Link>
+                          <Link to="/servicos" search={{ barbershop: shop.id }}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <Scissors className="w-3 h-3 mr-1" />
+                              Serviços
+                            </Button>
+                          </Link>
+                          <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <UserCog className="w-3 h-3 mr-1" />
+                              Equipe
+                            </Button>
+                          </Link>
+                          <Link to="/configuracoes" search={{ barbershop: shop.id }}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <Settings className="w-3 h-3 mr-1" />
+                              Config
                             </Button>
                           </Link>
                           <Select

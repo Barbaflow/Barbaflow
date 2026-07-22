@@ -61,11 +61,19 @@ const DEFAULT_RECEIPT_WA_INTRO = "Olá, {cliente}! Segue o resumo do seu atendim
 const DEFAULT_WA_TEMPLATE =
   "Olá! 💈 Agende seu horário na *{nome}* de forma rápida e fácil pelo link: {link}";
 
+/**
+ * `barbershopId` é sempre um tenant JÁ RESOLVIDO — a prop não aceita `null` de
+ * propósito. Quem renderiza precisa ter provado que existe barbearia; não há
+ * id "padrão" aqui (o antigo fallback apontava, no modo Supabase, para a
+ * barbearia fictícia do mock, que não existe no banco real).
+ */
 export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
-  const { planName, loading: planLoading } = usePlan();
+  // Plano DESTA barbearia — não o do tenant do usuário logado.
+  const { planName, loading: planLoading } = usePlan(barbershopId);
   const isFree = planName === "free";
   const [data, setData] = useState<BarbershopData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [primaryColor, setPrimaryColor] = useState("#C8A96E");
   const [secondaryColor, setSecondaryColor] = useState("#1A1A2E");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -307,12 +315,25 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
 
   useEffect(() => {
+    setData(null);
+    setLoadError(null);
     supabase
       .from("barbershops")
       .select("*")
       .eq("id", barbershopId)
-      .single()
-      .then(({ data: shop }) => {
+      // `maybeSingle` em vez de `single`: quando a linha não existe — era
+      // exatamente o caso do uuid de mock no modo Supabase — queremos um
+      // estado explícito, não um erro silencioso que deixa o spinner girando.
+      .maybeSingle()
+      .then(({ data: shop, error }) => {
+        if (error) {
+          setLoadError(error.message);
+          return;
+        }
+        if (!shop) {
+          setLoadError("Barbearia não encontrada ou sem permissão de leitura.");
+          return;
+        }
         if (shop) {
           const s = shop as BarbershopData;
           setData(s);
@@ -366,15 +387,37 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     return template.replace(/\{nome\}/gi, data?.name ?? "").replace(/\{link\}/gi, url);
   };
 
+  /**
+   * Grava um patch NA BARBEARIA DESTE TENANT e devolve a mensagem de falha, ou
+   * `null` em caso de sucesso.
+   *
+   * O `.select("id")` existe por um motivo concreto: um UPDATE barrado pela RLS
+   * não devolve erro — devolve ZERO linhas. Sem checar isso, a tela dizia
+   * "salvo!" para uma alteração que o banco recusou (o caso do administrador
+   * que não é o proprietário, e o do id de mock que não existe no banco real).
+   */
+  const saveBarbershop = async (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    patch: any,
+  ): Promise<string | null> => {
+    const { data: rows, error } = await supabase
+      .from("barbershops")
+      .update(patch)
+      .eq("id", barbershopId)
+      .select("id");
+    if (error) return error.message;
+    if (!rows || rows.length === 0) {
+      return "O banco recusou a alteração: você não tem permissão para editar esta barbearia.";
+    }
+    return null;
+  };
+
   const handleSaveWaMessage = async () => {
     if (!data) return;
     setSavingWa(true);
-    const { error } = await supabase
-      .from("barbershops")
-      .update({ whatsapp_message: waMessage.trim() || null })
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar mensagem.");
+    const problem = await saveBarbershop({ whatsapp_message: waMessage.trim() || null });
+    if (problem) {
+      toast.error("Erro ao salvar mensagem.", { description: problem });
     } else {
       toast.success("Mensagem do WhatsApp salva!");
     }
@@ -383,16 +426,13 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
   const handleSavePrintPrefs = async () => {
     setSavingPrint(true);
-    const { error } = await supabase
-      .from("barbershops")
-      .update({
-        pdf_template: pdfTemplate,
-        pdf_slogan: pdfSlogan.trim() || null,
-        qr_size: qrSize,
-      })
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar preferências.");
+    const problem = await saveBarbershop({
+      pdf_template: pdfTemplate,
+      pdf_slogan: pdfSlogan.trim() || null,
+      qr_size: qrSize,
+    });
+    if (problem) {
+      toast.error("Erro ao salvar preferências.", { description: problem });
     } else {
       toast.success("Preferências de impressão salvas!");
     }
@@ -401,13 +441,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
   const handleSaveReschedule = async () => {
     setSavingReschedule(true);
-    const { error } = await supabase
-      .from("barbershops")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ reschedule_min_hours: rescheduleMinHours } as any)
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar limite de reagendamento.");
+    const problem = await saveBarbershop({ reschedule_min_hours: rescheduleMinHours });
+    if (problem) {
+      toast.error("Erro ao salvar limite de reagendamento.", { description: problem });
     } else {
       toast.success("Limite de reagendamento salvo!");
     }
@@ -416,13 +452,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
   const handleSaveCancel = async () => {
     setSavingCancel(true);
-    const { error } = await supabase
-      .from("barbershops")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({ cancel_min_hours: cancelMinHours } as any)
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar limite de cancelamento.");
+    const problem = await saveBarbershop({ cancel_min_hours: cancelMinHours });
+    if (problem) {
+      toast.error("Erro ao salvar limite de cancelamento.", { description: problem });
     } else {
       toast.success("Limite de cancelamento salvo!");
     }
@@ -431,17 +463,13 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
   const handleSaveNoshow = async () => {
     setSavingNoshow(true);
-    const { error } = await supabase
-      .from("barbershops")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({
-        noshow_policy_enabled: noshowEnabled,
-        noshow_max_count: noshowMaxCount,
-        noshow_block_days: noshowBlockDays,
-      } as any)
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar política de no-show.");
+    const problem = await saveBarbershop({
+      noshow_policy_enabled: noshowEnabled,
+      noshow_max_count: noshowMaxCount,
+      noshow_block_days: noshowBlockDays,
+    });
+    if (problem) {
+      toast.error("Erro ao salvar política de no-show.", { description: problem });
     } else {
       toast.success("Política de no-show salva!");
     }
@@ -450,19 +478,15 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
 
   const handleSaveReceipt = async () => {
     setSavingReceipt(true);
-    const { error } = await supabase
-      .from("barbershops")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update({
-        receipt_title: receiptTitle.trim() || null,
-        receipt_subtitle: receiptSubtitle.trim() || null,
-        receipt_footer: receiptFooter.trim() || null,
-        receipt_thank_you_message: receiptThanks.trim() || null,
-        receipt_whatsapp_intro: receiptWaIntro.trim() || null,
-      } as any)
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar personalização do recibo.");
+    const problem = await saveBarbershop({
+      receipt_title: receiptTitle.trim() || null,
+      receipt_subtitle: receiptSubtitle.trim() || null,
+      receipt_footer: receiptFooter.trim() || null,
+      receipt_thank_you_message: receiptThanks.trim() || null,
+      receipt_whatsapp_intro: receiptWaIntro.trim() || null,
+    });
+    if (problem) {
+      toast.error("Erro ao salvar personalização do recibo.", { description: problem });
     } else {
       toast.success("Personalização do recibo salva!");
     }
@@ -475,13 +499,9 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       return;
     }
     setSavingAddress(true);
-    const { error } = await supabase
-      .from("barbershops")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .update(addressForDb(address) as any)
-      .eq("id", barbershopId);
-    if (error) {
-      toast.error("Erro ao salvar endereço.");
+    const problem = await saveBarbershop(addressForDb(address));
+    if (problem) {
+      toast.error("Erro ao salvar endereço.", { description: problem });
     } else {
       toast.success("Endereço salvo!");
     }
@@ -511,20 +531,28 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .upload(path, file, { upsert: true });
 
     if (error) {
-      toast.error("Erro ao fazer upload do logo.");
+      // A mensagem do storage é útil (cota, mime, policy do bucket) — não a
+      // trocamos por um "erro" genérico.
+      toast.error("Erro ao fazer upload do logo.", { description: error.message });
       setUploading(false);
       return;
     }
 
     const { data: urlData } = supabase.storage.from("logos").getPublicUrl(path);
     const newUrl = `${urlData.publicUrl}?t=${Date.now()}`;
+
+    const problem = await saveBarbershop({ logo_url: newUrl });
+    if (problem) {
+      // Arquivo enviado, mas o vínculo com a barbearia não gravou: dizer
+      // "Logo atualizado!" aqui seria mentira.
+      toast.error("Logo enviado, mas não foi possível vinculá-lo à barbearia.", {
+        description: problem,
+      });
+      setUploading(false);
+      return;
+    }
+
     setLogoUrl(newUrl);
-
-    await supabase
-      .from("barbershops")
-      .update({ logo_url: newUrl })
-      .eq("id", barbershopId);
-
     toast.success("Logo atualizado!");
     setUploading(false);
   };
@@ -533,18 +561,32 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
     if (!data) return;
     setSaving(true);
 
-    const { error } = await supabase
-      .from("barbershops")
-      .update({ primary_color: primaryColor, secondary_color: secondaryColor })
-      .eq("id", barbershopId);
+    const problem = await saveBarbershop({
+      primary_color: primaryColor,
+      secondary_color: secondaryColor,
+    });
 
-    if (error) {
-      toast.error("Erro ao salvar cores.");
+    if (problem) {
+      toast.error("Erro ao salvar cores.", { description: problem });
     } else {
       toast.success("Cores atualizadas! Recarregue para ver as mudanças.");
     }
     setSaving(false);
   };
+
+  if (loadError) {
+    return (
+      <Card className="border-destructive/40 bg-card">
+        <CardContent className="flex flex-col items-center justify-center py-10 text-center gap-3">
+          <ShieldAlert className="w-8 h-8 text-destructive" />
+          <p className="text-sm text-foreground">
+            Não foi possível carregar as configurações da barbearia.
+          </p>
+          <p className="text-xs text-muted-foreground max-w-md">{loadError}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   if (!data) {
     return (

@@ -317,7 +317,7 @@ export function LandingHero({ barbershopName, primaryColor, logoUrl, isDefault }
                 Agendar agora
               </Button>
             </Link>
-            <Link to="/servicos">
+            <Link to="/servicos" search={{ barbershop: undefined }}>
               <Button variant="gold-outline" size="xl">
                 <Scissors className="w-5 h-5" />
                 Ver serviços
