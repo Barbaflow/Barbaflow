@@ -59,7 +59,7 @@ const STATUS_CONFIG: Record<string, { label: string; variant: "default" | "secon
 export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const { user } = useAuth();
   // Limite do plano DESTE tenant — não do tenant do usuário logado.
-  const { barberLimit, planName } = usePlan(barbershopId);
+  const { barberLimit, planName, status: planStatus } = usePlan(barbershopId);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
@@ -97,7 +97,12 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
   };
 
   const teamCount = members.length;
-  const hasReachedBarberLimit = barberLimit !== null && teamCount >= barberLimit;
+  // O limite só é aplicado com o plano REALMENTE lido. Enquanto carrega — ou se
+  // a consulta falhar — `barberLimit` ainda é o padrão free (1), e usá-lo
+  // bloquearia o convite de quem paga por uma equipe maior. Quem decide de fato
+  // é o trigger do banco; aqui a mensagem só antecipa o que já é verdade.
+  const planKnown = planStatus === "ready" || planStatus === "not-found";
+  const hasReachedBarberLimit = planKnown && barberLimit !== null && teamCount >= barberLimit;
 
   const fetchTeam = useCallback(async () => {
     setLoading(true);
@@ -338,6 +343,15 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
               </Select>
             </div>
           </div>
+          {planStatus === "error" && (
+            <div className="p-3 rounded-lg bg-muted border border-border text-sm text-muted-foreground flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>
+                Não foi possível confirmar o plano desta barbearia — o limite de
+                profissionais não está sendo exibido. O convite ainda é validado pelo servidor.
+              </span>
+            </div>
+          )}
           {hasReachedBarberLimit ? (
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
