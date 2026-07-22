@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -126,10 +127,14 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
     if (roles && roles.length > 0) {
       const userIds = roles.map((r) => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, full_name, avatar_url")
-        .in("user_id", userIds);
+      // Equipe: nome e avatar pela RPC de resumo, já que `profiles` passou a
+      // ser privada (migration 20260722240000).
+      const resumos = await fetchProfileSummaries(userIds);
+      const profiles = Object.entries(resumos).map(([user_id, r]) => ({
+        user_id,
+        full_name: r.full_name,
+        avatar_url: r.avatar_url,
+      }));
 
       const profileMap = new Map(
         (profiles || []).map((p) => [p.user_id, p])

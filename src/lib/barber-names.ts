@@ -24,21 +24,10 @@ export async function fetchBarberDisplayNames(
     _user_ids: ids,
   });
 
-  if (error || !data) {
-    // Fallback: profile lookup (anon may get nothing, that's ok)
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, avatar_url")
-      .in("user_id", ids);
-    const map: BarberDisplayMap = {};
-    (profiles || []).forEach((p) => {
-      map[p.user_id] = {
-        display_name: p.full_name?.trim() || "Barbeiro",
-        avatar_url: p.avatar_url,
-      };
-    });
-    return map;
-  }
+  // Sem fallback para `profiles`: a tabela virou privada na migration
+  // 20260722240000, então a consulta direta devolveria vazio de qualquer
+  // forma — e um fallback que nunca funciona só esconde a falha real da RPC.
+  if (error || !data) return {};
 
   const map: BarberDisplayMap = {};
   data.forEach((row) => {

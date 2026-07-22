@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -275,10 +276,14 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
           .select("name,receipt_title,receipt_subtitle,receipt_footer,receipt_thank_you_message,receipt_whatsapp_intro")
           .eq("id", appointment.barbershop_id)
           .maybeSingle(),
-        supabase.from("profiles").select("full_name").eq("user_id", appointment.client_id).maybeSingle(),
+        fetchProfileSummaries([appointment.client_id]).then((m) => ({
+          data: m[appointment.client_id] ?? null,
+        })),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
         needsBarberFetch
-          ? supabase.from("profiles").select("full_name").eq("user_id", appointment.barber_id).maybeSingle()
+          ? fetchProfileSummaries([appointment.barber_id]).then((m) => ({
+              data: m[appointment.barber_id] ?? null,
+            }))
           : Promise.resolve({ data: null } as any),
       ]);
 

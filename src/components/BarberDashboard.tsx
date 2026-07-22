@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
+import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { addDaysISO, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
@@ -592,10 +593,14 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       // Clients: profiles table (name) + RPC for phone (RLS-safe)
       let clientMap: Record<string, { full_name: string | null; phone: string | null }> = {};
       if (clientIds.length > 0) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, full_name")
-          .in("user_id", clientIds);
+        // Nome dos clientes pela RPC de resumo: `profiles` é privada desde a
+        // migration 20260722240000, e o telefone continua vindo de
+        // `get_client_phone`, que valida o vínculo com a barbearia.
+        const resumos = await fetchProfileSummaries(clientIds);
+        const profiles = Object.entries(resumos).map(([user_id, r]) => ({
+          user_id,
+          full_name: r.full_name,
+        }));
         if (profiles) {
           clientMap = Object.fromEntries(
             profiles.map((p) => [p.user_id, { full_name: p.full_name, phone: null as string | null }])
