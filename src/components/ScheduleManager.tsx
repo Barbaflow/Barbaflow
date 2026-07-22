@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { addDaysISO, formatISODateBR, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
 
 interface ScheduleManagerProps {
   barbershopId: string;
@@ -38,20 +39,19 @@ interface Appointment {
 
 const WEEKDAY_NAMES = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-function formatDate(date: Date): string {
-  return date.toISOString().split("T")[0];
-}
-
-function getDaysOfWeek(startDate: Date): Date[] {
-  const days: Date[] = [];
-  const start = new Date(startDate);
-  start.setDate(start.getDate() - start.getDay());
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(d);
-  }
-  return days;
+/**
+ * A grade trabalha com datas YYYY-MM-DD, nunca com `Date`.
+ *
+ * Antes, `formatDate` fazia `date.toISOString().split("T")[0]`: isso converte
+ * para UTC ANTES de cortar a data, então em America/Sao_Paulo (UTC−3) qualquer
+ * horário a partir das 21:00 já caía no dia seguinte — a semana exibida, o
+ * intervalo consultado e o destaque de "hoje" ficavam todos um dia à frente
+ * toda noite. `date DATE` no banco não tem fuso; a conta certa é sobre a
+ * string, e o "hoje" vem do fuso da barbearia.
+ */
+function getDaysOfWeekISO(anyDayISO: string): string[] {
+  const domingo = addDaysISO(anyDayISO, -weekdayOfISO(anyDayISO));
+  return Array.from({ length: 7 }, (_, i) => addDaysISO(domingo, i));
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -65,21 +65,18 @@ const STATUS_COLORS: Record<string, string> = {
 
 export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   const { user } = useAuth();
-  const [weekStart, setWeekStart] = useState(() => {
-    const now = new Date();
-    now.setDate(now.getDate() - now.getDay());
-    return now;
-  });
+  const [weekStartISO, setWeekStartISO] = useState(() => todayISOInTenantTZ());
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSlot, setNewSlot] = useState({ date: "", start_time: "09:00", end_time: "10:00", status: "livre" as string });
 
-  const days = getDaysOfWeek(weekStart);
+  const days = getDaysOfWeekISO(weekStartISO);
+  const startDate = days[0];
+  const endDate = days[6];
+  const hoje = todayISOInTenantTZ();
 
   const fetchData = useCallback(async () => {
-    const startDate = formatDate(days[0]);
-    const endDate = formatDate(days[6]);
 
     const [avail, appts] = await Promise.all([
       supabase
@@ -98,22 +95,43 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
 
     if (avail.data) setAvailability(avail.data);
     if (appts.data) setAppointments(appts.data);
-  }, [barbershopId, weekStart]);
+  }, [barbershopId, startDate, endDate]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Real-time
+  // O callback do canal sempre chama a versão mais recente de fetchData sem
+  // que `fetchData` precise entrar nas dependências do efeito: se entrasse,
+  // trocar de semana derrubaria e recriaria o canal.
+  const fetchDataRef = useRef(fetchData);
   useEffect(() => {
+    fetchDataRef.current = fetchData;
+  }, [fetchData]);
+
+  // Realtime.
+  //
+  // O tópico inclui um id ÚNICO por instância do componente. O cliente Supabase
+  // deduplica canais por tópico (RealtimeClient.channel → channels.find) e
+  // devolve o mesmo objeto já inscrito; um segundo consumidor do mesmo tópico
+  // que chamasse `.on("postgres_changes", …)` receberia
+  // "cannot add postgres_changes callbacks after subscribe()" — o mesmo defeito
+  // já corrigido em usePlan. Com id por instância, duas telas (ou duas abas do
+  // mesmo app) nunca disputam o mesmo canal.
+  const instanceId = useId();
+  useEffect(() => {
+    if (!barbershopId) return;
+
     const channel = supabase
-      .channel("schedule-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "availability", filter: `barbershop_id=eq.${barbershopId}` }, () => fetchData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `barbershop_id=eq.${barbershopId}` }, () => fetchData())
+      .channel(`schedule-${barbershopId}-${instanceId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "availability", filter: `barbershop_id=eq.${barbershopId}` }, () => fetchDataRef.current())
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `barbershop_id=eq.${barbershopId}` }, () => fetchDataRef.current())
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [barbershopId, fetchData]);
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [barbershopId, instanceId]);
 
   const addAvailability = async () => {
     if (!user || !newSlot.date) return;
@@ -155,29 +173,21 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
     }
   };
 
-  const slotsForDay = (date: Date) => availability.filter((s) => s.date === formatDate(date));
-  const apptsForDay = (date: Date) => appointments.filter((a) => a.date === formatDate(date));
+  const slotsForDay = (dateISO: string) => availability.filter((s) => s.date === dateISO);
+  const apptsForDay = (dateISO: string) => appointments.filter((a) => a.date === dateISO);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Button variant="ghost" size="icon" onClick={() => {
-            const d = new Date(weekStart);
-            d.setDate(d.getDate() - 7);
-            setWeekStart(d);
-          }}>
+          <Button variant="ghost" size="icon" onClick={() => setWeekStartISO((w) => addDaysISO(w, -7))}>
             <ChevronLeft className="w-5 h-5" />
           </Button>
           <h3 className="font-display text-lg font-semibold">
-            Semana de {days[0].getDate()}/{days[0].getMonth() + 1} — {days[6].getDate()}/{days[6].getMonth() + 1}
+            Semana de {formatISODateBR(days[0])} — {formatISODateBR(days[6])}
           </h3>
-          <Button variant="ghost" size="icon" onClick={() => {
-            const d = new Date(weekStart);
-            d.setDate(d.getDate() + 7);
-            setWeekStart(d);
-          }}>
+          <Button variant="ghost" size="icon" onClick={() => setWeekStartISO((w) => addDaysISO(w, 7))}>
             <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
@@ -233,13 +243,13 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
         {days.map((day, i) => {
           const slots = slotsForDay(day);
           const appts = apptsForDay(day);
-          const isToday = formatDate(day) === formatDate(new Date());
+          const isToday = day === hoje;
 
           return (
             <Card key={i} className={`bg-card border-border min-h-[200px] ${isToday ? "border-gold" : ""}`}>
               <CardHeader className="p-3 pb-2">
                 <CardTitle className={`text-xs uppercase tracking-wider ${isToday ? "text-gold" : "text-muted-foreground"}`}>
-                  {WEEKDAY_NAMES[i]} {day.getDate()}
+                  {WEEKDAY_NAMES[i]} {day.slice(8, 10)}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-3 pt-0 space-y-1">

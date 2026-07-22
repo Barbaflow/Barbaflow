@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
@@ -13,6 +13,7 @@ import { TimeSlotGrid } from "./TimeSlotGrid";
 import { BookingConfirmation } from "./BookingConfirmation";
 import type { AvailabilitySlot, Service } from "./types";
 import { nowInTenantTZ, todayISOInTenantTZ } from "@/lib/tz";
+import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
 import {
   Store,
   User,
@@ -74,7 +75,14 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   const [selectedDate, setSelectedDate] = useState(() => todayISOInTenantTZ());
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsError, setSlotsError] = useState<string | null>(null);
   const [booking, setBooking] = useState(false);
+  // Trava reentrante síncrona. `setBooking(true)` só surte efeito no próximo
+  // render, então dois cliques no MESMO tick (duplo clique rápido, tecla Enter
+  // repetida, dois disparos de evento) entravam os dois em handleBook e
+  // gravavam dois atendimentos. O `disabled` do botão continua valendo para o
+  // feedback visual; esta guarda é a que de fato impede a duplicação.
+  const bookingRef = useRef(false);
   const [loadingStep, setLoadingStep] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [noshowBlock, setNoshowBlock] = useState<{
@@ -206,25 +214,49 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     if (!selectedBarbershop || !selectedBarber || !selectedService) return;
     setLoadingSlots(true);
 
-    const [{ data: slots }, { data: appts }] = await Promise.all([
-      supabase
-        .from("availability")
-        .select("*")
-        .eq("barbershop_id", selectedBarbershop.id)
-        .eq("barber_id", selectedBarber.user_id)
-        .eq("date", selectedDate)
-        .order("start_time", { ascending: true }),
-      supabase
-        .from("appointments")
-        .select("start_time, end_time, status")
-        .eq("barbershop_id", selectedBarbershop.id)
-        .eq("barber_id", selectedBarber.user_id)
-        .eq("date", selectedDate)
-        .neq("status", "cancelled"),
+    // Os intervalos ocupados vêm por RPC, não por SELECT em `appointments`:
+    // a tabela é fechada para anônimo (`permission denied`), e o erro era
+    // engolido aqui — visitante sem login via TODOS os horários como livres,
+    // inclusive os já reservados. A RPC devolve só início e fim, sem nenhum
+    // dado de cliente. Ver migration 20260722190000.
+    const [
+      { data: windowRows, error: windowsError },
+      { data: busyRows, error: busyError },
+    ] = await Promise.all([
+      // As janelas vêm da grade semanal (menos os bloqueios do dia), somadas às
+      // exceções lançadas na agenda. Antes isto lia a tabela `availability`,
+      // que só existe depois de alguém clicar em "Gerar Agenda": uma barbearia
+      // recém-configurada tinha a agenda interna funcionando e a página pública
+      // mostrando zero horários. Ver migration 20260722210000.
+      supabase.rpc("get_public_availability_windows", {
+        _barbershop_id: selectedBarbershop.id,
+        _barber_id: selectedBarber.user_id,
+        _date: selectedDate,
+      }),
+      supabase.rpc("get_public_busy_intervals", {
+        _barbershop_id: selectedBarbershop.id,
+        _barber_id: selectedBarber.user_id,
+        _date: selectedDate,
+      }),
     ]);
 
-    const windows = (slots ?? []) as AvailabilitySlot[];
-    const bookings = (appts ?? []) as Array<{ start_time: string; end_time: string }>;
+    // Falha em qualquer uma das duas não pode virar "tudo livre": sem saber as
+    // janelas ou os ocupados, a grade mentiria. Mostramos o erro e nenhum
+    // horário selecionável.
+    if (windowsError || busyError) {
+      setSlotsError("Não foi possível carregar os horários. Tente novamente.");
+      setAvailability([]);
+      setLoadingSlots(false);
+      return;
+    }
+    setSlotsError(null);
+
+    const windows = (windowRows ?? []) as Array<{
+      start_time: string;
+      end_time: string;
+      status: string;
+    }>;
+    const bookings = (busyRows ?? []) as Array<{ start_time: string; end_time: string }>;
     const duration = selectedService.duration_minutes;
 
     const busy = bookings.map((b) => ({ s: toMin(b.start_time), e: toMin(b.end_time) }));
@@ -256,10 +288,11 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
         const conflictsBlock = blocks.some((b) => t < b.e && slotEnd > b.s);
 
         generated.push({
-          // Synthetic id keyed by window+offset so React keys stay stable per fetch
-          id: `${win.id}-${t}`,
-          barber_id: win.barber_id,
-          date: win.date,
+          // Id sintético estável por fetch: as janelas agora são derivadas e não
+          // têm id próprio, então a chave é o intervalo da janela + o offset.
+          id: `${win.start_time}-${win.end_time}-${t}`,
+          barber_id: selectedBarber.user_id,
+          date: selectedDate,
           start_time: fmtTime(t),
           end_time: fmtTime(slotEnd),
           status: isPast || conflictsAppt || conflictsBlock ? "ocupado" : "livre",
@@ -326,6 +359,8 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
 
   const handleBook = async () => {
     if (!selectedSlot || !selectedService || !user || !selectedBarbershop) return;
+    if (bookingRef.current) return;
+    bookingRef.current = true;
     setBooking(true);
 
     const startMin = toMin(selectedSlot.start_time);
@@ -343,7 +378,15 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     });
 
     if (error) {
-      toast.error("Erro ao agendar. Tente novamente.");
+      // Conflito é o caso esperado numa disputa de horário: a constraint
+      // `appointments_no_overlap_per_barber` recusa o perdedor. Explicamos o
+      // que houve e recarregamos a grade, em vez de "erro ao agendar".
+      const { title, description } = agendaErrorMessage(error, "Erro ao agendar. Tente novamente.");
+      toast.error(title, { description });
+      if (isSlotConflict(error)) {
+        setSelectedSlot(null);
+        fetchAvailability();
+      }
     } else {
       toast.success("Agendamento confirmado! 🎉");
       notifyBookingConfirmed({
@@ -357,6 +400,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
       // Refetch will recompute slot statuses by overlapping with the new appointment
       fetchAvailability();
     }
+    bookingRef.current = false;
     setBooking(false);
   };
 
@@ -684,7 +728,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             selectedSlotId={selectedSlot?.id ?? null}
             onSelect={setSelectedSlot}
             loading={loadingSlots}
-            error={null}
+            error={slotsError}
           />
 
           {selectedSlot && selectedService && !noshowBlock?.blocked && (

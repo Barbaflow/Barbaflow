@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,6 +52,7 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
+import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
 import { isRetroactiveSlot } from "@/lib/tz";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
@@ -147,6 +148,12 @@ export function ManualAppointmentDialog({
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Trava reentrante síncrona. `setBooking(true)` só surte efeito no próximo
+  // render, então dois cliques no MESMO tick (duplo clique rápido, tecla Enter
+  // repetida, dois disparos de evento) entravam os dois em handleBook e
+  // gravavam dois atendimentos. O `disabled` do botão continua valendo para o
+  // feedback visual; esta guarda é a que de fato impede a duplicação.
+  const submittingRef = useRef(false);
   const [activeWeekdays, setActiveWeekdays] = useState<Set<number>>(new Set());
   const [blockedDates, setBlockedDates] = useState<Set<string>>(new Set());
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -452,6 +459,8 @@ export function ManualAppointmentDialog({
       toast.error("Preencha todos os campos.");
       return;
     }
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     const startMin = toMin(selectedTime);
     const endTime = fmt(startMin + service.duration_minutes);
@@ -490,12 +499,21 @@ export function ManualAppointmentDialog({
       : await supabase.from("appointments").insert(payload);
 
     if (error) {
-      toast.error(error.message || (isEditing ? "Erro ao atualizar." : "Erro ao criar agendamento."));
+      // Conflito de horário tem texto próprio: a constraint do banco recusa
+      // sobreposição no mesmo profissional, e a lista de horários da tela pode
+      // ter ficado velha enquanto o formulário estava aberto.
+      const { title, description } = agendaErrorMessage(
+        error,
+        isEditing ? "Erro ao atualizar." : "Erro ao criar agendamento.",
+      );
+      toast.error(title, { description });
+      if (isSlotConflict(error)) setSelectedTime("");
     } else {
       toast.success(isEditing ? "Agendamento atualizado!" : "Agendamento criado!");
       onCreated();
       onOpenChange(false);
     }
+    submittingRef.current = false;
     setSubmitting(false);
   };
 

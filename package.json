@@ -12,7 +12,9 @@
     "format": "prettier --write .",
     "harness": "node scripts/run-plan-harness.mjs",
     "harness:notifications": "node scripts/run-notifications-reviews-harness.mjs",
-    "harness:realtime": "node scripts/run-realtime-harness.mjs"
+    "harness:realtime": "node scripts/run-realtime-harness.mjs",
+    "harness:agenda": "node scripts/run-agenda-harness.mjs",
+    "harness:agenda-concorrencia": "node scripts/run-agenda-concurrency-harness.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",

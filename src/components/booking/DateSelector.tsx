@@ -1,6 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { todayISOInTenantTZ } from "@/lib/tz";
+import { addDaysISO, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
 
 const WEEKDAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTH_NAMES = [
@@ -8,28 +8,21 @@ const MONTH_NAMES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
+// Aritmética direto sobre YYYY-MM-DD. A versão anterior criava um `Date`
+// ancorado em T12:00:00 LOCAL e voltava com `toISOString()`: a âncora do meio-dia
+// só disfarça o problema para fusos dentro de ±12h — e ainda assim mistura o
+// relógio do dispositivo numa data de calendário, que não tem fuso nenhum.
 function getWeekDays(centerDate: string): string[] {
-  const center = new Date(centerDate + "T12:00:00");
-  const dayOfWeek = center.getDay();
-  const start = new Date(center);
-  start.setDate(center.getDate() - dayOfWeek);
-
-  const days: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    days.push(d.toISOString().split("T")[0]);
-  }
-  return days;
+  const domingo = addDaysISO(centerDate, -weekdayOfISO(centerDate));
+  return Array.from({ length: 7 }, (_, i) => addDaysISO(domingo, i));
 }
 
 function formatDay(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00");
   return {
-    weekday: WEEKDAY_SHORT[d.getDay()],
-    day: d.getDate(),
-    month: MONTH_NAMES[d.getMonth()],
-    year: d.getFullYear(),
+    weekday: WEEKDAY_SHORT[weekdayOfISO(dateStr)],
+    day: Number(dateStr.slice(8, 10)),
+    month: MONTH_NAMES[Number(dateStr.slice(5, 7)) - 1],
+    year: Number(dateStr.slice(0, 4)),
   };
 }
 
@@ -43,11 +36,7 @@ export function DateSelector({ selectedDate, onDateChange }: DateSelectorProps) 
   const weekDays = getWeekDays(selectedDate);
   const { month, year } = formatDay(selectedDate);
 
-  const shiftWeek = (dir: number) => {
-    const d = new Date(selectedDate + "T12:00:00");
-    d.setDate(d.getDate() + dir * 7);
-    onDateChange(d.toISOString().split("T")[0]);
-  };
+  const shiftWeek = (dir: number) => onDateChange(addDaysISO(selectedDate, dir * 7));
 
   return (
     <div className="space-y-3">

@@ -100,6 +100,59 @@ export function todayISOInTenantTZ(tz: string = getActiveTenantTZ()): string {
   return nowInTenantTZ(tz).iso;
 }
 
+/**
+ * YYYY-MM-DD de um instante, no fuso do tenant.
+ *
+ * Substitui `date.toISOString().split("T")[0]`, que converte para UTC ANTES de
+ * cortar a data: em America/Sao_Paulo (UTC−3), qualquer instante a partir das
+ * 21:00 locais já é o dia seguinte em UTC — e a agenda abria no dia errado
+ * toda noite. Use apenas quando a origem for de fato um instante (ex.: o Date
+ * devolvido por um date picker); para contas de calendário prefira
+ * `addDaysISO`, que não passa por fuso nenhum.
+ */
+export function toISODateInTenantTZ(date: Date, tz: string = getActiveTenantTZ()): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "01";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+/**
+ * Aritmética de calendário sobre YYYY-MM-DD, em UTC puro.
+ *
+ * Datas de calendário (o `date DATE` da tabela `appointments`) não têm fuso: o
+ * dia 22 é o dia 22 em qualquer lugar. Fazer a conta em UTC garante que somar
+ * um dia nunca esbarre em horário de verão nem no fuso do dispositivo.
+ */
+export function addDaysISO(dateISO: string, days: number): string {
+  const ms = Date.UTC(
+    Number(dateISO.slice(0, 4)),
+    Number(dateISO.slice(5, 7)) - 1,
+    Number(dateISO.slice(8, 10)),
+  );
+  return new Date(ms + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Dia da semana (0 = domingo) de uma data YYYY-MM-DD, sem envolver fuso. */
+export function weekdayOfISO(dateISO: string): number {
+  return new Date(
+    Date.UTC(
+      Number(dateISO.slice(0, 4)),
+      Number(dateISO.slice(5, 7)) - 1,
+      Number(dateISO.slice(8, 10)),
+    ),
+  ).getUTCDay();
+}
+
+/** Rótulo curto pt-BR (ex.: "22/07") de uma data YYYY-MM-DD, sem fuso. */
+export function formatISODateBR(dateISO: string): string {
+  return `${dateISO.slice(8, 10)}/${dateISO.slice(5, 7)}`;
+}
+
 /** True se a data (YYYY-MM-DD) é anterior ao "hoje" no fuso do tenant. */
 export function isPastDateInTenantTZ(dateISO: string, tz: string = getActiveTenantTZ()): boolean {
   return dateISO < todayISOInTenantTZ(tz);

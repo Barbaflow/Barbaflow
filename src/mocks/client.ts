@@ -39,6 +39,70 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       .filter((row) => row.role === "barbeiro" && row.barbershop_id === args._barbershop_id)
       .map((row) => ({ user_id: row.user_id })),
 
+  /**
+   * Janelas de atendimento de um profissional numa data — espelha a RPC real
+   * (migration 20260722210000). Deriva da grade semanal (menos os bloqueios do
+   * dia) e soma as exceções não-livres lançadas na agenda, para o fluxo público
+   * não depender de ninguém ter clicado em "Gerar Agenda".
+   */
+  get_public_availability_windows: (args) => {
+    const data = String(args._date ?? "");
+    const bloqueado = getTableRows("schedule_blocks").some(
+      (row) =>
+        row.barbershop_id === args._barbershop_id &&
+        row.barber_id === args._barber_id &&
+        row.block_date === data,
+    );
+    // `Date.UTC` sobre os componentes: dia da semana sem envolver fuso algum.
+    const diaDaSemana = new Date(
+      Date.UTC(Number(data.slice(0, 4)), Number(data.slice(5, 7)) - 1, Number(data.slice(8, 10))),
+    ).getUTCDay();
+
+    const turnos = bloqueado
+      ? []
+      : getTableRows("weekly_schedule")
+          .filter(
+            (row) =>
+              row.barbershop_id === args._barbershop_id &&
+              row.barber_id === args._barber_id &&
+              row.is_active &&
+              row.day_of_week === diaDaSemana,
+          )
+          .map((row) => ({
+            start_time: row.start_time,
+            end_time: row.end_time,
+            status: "livre",
+          }));
+
+    const excecoes = getTableRows("availability")
+      .filter(
+        (row) =>
+          row.barbershop_id === args._barbershop_id &&
+          row.barber_id === args._barber_id &&
+          row.date === data &&
+          row.status !== "livre",
+      )
+      .map((row) => ({ start_time: row.start_time, end_time: row.end_time, status: row.status }));
+
+    return [...turnos, ...excecoes];
+  },
+
+  /**
+   * Intervalos ocupados de um profissional numa data — espelha a RPC real
+   * (migration 20260722190000), usada pelo fluxo público porque `appointments`
+   * é fechada para visitante anônimo. Devolve só horários, sem dado de cliente.
+   */
+  get_public_busy_intervals: (args) =>
+    getTableRows("appointments")
+      .filter(
+        (row) =>
+          row.barbershop_id === args._barbershop_id &&
+          row.barber_id === args._barber_id &&
+          row.date === args._date &&
+          row.status !== "cancelled",
+      )
+      .map((row) => ({ start_time: row.start_time, end_time: row.end_time })),
+
   get_barber_display_names: (args) => {
     const ids = Array.isArray(args._user_ids) ? args._user_ids : [];
     return getTableRows("profiles")

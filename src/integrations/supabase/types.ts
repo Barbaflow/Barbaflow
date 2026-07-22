@@ -1319,10 +1319,25 @@ export type Database = {
           total_appointments: number
         }[]
       }
+      get_public_availability_windows: {
+        Args: { _barber_id: string; _barbershop_id: string; _date: string }
+        Returns: {
+          end_time: string
+          start_time: string
+          status: string
+        }[]
+      }
       get_public_barbers: {
         Args: { _barbershop_id: string }
         Returns: {
           user_id: string
+        }[]
+      }
+      get_public_busy_intervals: {
+        Args: { _barber_id: string; _barbershop_id: string; _date: string }
+        Returns: {
+          end_time: string
+          start_time: string
         }[]
       }
       has_active_subscription: {
@@ -1348,6 +1363,10 @@ export type Database = {
       notify_expired_client_blocks: { Args: never; Returns: number }
       role_counts_toward_barber_limit: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: boolean
+      }
+      viewer_is_barbershop_staff: {
+        Args: { _barbershop_id: string }
         Returns: boolean
       }
     }
