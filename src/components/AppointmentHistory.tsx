@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toISODateInTenantTZ } from "@/lib/tz";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { notifyBookingCancelled, getAppointmentNotificationData } from "@/lib/notifications";
 import { format } from "date-fns";
-import { isPastDateInTenantTZ, tenantDateTimeToUTCms } from "@/lib/tz";
+import { getActiveTenantTZ, tenantDateTimeToUTCms, weekdayOfISO } from "@/lib/tz";
+import { agendaErrorMessage } from "@/lib/agenda-errors";
 import { ptBR } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { ReviewDialog } from "./ReviewDialog";
@@ -50,18 +51,30 @@ const MONTH_NAMES = [
   "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
 ];
 
+const WEEKDAY_SHORT = ["dom.", "seg.", "ter.", "qua.", "qui.", "sex.", "sáb."];
+
+// Datas de calendário são lidas direto da string YYYY-MM-DD. Construir um
+// `Date` local aqui misturaria o relógio do dispositivo numa data que não tem
+// fuso — a mesma estratégia adotada na agenda.
 function formatDateBR(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00");
-  return `${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
+  return `${Number(dateStr.slice(8, 10))} de ${MONTH_NAMES[Number(dateStr.slice(5, 7)) - 1]}`;
 }
 
 function formatWeekday(dateStr: string) {
-  const d = new Date(dateStr + "T12:00:00");
-  return d.toLocaleDateString("pt-BR", { weekday: "short" });
+  return WEEKDAY_SHORT[weekdayOfISO(dateStr)];
+}
+
+function dayOfMonth(dateStr: string) {
+  return Number(dateStr.slice(8, 10));
 }
 
 interface AppointmentHistoryProps {
-  /** When provided, filters to a single barbershop. Omit to show all of the client's appointments across barbershops. */
+  /**
+   * Filtro OPCIONAL de exibição por barbearia. Nunca é fonte de autorização:
+   * quem decide o que o usuário enxerga é a policy de `appointments`, por
+   * `client_id = auth.uid()`. Omitir mostra as reservas do usuário em todas as
+   * barbearias — que é o comportamento da área pessoal.
+   */
   barbershopId?: string;
 }
 
@@ -80,6 +93,16 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
   const [rescheduleMinHoursMap, setRescheduleMinHoursMap] = useState<Record<string, number>>({});
   // Per-barbershop cancel minimum-hours limit (default 2)
   const [cancelMinHoursMap, setCancelMinHoursMap] = useState<Record<string, number>>({});
+  // Fuso de cada barbearia: a lista mistura reservas de lugares diferentes, e
+  // "agora" precisa ser o da barbearia da reserva, não o do dispositivo.
+  const [shopTzMap, setShopTzMap] = useState<Record<string, string>>({});
+  // Bloqueios ativos por falta, para explicar ao cliente em vez de deixá-lo
+  // descobrir só na hora de agendar.
+  const [blocks, setBlocks] = useState<Array<{ barbershop_id: string; blocked_until: string }>>([]);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
+  // Trava síncrona: `setState` só vale no próximo render, então dois cliques no
+  // mesmo tick disparariam dois cancelamentos.
+  const cancelInFlight = useRef(false);
 
   useEffect(() => {
     if (!user) return;
@@ -122,7 +145,9 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     const { data, error: err } = await query;
 
     if (err) {
-      setError("Erro ao carregar agendamentos.");
+      // Falha de consulta não pode virar lista vazia: são estados diferentes.
+      setError(err.message || "Erro ao carregar agendamentos.");
+      setAppointments([]);
     } else {
       const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
       // Fetch standardized display names via RPC
@@ -144,16 +169,19 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
       if (shopIds.length > 0) {
         const { data: shops } = await supabase
           .from("barbershops")
-          .select("id, reschedule_min_hours, cancel_min_hours")
+          .select("id, reschedule_min_hours, cancel_min_hours, timezone")
           .in("id", shopIds);
         const rMap: Record<string, number> = {};
         const cMap: Record<string, number> = {};
+        const tzMap: Record<string, string> = {};
         (shops || []).forEach((s: any) => {
+          if (typeof s.timezone === "string" && s.timezone) tzMap[s.id] = s.timezone;
           rMap[s.id] = typeof s.reschedule_min_hours === "number" ? s.reschedule_min_hours : 2;
           cMap[s.id] = typeof s.cancel_min_hours === "number" ? s.cancel_min_hours : 2;
         });
         setRescheduleMinHoursMap(rMap);
         setCancelMinHoursMap(cMap);
+        setShopTzMap(tzMap);
       }
 
       // Fetch reviews already made by this user for these appointments
@@ -179,29 +207,100 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
     fetchAppointments();
   }, [fetchAppointments]);
 
+  // A policy "Clients can view their own active blocks" já limita a
+  // `client_id = auth.uid() AND blocked_until > now()`: não chega nenhum dado
+  // administrativo aqui, só o fato e o prazo.
+  useEffect(() => {
+    if (!user) return;
+    let cancelado = false;
+    supabase
+      .from("client_blocks")
+      .select("barbershop_id, blocked_until")
+      .eq("client_id", user.id)
+      .then(({ data }) => {
+        if (!cancelado) setBlocks((data as Array<{ barbershop_id: string; blocked_until: string }>) ?? []);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [user]);
+
   // Cancel appointment
   const handleCancel = async (id: string) => {
-    // Fetch notification data before cancelling
+    if (cancelInFlight.current) return;
+    cancelInFlight.current = true;
+    setCancellingId(id);
+    setError(null);
+
+    // Dados da notificação antes de cancelar (depois o status já mudou).
     const notifData = await getAppointmentNotificationData(id);
 
-    const { error: err } = await supabase
+    // `select()` para saber QUANTAS linhas mudaram. Sem isso, uma recusa da RLS
+    // — 0 linhas, sem erro — era comemorada como sucesso.
+    const { data, error: err } = await supabase
       .from("appointments")
       .update({ status: "cancelled" })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("status", "scheduled")
+      .select("id");
 
     if (err) {
-      setError("Erro ao cancelar agendamento.");
+      const { title, description } = agendaErrorMessage(err, "Erro ao cancelar agendamento.");
+      toast.error(title, { description });
+      setError(title);
+    } else if (!data || data.length === 0) {
+      toast.error("Não foi possível cancelar.", {
+        description:
+          "O agendamento pode já ter sido cancelado ou atendido. A lista foi atualizada.",
+      });
     } else {
       toast.success("Agendamento cancelado.");
-      
-      // Fire cancellation notification (non-blocking)
       if (notifData) {
         notifyBookingCancelled(notifData).catch(console.error);
       }
-
-      fetchAppointments();
     }
+
+    await fetchAppointments();
+    cancelInFlight.current = false;
+    setCancellingId(null);
   };
+
+  /**
+   * Próximos x histórico.
+   *
+   * A regra usa STATUS e DATA juntos, como o modelo do banco exige. Os status
+   * reais são só quatro: scheduled, completed, cancelled, no_show — não existe
+   * "reagendado" como status próprio; reagendar altera data/hora e mantém
+   * scheduled.
+   *
+   * "Próximo" = ainda `scheduled` E cujo TÉRMINO ainda não passou. Assim um
+   * agendamento futuro já cancelado não aparece como próximo, e um antigo que
+   * ficou `scheduled` (a barbearia esqueceu de concluir) cai no histórico em
+   * vez de fingir que ainda vai acontecer.
+   *
+   * O "agora" é medido no fuso da barbearia DAQUELA reserva — a lista mistura
+   * barbearias. Enquanto as configurações não chegaram, o fallback é o fuso do
+   * tenant ativo (`getActiveTenantTZ()`), que é o mesmo default do banco.
+   */
+  const fimEmMs = useCallback(
+    (apt: Appointment) =>
+      tenantDateTimeToUTCms(apt.date, apt.end_time, shopTzMap[apt.barbershop_id] ?? getActiveTenantTZ()),
+    [shopTzMap],
+  );
+
+  const { proximos, historico } = useMemo(() => {
+    const agora = Date.now();
+    const prox: Appointment[] = [];
+    const hist: Appointment[] = [];
+    for (const apt of appointments) {
+      if (apt.status === "scheduled" && fimEmMs(apt) > agora) prox.push(apt);
+      else hist.push(apt);
+    }
+    // Próximos: o mais perto primeiro. Histórico: o mais recente primeiro.
+    prox.sort((a, b) => fimEmMs(a) - fimEmMs(b));
+    hist.sort((a, b) => fimEmMs(b) - fimEmMs(a));
+    return { proximos: prox, historico: hist };
+  }, [appointments, fimEmMs]);
 
   const clearFilters = () => {
     setStatusFilter("all");
@@ -250,6 +349,27 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
           </Button>
         </Link>
       </div>
+
+      {/* Bloqueio por falta: o cliente precisa saber por que não consegue
+          agendar. Nenhum detalhe administrativo — só o fato e o prazo. */}
+      {blocks.length > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-lg border border-destructive/30 bg-destructive/5 text-sm">
+          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <p className="text-foreground font-medium">
+              Novos agendamentos temporariamente bloqueados
+            </p>
+            <p className="text-muted-foreground text-xs">
+              Por faltas registradas, você não pode marcar novos horários
+              {blocks.length === 1 ? " nesta barbearia" : " em algumas barbearias"} até{" "}
+              {new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(
+                new Date(blocks[0].blocked_until),
+              )}
+              . Seus agendamentos já existentes seguem abaixo e você continua podendo cancelá-los.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
@@ -345,17 +465,29 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
         </div>
       )}
 
-      {/* Appointment list */}
+      {/* Próximos e histórico, nesta ordem */}
       {!loading && appointments.length > 0 && (
-        <div className="space-y-3">
-          <p className="text-xs text-muted-foreground">
-            {appointments.length} agendamento{appointments.length !== 1 ? "s" : ""}
-          </p>
+        <div className="space-y-6">
+          {[
+            { titulo: "Próximos", itens: proximos, vazio: "Nenhum agendamento futuro." },
+            { titulo: "Histórico", itens: historico, vazio: "Nada no histórico ainda." },
+          ].map((secao) => (
+            <div key={secao.titulo} className="space-y-3">
+              <div className="flex items-baseline justify-between">
+                <h2 className="font-display text-lg text-foreground">{secao.titulo}</h2>
+                <span className="text-xs text-muted-foreground">
+                  {secao.itens.length} agendamento{secao.itens.length !== 1 ? "s" : ""}
+                </span>
+              </div>
 
-          {appointments.map((apt) => {
+              {secao.itens.length === 0 && (
+                <p className="text-sm text-muted-foreground py-2">{secao.vazio}</p>
+              )}
+
+              {secao.itens.map((apt) => {
             const status = STATUS_MAP[apt.status] || STATUS_MAP.scheduled;
-            const isPast = isPastDateInTenantTZ(apt.date);
-            const isFutureScheduled = apt.status === "scheduled" && !isPast;
+            // O término, e não só a data: um horário que já passou hoje não é futuro.
+            const isFutureScheduled = apt.status === "scheduled" && fimEmMs(apt) > Date.now();
             // Per-barbershop limits (default 2h, 0 = no limit). Configurable in settings.
             const minHours = rescheduleMinHoursMap[apt.barbershop_id] ?? 2;
             const cancelMinHours = cancelMinHoursMap[apt.barbershop_id] ?? 2;
@@ -378,7 +510,7 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                         {formatWeekday(apt.date)}
                       </span>
                       <span className="text-xl font-display font-bold text-foreground">
-                        {new Date(apt.date + "T12:00:00").getDate()}
+                        {dayOfMonth(apt.date)}
                       </span>
                       <span className="text-xs text-muted-foreground sm:hidden">
                         {formatDateBR(apt.date)}
@@ -501,10 +633,11 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                             <Button
                               variant="ghost"
                               size="sm"
+                              disabled={cancellingId !== null}
                               className="text-destructive hover:text-destructive hover:bg-destructive/10"
                               onClick={() => handleCancel(apt.id)}
                             >
-                              Cancelar
+                              {cancellingId === apt.id ? "Cancelando…" : "Cancelar"}
                             </Button>
                           )}
                         </>
@@ -514,7 +647,9 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
                 </CardContent>
               </Card>
             );
-          })}
+              })}
+            </div>
+          ))}
         </div>
       )}
 

@@ -1,5 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
-import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
+import {
+  agendaErrorMessage,
+  clientTransitionMessage,
+  isSlotConflict,
+} from "@/lib/agenda-errors";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -359,9 +363,14 @@ export function RescheduleDialog({
       // A constraint do banco também vale para UPDATE: mover para cima de outro
       // atendimento é recusado. Sem tradução isso chegaria como texto do
       // Postgres, e o horário escolhido continuaria selecionado na tela.
+      // A tradução é centralizada em `@/lib/agenda-errors` — conflito de
+      // horário, recusas do trigger de transições do cliente e sessão
+      // expirada saem daqui, sem mapa duplicado neste componente.
       const { title, description } = agendaErrorMessage(error, "Erro ao reagendar.");
       toast.error(title, { description });
-      if (isSlotConflict(error)) setSelectedTime("");
+      // Qualquer recusa que seja sobre o HORÁRIO limpa a seleção: manter o
+      // horário recusado marcado convida o usuário a repetir o mesmo erro.
+      if (isSlotConflict(error) || clientTransitionMessage(error)) setSelectedTime("");
     } else {
       const crossDay =
         appointment.original_date && appointment.original_date !== appointment.date;
