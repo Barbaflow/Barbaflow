@@ -17,7 +17,8 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 export function PlanCard() {
-  const { planName, appointmentLimit, appointmentsUsed, loading } = usePlan();
+  const { planName, appointmentLimit, appointmentsUsed, loading, status, error, refreshPlan } =
+    usePlan();
   const { user } = useAuth();
   const [portalLoading, setPortalLoading] = useState(false);
 
@@ -43,6 +44,26 @@ export function PlanCard() {
   };
 
   if (loading) return null;
+
+  // Sem tenant resolvido não existe plano a mostrar — e mostrar "Free" seria
+  // inventar um. Falha de consulta idem: o card diz o que houve, em vez de
+  // exibir um limite que pode não ser o do cliente.
+  if (status === "no-tenant") return null;
+
+  if (status === "error") {
+    return (
+      <Card className="border-border bg-card">
+        <CardContent className="p-4 space-y-2">
+          <span className="text-xs text-muted-foreground">Seu Plano</span>
+          <p className="text-sm text-foreground">Não foi possível carregar seu plano.</p>
+          {error && <p className="text-xs text-muted-foreground">{error}</p>}
+          <Button variant="outline" size="sm" onClick={refreshPlan}>
+            Tentar novamente
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const isFree = planName === "free";
   const usagePercent = appointmentLimit
