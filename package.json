@@ -15,7 +15,9 @@
     "harness:realtime": "node scripts/run-realtime-harness.mjs",
     "harness:agenda": "node scripts/run-agenda-harness.mjs",
     "harness:agenda-concorrencia": "node scripts/run-agenda-concurrency-harness.mjs",
-    "harness:cliente": "node scripts/run-cliente-harness.mjs"
+    "harness:cliente": "node scripts/run-cliente-harness.mjs",
+    "seed:test": "node scripts/seed-barbaflow-test.mjs",
+    "seed:test:cleanup": "node scripts/cleanup-barbaflow-test.mjs"
   },
   "dependencies": {
     "@cloudflare/vite-plugin": "^1.25.5",
