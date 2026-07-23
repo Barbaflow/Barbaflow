@@ -1965,6 +1965,8 @@ function buildTickets(
       discount_type: "value",
       total,
       notes: null,
+      status: "fechada",
+      opened_by: appointment.barber_id,
       closed_at: NOW_ISO,
       closed_by: appointment.barber_id,
       created_at: NOW_ISO,

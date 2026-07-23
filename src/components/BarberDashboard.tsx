@@ -664,9 +664,11 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       if (apptIds.length > 0) {
         const { data: tks } = await supabase
           .from("tickets")
-          .select("id, appointment_id, total, ticket_payments(amount)")
+          .select("id, appointment_id, status, total, ticket_payments(amount)")
           .in("appointment_id", apptIds);
         for (const t of tks || []) {
+          // Comanda cancelada não conta: o agendamento volta a poder ser fechado.
+          if (t.status === "cancelada" || !t.appointment_id) continue;
           const total = Number(t.total ?? 0);
           const paid = (t.ticket_payments || []).reduce(
             (s: number, p: { amount: number | string }) => s + Number(p.amount ?? 0),

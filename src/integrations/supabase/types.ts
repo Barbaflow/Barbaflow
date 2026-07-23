@@ -1052,49 +1052,55 @@ export type Database = {
       }
       tickets: {
         Row: {
-          appointment_id: string
+          appointment_id: string | null
           barber_id: string
           barbershop_id: string
-          client_id: string
-          closed_at: string
-          closed_by: string
+          client_id: string | null
+          closed_at: string | null
+          closed_by: string | null
           created_at: string
           discount_amount: number
           discount_type: string
           id: string
           notes: string | null
+          opened_by: string
+          status: string
           subtotal: number
           total: number
           updated_at: string
         }
         Insert: {
-          appointment_id: string
+          appointment_id?: string | null
           barber_id: string
           barbershop_id: string
-          client_id: string
-          closed_at?: string
-          closed_by: string
+          client_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           discount_amount?: number
           discount_type?: string
           id?: string
           notes?: string | null
+          opened_by: string
+          status?: string
           subtotal?: number
           total?: number
           updated_at?: string
         }
         Update: {
-          appointment_id?: string
+          appointment_id?: string | null
           barber_id?: string
           barbershop_id?: string
-          client_id?: string
-          closed_at?: string
-          closed_by?: string
+          client_id?: string | null
+          closed_at?: string | null
+          closed_by?: string | null
           created_at?: string
           discount_amount?: number
           discount_type?: string
           id?: string
           notes?: string | null
+          opened_by?: string
+          status?: string
           subtotal?: number
           total?: number
           updated_at?: string
@@ -1266,6 +1272,10 @@ export type Database = {
         Args: { _barbershop_id: string; _client_id: string }
         Returns: Json
       }
+      close_ticket: {
+        Args: { _payments?: Json; _ticket_id: string }
+        Returns: string
+      }
       create_walkin_client: {
         Args: { _barbershop_id: string; _full_name: string; _phone?: string }
         Returns: string
@@ -1369,10 +1379,24 @@ export type Database = {
       }
       is_trusted_backend: { Args: never; Returns: boolean }
       notify_expired_client_blocks: { Args: never; Returns: number }
+      open_ticket: {
+        Args: {
+          _appointment_id?: string
+          _barber_id?: string
+          _barbershop_id: string
+          _client_id?: string
+        }
+        Returns: string
+      }
       role_counts_toward_barber_limit: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }
         Returns: boolean
       }
+      ticket_discount_value: {
+        Args: { _amount: number; _subtotal: number; _type: string }
+        Returns: number
+      }
+      ticket_recalc: { Args: { _ticket_id: string }; Returns: undefined }
       viewer_is_barbershop_staff: {
         Args: { _barbershop_id: string }
         Returns: boolean
