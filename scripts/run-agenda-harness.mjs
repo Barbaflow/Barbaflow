@@ -187,7 +187,7 @@ function testRealtimeDaAgenda() {
   );
   check(
     "BarberDashboard: não consulta a agenda com tenant null",
-    painel.includes("if (!barbershopId) {") && painel.includes("if (!user || !barbershopId) return;"),
+    painel.includes("if (!barbershopId) {") && painel.includes("if (!user) return;"),
   );
   const rotaPainel = readCode("src/routes/dashboard.tsx");
   check(

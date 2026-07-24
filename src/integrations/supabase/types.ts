@@ -1316,6 +1316,17 @@ export type Database = {
         }[]
       }
       get_client_phone: { Args: { _client_id: string }; Returns: string }
+      get_dashboard_summary: {
+        Args: { _barber_id?: string; _barbershop_id: string }
+        Returns: {
+          appointments_today: number
+          cancelled_today: number
+          completed_today: number
+          no_show_today: number
+          open_tickets: number
+          scheduled_today: number
+        }[]
+      }
       get_noshow_report: {
         Args: { _barbershop_id: string; _days?: number }
         Returns: {

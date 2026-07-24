@@ -2017,6 +2017,50 @@ function buildTickets(
     // mode === 2: nenhuma linha de pagamento → comanda aberta.
   }
 
+  /* ---- Comandas ABERTAS (para o dashboard operacional e a tela de comandas) ---- */
+  const openSpecs = [
+    { shop: MOCK_BARBERSHOP_ID, barber: MOCK_USER_IDS.barberAna, client: MOCK_USER_IDS.clienteCarla, svc: SERVICE_IDS.corte, n: 1, mins: 25 },
+    { shop: MOCK_BARBERSHOP_ID, barber: MOCK_USER_IDS.barberBruno, client: MOCK_USER_IDS.clienteCaio, svc: SERVICE_IDS.combo, n: 2, mins: 10 },
+    { shop: MOCK_BARBERSHOP_B_ID, barber: MOCK_USER_IDS.barberBianca, client: MOCK_USER_IDS.clienteBento, svc: SERVICE_IDS.corteB, n: 3, mins: 40 },
+  ];
+  for (const spec of openSpecs) {
+    const svc = services.find((s) => s.id === spec.svc);
+    const price = svc ? svc.price : 50;
+    const openId = `0d0d0d02-0000-4000-8000-${pad(spec.n)}`;
+    const openedAt = new Date(Date.now() - spec.mins * 60_000).toISOString();
+    tickets.push({
+      id: openId,
+      barbershop_id: spec.shop,
+      appointment_id: null,
+      client_id: spec.client,
+      barber_id: spec.barber,
+      opened_by: spec.barber,
+      closed_by: null,
+      closed_at: null,
+      status: "aberta",
+      subtotal: price,
+      discount_type: "fixed",
+      discount_amount: 0,
+      total: price,
+      notes: null,
+      created_at: openedAt,
+      updated_at: openedAt,
+    });
+    items.push({
+      id: `0d0e0f02-0000-4000-8000-${pad(spec.n)}`,
+      ticket_id: openId,
+      barbershop_id: spec.shop,
+      item_type: "service",
+      service_id: spec.svc,
+      product_id: null,
+      description: svc?.name ?? "Serviço",
+      unit_price: price,
+      quantity: 1,
+      total: price,
+      created_at: openedAt,
+    });
+  }
+
   return { tickets, items, payments };
 }
 
