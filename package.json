@@ -18,6 +18,7 @@
     "harness:cliente": "node scripts/run-cliente-harness.mjs",
     "harness:comandas": "node scripts/run-comandas-harness.mjs",
     "harness:relatorios": "node scripts/run-relatorios-harness.mjs",
+    "harness:assinaturas": "node scripts/run-assinaturas-harness.mjs",
     "seed:test": "node scripts/seed-barbaflow-test.mjs",
     "seed:test:cleanup": "node scripts/cleanup-barbaflow-test.mjs"
   },

@@ -1582,11 +1582,12 @@ function buildSubscriptions(): TableRow<"subscriptions">[] {
   };
 
   return [
-    // Ativa — dono da Barbearia A (plano pro).
+    // Ativa — Barbearia A (plano pro), dono `admin`.
     {
       ...base,
       id: "0505ab01-0000-4000-8000-000000000001",
       user_id: MOCK_USER_IDS.admin,
+      barbershop_id: MOCK_BARBERSHOP_ID,
       paddle_subscription_id: "mock-sub-active-a",
       paddle_customer_id: "mock-cus-a",
       product_id: "mock-prod-pro",
@@ -1595,12 +1596,15 @@ function buildSubscriptions(): TableRow<"subscriptions">[] {
       current_period_start: start.toISOString(),
       current_period_end: future.toISOString(),
       cancel_at_period_end: false,
+      canceled_at: null,
+      trial_end: null,
     },
-    // Em período de teste — dona da Barbearia D (plano enterprise).
+    // Em período de teste — Barbearia D (plano enterprise), dona `adminDenise`.
     {
       ...base,
       id: "0505ab01-0000-4000-8000-000000000002",
       user_id: MOCK_USER_IDS.adminDenise,
+      barbershop_id: MOCK_BARBERSHOP_D_ID,
       paddle_subscription_id: "mock-sub-trial-d",
       paddle_customer_id: "mock-cus-d",
       product_id: "mock-prod-enterprise",
@@ -1609,21 +1613,26 @@ function buildSubscriptions(): TableRow<"subscriptions">[] {
       current_period_start: start.toISOString(),
       current_period_end: future.toISOString(),
       cancel_at_period_end: false,
+      canceled_at: null,
+      trial_end: future.toISOString(),
     },
-    // Cancelada/expirada — dona da Barbearia B. `has_active_subscription`
-    // devolve false (status fora de active/trialing e período no passado).
+    // Pagamento atrasado — Barbearia B (plano pro), dona `adminBeatriz`. Mantém
+    // o plano no período de graça; a página de cobrança mostra o alerta.
     {
       ...base,
       id: "0505ab01-0000-4000-8000-000000000003",
       user_id: MOCK_USER_IDS.adminBeatriz,
-      paddle_subscription_id: "mock-sub-canceled-b",
+      barbershop_id: MOCK_BARBERSHOP_B_ID,
+      paddle_subscription_id: "mock-sub-pastdue-b",
       paddle_customer_id: "mock-cus-b",
       product_id: "mock-prod-pro",
       price_id: "pro_monthly",
-      status: "canceled",
-      current_period_start: start.toISOString(),
-      current_period_end: past.toISOString(),
-      cancel_at_period_end: true,
+      status: "past_due",
+      current_period_start: past.toISOString(),
+      current_period_end: future.toISOString(),
+      cancel_at_period_end: false,
+      canceled_at: null,
+      trial_end: null,
     },
   ];
 }
