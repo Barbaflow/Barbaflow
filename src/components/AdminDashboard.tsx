@@ -46,6 +46,7 @@ import {
   TrendingDown,
   UserCog,
   ReceiptText,
+  BarChart3,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -462,6 +463,12 @@ export function AdminDashboard() {
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
                               <ReceiptText className="w-3 h-3 mr-1" />
                               Comandas
+                            </Button>
+                          </Link>
+                          <Link to="/relatorios" search={{ barbershop: shop.id }}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <BarChart3 className="w-3 h-3 mr-1" />
+                              Relatórios
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
