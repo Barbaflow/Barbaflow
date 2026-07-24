@@ -16,6 +16,14 @@ import {
   recalcTicketTotals,
   ticketDiscountValue,
 } from "./rules";
+import {
+  byBarberReport,
+  paymentMethodsReport,
+  productsReport,
+  salesSummary,
+  salesTimeseries,
+  servicesReport,
+} from "./reports";
 
 /**
  * Erro de RPC do modo mock. Espelha um `RAISE EXCEPTION` do Postgres: a
@@ -48,6 +56,39 @@ function userIsStaffOf(userId: unknown, barbershopId: unknown): boolean {
 function userIsSuperAdmin(userId: unknown): boolean {
   return getTableRows("user_roles").some(
     (row) => row.user_id === userId && row.role === "super_admin",
+  );
+}
+
+/**
+ * Espelha `report_barber_scope` do banco: valida o chamador da sessão e devolve
+ * o barber_id ao qual o relatório deve se restringir.
+ *   • admin da loja ou super_admin → `requestedBarberId` (null = toda a loja);
+ *   • barbeiro da loja → o próprio id (só vê os próprios resultados);
+ *   • qualquer outro → erro (o guard de tenant já barra antes, mas mantemos a
+ *     regra aqui para a autorização não depender só do guard).
+ */
+function reportBarberScope(barbershopId: string, requestedBarberId: unknown): string | null {
+  const caller = getMockSessionUserId();
+  if (!caller) throw new MockRpcError("nao_autenticado", "insufficient_privilege");
+
+  const roles = getTableRows("user_roles");
+  const isAdmin =
+    roles.some(
+      (r) =>
+        r.user_id === caller &&
+        r.barbershop_id === barbershopId &&
+        r.role === "admin_barbearia",
+    ) || userIsSuperAdmin(caller);
+  if (isAdmin) return requestedBarberId ? String(requestedBarberId) : null;
+
+  const isBarber = roles.some(
+    (r) => r.user_id === caller && r.barbershop_id === barbershopId && r.role === "barbeiro",
+  );
+  if (isBarber) return caller;
+
+  throw new MockRpcError(
+    "forbidden: sem acesso aos relatórios desta barbearia",
+    "insufficient_privilege",
   );
 }
 
@@ -743,7 +784,103 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
 
     return ticketId;
   },
+
+  /* ── Relatórios de vendas (espelham as RPCs report_* do banco) ──────────── */
+
+  report_sales_summary: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    // TABLE-returning: o supabase-js devolve um array; aqui, uma linha só.
+    return [
+      salesSummary(
+        getTableRows("tickets"),
+        getTableRows("ticket_items"),
+        bs,
+        startMs,
+        endMs,
+        scope,
+      ),
+    ];
+  },
+
+  report_sales_timeseries: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    const tz = String(
+      getTableRows("barbershops").find((b) => b.id === bs)?.timezone ?? "America/Sao_Paulo",
+    );
+    return salesTimeseries(getTableRows("tickets"), bs, startMs, endMs, scope, tz);
+  },
+
+  report_services: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    return servicesReport(
+      getTableRows("tickets"),
+      getTableRows("ticket_items"),
+      bs,
+      startMs,
+      endMs,
+      scope,
+    );
+  },
+
+  report_products: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    return productsReport(
+      getTableRows("tickets"),
+      getTableRows("ticket_items"),
+      getTableRows("products"),
+      bs,
+      startMs,
+      endMs,
+      scope,
+    );
+  },
+
+  report_by_barber: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    return byBarberReport(
+      getTableRows("tickets"),
+      getTableRows("ticket_items"),
+      bs,
+      startMs,
+      endMs,
+      scope,
+    );
+  },
+
+  report_payment_methods: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    const scope = reportBarberScope(bs, args._barber_id);
+    const { startMs, endMs } = reportRange(args);
+    return paymentMethodsReport(
+      getTableRows("tickets"),
+      getTableRows("ticket_payments"),
+      bs,
+      startMs,
+      endMs,
+      scope,
+    );
+  },
 };
+
+/** Converte _start/_end (ISO timestamptz) em epoch ms para o recorte [start,end). */
+function reportRange(args: RpcArgs): { startMs: number; endMs: number } {
+  const startMs = Date.parse(String(args._start ?? ""));
+  const endMs = Date.parse(String(args._end ?? ""));
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) {
+    throw new MockRpcError("periodo_invalido: _start/_end ausentes ou inválidos");
+  }
+  return { startMs, endMs };
+}
 
 /** Passo da grade de horários gerada pelas RPCs, em minutos. */
 const SLOT_STEP = 30;
@@ -782,6 +919,14 @@ const TENANT_GUARDED_RPCS = new Set([
   // consultar o estado do limite daquele tenant.
   "check_barber_limit",
   "check_appointment_limit",
+  // Relatórios: agregados só para a equipe daquela barbearia (ou super_admin).
+  // O recorte por profissional (barbeiro vê só o próprio) é feito no handler.
+  "report_sales_summary",
+  "report_sales_timeseries",
+  "report_services",
+  "report_products",
+  "report_by_barber",
+  "report_payment_methods",
 ]);
 
 /** Papéis que dão acesso a dados agregados da barbearia. */

@@ -1259,6 +1259,98 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      report_barber_scope: {
+        Args: { _barbershop_id: string; _barber_id?: string | null }
+        Returns: string
+      }
+      report_sales_summary: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          gross: number
+          discount: number
+          net: number
+          closed_count: number
+          avg_ticket: number
+          services_count: number
+          products_count: number
+        }[]
+      }
+      report_sales_timeseries: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          day: string
+          net: number
+          closed_count: number
+        }[]
+      }
+      report_services: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          service_id: string
+          name: string
+          revenue: number
+          quantity: number
+        }[]
+      }
+      report_products: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          product_id: string
+          name: string
+          revenue: number
+          quantity: number
+          stock_quantity: number
+          active: boolean
+        }[]
+      }
+      report_by_barber: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          barber_id: string
+          tickets_count: number
+          services_count: number
+          net: number
+          avg_ticket: number
+        }[]
+      }
+      report_payment_methods: {
+        Args: {
+          _barbershop_id: string
+          _start: string
+          _end: string
+          _barber_id?: string | null
+        }
+        Returns: {
+          method_name: string
+          amount: number
+          tickets_count: number
+        }[]
+      }
       barbershop_is_system_sentinel: {
         Args: { _barbershop_id: string }
         Returns: boolean
