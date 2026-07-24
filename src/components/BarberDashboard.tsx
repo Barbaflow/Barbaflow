@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback, useRef, type ReactNode } from "react";
 import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { addDaysISO, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
+import { friendlyTicketError } from "@/lib/comandas";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
 import { Button } from "@/components/ui/button";
@@ -67,6 +68,7 @@ import {
   MessageCircle,
   GripVertical,
   ShieldAlert,
+  ReceiptText,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -150,7 +152,7 @@ function formatDateFull(dateStr: string) {
   return `${weekdays[d.getDay()]}, ${d.getDate()} de ${MONTH_NAMES[d.getMonth()]}`;
 }
 
-type AdminTab = "overview" | "services" | "products" | "team" | "clients" | "schedule" | "settings";
+type AdminTab = "overview" | "services" | "products" | "team" | "clients" | "comandas" | "schedule" | "settings";
 
 const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard; href?: string }[] = [
   { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
@@ -158,6 +160,7 @@ const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard; href?: 
   { id: "products", label: "Produtos", icon: Package },
   { id: "team", label: "Equipe", icon: UserCog },
   { id: "clients", label: "Clientes", icon: Users, href: "/clientes" },
+  { id: "comandas", label: "Comandas", icon: ReceiptText, href: "/comandas" },
   { id: "schedule", label: "Horários", icon: CalendarCog },
   { id: "settings", label: "Configurações", icon: Settings },
 ];
@@ -351,6 +354,12 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 </Button>
               </>
             )}
+            <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
+              <Button variant="ghost" size="sm">
+                <ReceiptText className="w-4 h-4" />
+                <span className="hidden sm:inline">Comandas</span>
+              </Button>
+            </Link>
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
@@ -445,6 +454,30 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const [ticketStatusMap, setTicketStatusMap] = useState<
     Record<string, { state: "open" | "partial" | "paid"; total: number; paid: number }>
   >({});
+  const navigate = useNavigate();
+  // Abertura de comanda a partir de um agendamento: idempotente no banco
+  // (open_ticket reutiliza a comanda aberta e recusa se já foi fechada). O
+  // estado trava o duplo clique enquanto a RPC está em voo.
+  const [openingComandaId, setOpeningComandaId] = useState<string | null>(null);
+  const openComandaFromAppt = useCallback(
+    async (apt: Appointment) => {
+      if (!barbershopId || openingComandaId) return;
+      setOpeningComandaId(apt.id);
+      try {
+        const { data: ticketId, error } = await supabase.rpc("open_ticket", {
+          _barbershop_id: barbershopId,
+          _appointment_id: apt.id,
+        });
+        if (error || !ticketId) throw error || new Error("Falha ao abrir comanda");
+        navigate({ to: "/comandas", search: { barbershop: undefined, comanda: ticketId as string } });
+      } catch (e) {
+        toast.error(friendlyTicketError(e));
+      } finally {
+        setOpeningComandaId(null);
+      }
+    },
+    [barbershopId, openingComandaId, navigate],
+  );
   const [showDragHint, setShowDragHint] = useState(() => {
     if (typeof window === "undefined") return false;
     return localStorage.getItem("barbaflow:drag-hint-dismissed") !== "1";
@@ -664,9 +697,11 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       if (apptIds.length > 0) {
         const { data: tks } = await supabase
           .from("tickets")
-          .select("id, appointment_id, total, ticket_payments(amount)")
+          .select("id, appointment_id, status, total, ticket_payments(amount)")
           .in("appointment_id", apptIds);
         for (const t of tks || []) {
+          // Comanda cancelada não conta: o agendamento volta a poder ser fechado.
+          if (t.status === "cancelada" || !t.appointment_id) continue;
           const total = Number(t.total ?? 0);
           const paid = (t.ticket_payments || []).reduce(
             (s: number, p: { amount: number | string }) => s + Number(p.amount ?? 0),
@@ -1366,6 +1401,19 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
                               onClick={(e) => e.stopPropagation()}
                               onPointerDown={(e) => e.stopPropagation()}
                             >
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="text-primary hover:text-primary hover:bg-primary/10 text-xs h-8"
+                                disabled={openingComandaId === apt.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openComandaFromAppt(apt);
+                                }}
+                              >
+                                <ReceiptText className="w-3.5 h-3.5" />
+                                {openingComandaId === apt.id ? "Abrindo…" : "Abrir comanda"}
+                              </Button>
                               <Button
                                 size="sm"
                                 variant="ghost"

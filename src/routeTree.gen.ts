@@ -27,6 +27,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ConviteRouteImport } from './routes/convite'
 import { Route as ContatoRouteImport } from './routes/contato'
 import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
+import { Route as ComandasRouteImport } from './routes/comandas'
 import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as BarbeariasRouteImport } from './routes/barbearias'
 import { Route as AgendaRouteImport } from './routes/agenda'
@@ -127,6 +128,11 @@ const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
   path: '/configuracoes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ComandasRoute = ComandasRouteImport.update({
+  id: '/comandas',
+  path: '/comandas',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ClientesRoute = ClientesRouteImport.update({
   id: '/clientes',
   path: '/clientes',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/agenda': typeof AgendaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
+  '/comandas': typeof ComandasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -209,6 +216,7 @@ export interface FileRoutesByTo {
   '/agenda': typeof AgendaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
+  '/comandas': typeof ComandasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -239,6 +247,7 @@ export interface FileRoutesById {
   '/agenda': typeof AgendaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
+  '/comandas': typeof ComandasRoute
   '/configuracoes': typeof ConfiguracoesRoute
   '/contato': typeof ContatoRoute
   '/convite': typeof ConviteRoute
@@ -270,6 +279,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/barbearias'
     | '/clientes'
+    | '/comandas'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -299,6 +309,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/barbearias'
     | '/clientes'
+    | '/comandas'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -328,6 +339,7 @@ export interface FileRouteTypes {
     | '/agenda'
     | '/barbearias'
     | '/clientes'
+    | '/comandas'
     | '/configuracoes'
     | '/contato'
     | '/convite'
@@ -358,6 +370,7 @@ export interface RootRouteChildren {
   AgendaRoute: typeof AgendaRoute
   BarbeariasRoute: typeof BarbeariasRoute
   ClientesRoute: typeof ClientesRoute
+  ComandasRoute: typeof ComandasRoute
   ConfiguracoesRoute: typeof ConfiguracoesRoute
   ContatoRoute: typeof ContatoRoute
   ConviteRoute: typeof ConviteRoute
@@ -511,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfiguracoesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/comandas': {
+      id: '/comandas'
+      path: '/comandas'
+      fullPath: '/comandas'
+      preLoaderRoute: typeof ComandasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/clientes': {
       id: '/clientes'
       path: '/clientes'
@@ -582,6 +602,7 @@ const rootRouteChildren: RootRouteChildren = {
   AgendaRoute: AgendaRoute,
   BarbeariasRoute: BarbeariasRoute,
   ClientesRoute: ClientesRoute,
+  ComandasRoute: ComandasRoute,
   ConfiguracoesRoute: ConfiguracoesRoute,
   ContatoRoute: ContatoRoute,
   ConviteRoute: ConviteRoute,

@@ -5,7 +5,7 @@
  * real recusaria por RLS, FK ou constraint — e não apenas a interface. Por
  * isso a validação vive aqui, no caminho de escrita, e não nos componentes.
  */
-import { getTableRows, type MockRow } from "./store";
+import { getTableRows, setTableRows, type MockRow } from "./store";
 import { getMockActor } from "./session";
 import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
 
@@ -395,9 +395,33 @@ export function authorizeWrite(
       return authorizeReview(operation, row, existing);
     case "notifications":
       return authorizeNotification(operation, row, existing);
+    case "tickets":
+      return authorizeTicket(row, existing);
+    case "ticket_items":
+      return authorizeTicketItem(row, existing);
     default:
       return null;
   }
+}
+
+/** Só a equipe da barbearia (ou super_admin) mexe em comandas — espelha a RLS. */
+function authorizeTicket(row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+  const shopId = asString(existing?.barbershop_id) ?? asString(row.barbershop_id) ?? "";
+  if (actorIsSuperAdmin() || actorIsStaffOf(shopId)) return null;
+  return "Comanda: apenas a equipe desta barbearia pode operar comandas.";
+}
+
+/** Itens seguem a permissão da comanda: staff do tenant da comanda. */
+function authorizeTicketItem(row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+  const ticketId = asString(existing?.ticket_id) ?? asString(row.ticket_id);
+  const ticket = getTableRows("tickets").find((t) => t.id === ticketId);
+  const shopId = asString(ticket?.barbershop_id) ?? asString(row.barbershop_id) ?? "";
+  if (actorIsSuperAdmin() || actorIsStaffOf(shopId)) return null;
+  return "Comanda: apenas a equipe desta barbearia pode alterar itens.";
 }
 
 /* ================================================================== */
@@ -986,156 +1010,224 @@ export function validatePaymentMethod(row: MockRow): string | null {
 /* Comandas                                                           */
 /* ================================================================== */
 
-/** Tolerância de centavos, a mesma usada por CloseTicketDialog. */
+/** Tolerância de centavos, a mesma usada pela interface de comandas. */
 const MONEY_EPSILON = 0.01;
 
-function paidAmountOf(ticketId: string, pending: readonly MockRow[] = []): number {
-  const stored = getTableRows("ticket_payments")
-    .filter((row) => row.ticket_id === ticketId)
-    .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
+const round2 = (n: number): number => Math.round(n * 100) / 100;
 
-  const inBatch = pending
-    .filter((row) => row.ticket_id === ticketId)
-    .reduce((sum, row) => sum + Number(row.amount ?? 0), 0);
-
-  return stored + inBatch;
+/**
+ * Estados da comanda no modelo de ciclo de vida (migration
+ * 20260722260000): 'aberta' aceita mudanças; 'fechada'/'cancelada' são
+ * imutáveis. Uma comanda sem status explícito é tratada como 'aberta'.
+ */
+function ticketStatus(ticket: MockRow): string {
+  return String(ticket.status ?? "aberta");
 }
 
 /**
- * O schema não tem coluna de status: `closed_at` é obrigatório, então toda
- * comanda nasce fechada. "Quitada" — o que o dashboard mostra como `paid` —
- * é a soma dos pagamentos alcançando o total. É esse estado que trava novas
- * alterações.
+ * Valor do desconto — espelha `ticket_discount_value` no banco: percentual
+ * ou fixo, nunca maior que o subtotal (total nunca fica negativo).
  */
-function isTicketSettled(ticket: MockRow, pending: readonly MockRow[] = []): boolean {
-  const total = Number(ticket.total ?? 0);
-  if (!Number.isFinite(total) || total <= 0) return false;
-  return paidAmountOf(String(ticket.id), pending) + MONEY_EPSILON >= total;
+export function ticketDiscountValue(subtotal: number, type: string, amount: number): number {
+  if (!Number.isFinite(subtotal) || subtotal <= 0) return 0;
+  const value = type === "percent" ? round2((subtotal * (amount || 0)) / 100) : amount || 0;
+  return Math.min(subtotal, Math.max(0, value));
 }
 
-/** Valida a comanda: coerência de tenant e aritmética financeira. */
-export function validateTicket(row: MockRow, existing?: MockRow): string | null {
-  const barbershopId = asString(row.barbershop_id);
-  const clientId = asString(row.client_id);
-  const barberId = asString(row.barber_id);
-  const appointmentId = asString(row.appointment_id);
+/**
+ * Recalcula subtotal e total da comanda ABERTA a partir dos itens — espelha
+ * o trigger `ticket_recalc` + a derivação de total do banco. Fechada/cancelada
+ * não recalculam (imutáveis). Chamado como efeito colateral das escritas.
+ */
+export function recalcTicketTotals(ticketId: string): void {
+  const tickets = getTableRows("tickets");
+  const ticket = tickets.find((t) => t.id === ticketId);
+  if (!ticket || ticketStatus(ticket) !== "aberta") return;
 
-  if (!barbershopId || !clientId || !barberId) {
-    return "Comanda: barbearia, cliente e profissional são obrigatórios.";
+  const subtotal = round2(
+    getTableRows("ticket_items")
+      .filter((item) => item.ticket_id === ticketId)
+      .reduce((sum, item) => sum + Number(item.total ?? 0), 0),
+  );
+  const discount = ticketDiscountValue(
+    subtotal,
+    String(ticket.discount_type ?? "fixed"),
+    Number(ticket.discount_amount ?? 0),
+  );
+  const total = Math.max(0, round2(subtotal - discount));
+
+  setTableRows(
+    "tickets",
+    tickets.map((t) =>
+      t.id === ticketId ? { ...t, subtotal, total, updated_at: new Date().toISOString() } : t,
+    ),
+  );
+}
+
+/**
+ * Campos que o banco preencheria por trigger num item: tenant vem da comanda,
+ * preço vem do catálogo (snapshot), total = preço × quantidade. O front nunca
+ * decide preço nem total. Só computa; a validação fica em `validateTicketItem`.
+ */
+export function computeTicketItemFields(row: MockRow, existing?: MockRow): MockRow {
+  const ticketId = asString(row.ticket_id) ?? asString(existing?.ticket_id);
+  const ticket = getTableRows("tickets").find((t) => t.id === ticketId);
+  const itemType = asString(row.item_type) ?? asString(existing?.item_type) ?? "custom";
+  const quantity = Number(row.quantity ?? existing?.quantity ?? 1);
+
+  const fields: MockRow = {};
+  if (ticket) fields.barbershop_id = ticket.barbershop_id;
+
+  if (existing) {
+    // Preço não muda depois de lançado: mantém o snapshot original.
+    fields.unit_price = Number(existing.unit_price ?? 0);
+  } else if (itemType === "service") {
+    const service = getTableRows("services").find((s) => s.id === row.service_id);
+    fields.unit_price = Number(service?.price ?? 0);
+    fields.product_id = null;
+    if (!asString(row.description)) fields.description = String(service?.name ?? "Serviço");
+  } else if (itemType === "product") {
+    const product = getTableRows("products").find((p) => p.id === row.product_id);
+    fields.unit_price = Number(product?.price ?? 0);
+    fields.service_id = null;
+    if (!asString(row.description)) fields.description = String(product?.name ?? "Produto");
+  } else {
+    fields.unit_price = Number(row.unit_price ?? 0);
+    fields.service_id = null;
+    fields.product_id = null;
+  }
+
+  fields.total = round2(Number(fields.unit_price) * quantity);
+  return fields;
+}
+
+/**
+ * Valida a comanda no modelo de ciclo de vida: coerência de tenant e
+ * imutabilidade de comanda fechada/cancelada. O total é derivado no banco/mock,
+ * então aqui NÃO se checa aritmética (isso é `recalcTicketTotals`).
+ */
+export function validateTicket(row: MockRow, existing?: MockRow): string | null {
+  /* ---- imutabilidade: fechada/cancelada não mudam mais ---- */
+  if (existing && ticketStatus(existing) !== "aberta") {
+    return `comanda_imutavel: uma comanda ${ticketStatus(existing)} não pode mais ser alterada.`;
+  }
+
+  const barbershopId = asString(existing?.barbershop_id) ?? asString(row.barbershop_id);
+  const clientId = asString(row.client_id) ?? asString(existing?.client_id);
+  const barberId = asString(row.barber_id) ?? asString(existing?.barber_id);
+  const appointmentId = asString(row.appointment_id) ?? asString(existing?.appointment_id);
+
+  if (!barbershopId || !barberId) {
+    return "Comanda: barbearia e profissional são obrigatórios.";
   }
   if (!barbershopExists(barbershopId)) {
     return `Comanda: barbearia "${barbershopId}" não existe.`;
   }
 
+  /* ---- transição de status válida ---- */
+  const nextStatus = asString(row.status);
+  if (nextStatus && !["aberta", "fechada", "cancelada"].includes(nextStatus)) {
+    return `Comanda: status "${nextStatus}" inválido.`;
+  }
+
   /* ---- coerência com a barbearia ---- */
   if (!attendingBarbershopsOf(barberId).has(barbershopId)) {
-    return "Comanda: o profissional não atende nesta barbearia.";
+    return "tenant_invalido: o profissional não atende nesta barbearia.";
   }
-  if (!clientBelongsTo(clientId, barbershopId)) {
+  // Cliente é opcional na comanda aberta; quando informado, precisa pertencer.
+  if (clientId && !clientBelongsTo(clientId, barbershopId)) {
     return "Comanda: este cliente não pertence a esta barbearia.";
   }
   if (appointmentId) {
     const appointment = getTableRows("appointments").find((item) => item.id === appointmentId);
     if (!appointment) return "Comanda: agendamento não encontrado.";
     if (appointment.barbershop_id !== barbershopId) {
-      return "Comanda: o agendamento pertence a outra barbearia.";
-    }
-    if (appointment.client_id !== clientId) {
-      return "Comanda: o cliente não corresponde ao do agendamento.";
-    }
-    if (appointment.barber_id !== barberId) {
-      return "Comanda: o profissional não corresponde ao do agendamento.";
+      return "tenant_invalido: o agendamento pertence a outra barbearia.";
     }
   }
 
-  /* ---- não fechar de novo ---- */
-  if (existing && isTicketSettled(existing)) {
-    return "Comanda já quitada: não pode ser alterada nem fechada novamente.";
-  }
-
-  /* ---- aritmética ---- */
-  const subtotal = Number(row.subtotal ?? 0);
-  const discount = Number(row.discount_amount ?? 0);
-  const total = Number(row.total ?? 0);
-
-  if (!Number.isFinite(subtotal) || subtotal < 0) return "Comanda: subtotal inválido.";
-  if (!Number.isFinite(discount) || discount < 0) return "Comanda: desconto não pode ser negativo.";
-  if (!Number.isFinite(total) || total < 0) return "Comanda: total inválido.";
-  if (discount > subtotal + MONEY_EPSILON) {
-    return "Comanda: o desconto não pode ultrapassar o subtotal.";
-  }
-
-  const expected = Math.max(0, subtotal - discount);
-  if (Math.abs(total - expected) > MONEY_EPSILON) {
-    return `Comanda: total incoerente (esperado ${expected.toFixed(2)}, recebido ${total.toFixed(2)}).`;
+  /* ---- desconto não-negativo (o total é derivado, não checado aqui) ---- */
+  const discount = Number(row.discount_amount ?? existing?.discount_amount ?? 0);
+  if (!Number.isFinite(discount) || discount < 0) {
+    return "Comanda: desconto não pode ser negativo.";
   }
 
   return null;
 }
 
-/** Valida um item: pertence à comanda, ao tenant, e tem valores válidos. */
-export function validateTicketItem(row: MockRow, pending: readonly MockRow[] = []): string | null {
+/**
+ * Valida um item: pertence a uma comanda ABERTA do mesmo tenant, produto ativo,
+ * quantidade positiva. Preço/total são preenchidos por `computeTicketItemFields`.
+ */
+export function validateTicketItem(row: MockRow, _pending: readonly MockRow[] = []): string | null {
   const ticketId = asString(row.ticket_id);
-  const barbershopId = asString(row.barbershop_id);
-
-  if (!ticketId || !barbershopId) {
-    return "Item: comanda e barbearia são obrigatórias.";
-  }
+  if (!ticketId) return "Item: comanda é obrigatória.";
 
   const ticket = getTableRows("tickets").find((item) => item.id === ticketId);
   if (!ticket) return "Item: comanda não encontrada.";
-  if (ticket.barbershop_id !== barbershopId) {
-    return "Item: a comanda informada pertence a outra barbearia.";
-  }
-  if (isTicketSettled(ticket, pending)) {
-    return "Comanda já quitada: não aceita novos itens.";
+
+  const barbershopId = asString(ticket.barbershop_id);
+  // O tenant do item é sempre o da comanda (autoritativo, não vem do front).
+  const rowBarbershop = asString(row.barbershop_id);
+  if (rowBarbershop && rowBarbershop !== barbershopId) {
+    return "tenant_invalido: o item pertence a outra barbearia.";
   }
 
-  /* ---- o serviço/produto precisa ser do mesmo tenant ---- */
-  const serviceId = asString(row.service_id);
-  if (serviceId) {
+  /* ---- só comanda aberta aceita mudança de item ---- */
+  if (ticketStatus(ticket) !== "aberta") {
+    return "comanda_nao_aberta: itens só mudam com a comanda aberta.";
+  }
+
+  const itemType = asString(row.item_type) ?? "custom";
+
+  /* ---- serviço/produto do mesmo tenant; produto precisa estar ativo ---- */
+  if (itemType === "service") {
+    const serviceId = asString(row.service_id);
+    if (!serviceId) return "Item: serviço é obrigatório para item de serviço.";
     const service = getTableRows("services").find((item) => item.id === serviceId);
     if (!service) return "Item: serviço não encontrado.";
     if (service.barbershop_id !== barbershopId) {
-      return "Item: o serviço pertence a outra barbearia.";
+      return "tenant_invalido: o serviço pertence a outra barbearia.";
     }
-  }
-
-  const productId = asString(row.product_id);
-  if (productId) {
+  } else if (itemType === "product") {
+    const productId = asString(row.product_id);
+    if (!productId) return "Item: produto é obrigatório para item de produto.";
     const product = getTableRows("products").find((item) => item.id === productId);
     if (!product) return "Item: produto não encontrado.";
     if (product.barbershop_id !== barbershopId) {
-      return "Item: o produto pertence a outra barbearia.";
+      return "tenant_invalido: o produto pertence a outra barbearia.";
     }
+    if (product.active !== true) {
+      return "produto_inativo: este produto está inativo.";
+    }
+  } else if (itemType === "custom") {
+    if (!asString(row.description)) {
+      return "Item: descrição é obrigatória para item avulso.";
+    }
+    if (Number(row.unit_price ?? 0) < 0) {
+      return "Item: o preço unitário não pode ser negativo.";
+    }
+  } else {
+    return "Item: tipo inválido.";
   }
 
-  /* ---- valores ---- */
+  /* ---- quantidade positiva ---- */
   const quantity = Number(row.quantity ?? 0);
-  const unitPrice = Number(row.unit_price ?? 0);
-
-  if (!Number.isFinite(quantity) || quantity <= 0) {
-    return "Item: a quantidade deve ser maior que zero.";
-  }
-  if (!Number.isFinite(unitPrice) || unitPrice < 0) {
-    return "Item: o preço unitário não pode ser negativo.";
-  }
-
-  if (row.total !== undefined) {
-    const total = Number(row.total);
-    if (!Number.isFinite(total)) return "Item: total inválido.";
-    if (Math.abs(total - unitPrice * quantity) > MONEY_EPSILON) {
-      return "Item: total não corresponde a preço × quantidade.";
-    }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    return "Item: a quantidade deve ser inteira e maior que zero.";
   }
 
   return null;
 }
 
-/** Valida um pagamento: comanda do mesmo tenant, valor positivo, sem exceder o total. */
+/**
+ * Valida um pagamento: comanda do mesmo tenant, forma do mesmo tenant, valor
+ * positivo. Os pagamentos passam a ser gravados pela RPC `close_ticket` (efeito
+ * transacional); a soma-vs-total é validada lá, não aqui.
+ */
 export function validateTicketPayment(
   row: MockRow,
-  pending: readonly MockRow[] = [],
+  _pending: readonly MockRow[] = [],
 ): string | null {
   const ticketId = asString(row.ticket_id);
   const barbershopId = asString(row.barbershop_id);
@@ -1162,17 +1254,6 @@ export function validateTicketPayment(
   const amount = Number(row.amount ?? 0);
   if (!Number.isFinite(amount) || amount <= 0) {
     return "Pagamento: o valor deve ser maior que zero.";
-  }
-
-  // Sem regra de troco no projeto: a soma dos pagamentos não pode passar do total.
-  const total = Number(ticket.total ?? 0);
-  const others = pending.filter((item) => item !== row);
-  const alreadyPaid = paidAmountOf(ticketId, others);
-
-  if (alreadyPaid + amount > total + MONEY_EPSILON) {
-    return `Pagamento: excede o total da comanda (total ${total.toFixed(2)}, já pago ${alreadyPaid.toFixed(
-      2,
-    )}).`;
   }
 
   return null;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -56,6 +56,18 @@ interface PaymentMethodRow { id: string; name: string; active: boolean; sort_ord
 const fmt = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const uid = () => Math.random().toString(36).slice(2);
 
+/** Traduz os erros das RPCs/triggers de comanda para a interface. */
+function friendlyTicketError(raw: string): string {
+  const m = raw || "";
+  if (/estoque_insuficiente/.test(m)) return "Estoque insuficiente para um dos produtos. Reduza a quantidade e tente novamente.";
+  if (/produto_inativo/.test(m)) return "Um dos produtos ficou inativo. Remova-o da comanda.";
+  if (/tenant_invalido/.test(m)) return "Um item não pertence a esta barbearia. Recarregue e tente de novo.";
+  if (/comanda_nao_aberta|comanda_imutavel/.test(m)) return "Esta comanda não está mais aberta (pode ter sido fechada em outra tela).";
+  if (/comanda_sem_itens/.test(m)) return "Adicione ao menos um item antes de fechar.";
+  if (/forbidden|insufficient_privilege/.test(m)) return "Você não tem permissão para fechar esta comanda.";
+  return m || "Não foi possível finalizar a comanda.";
+}
+
 export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }: Props) {
   const { user } = useAuth();
   const [services, setServices] = useState<ServiceRow[]>([]);
@@ -68,6 +80,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
   const discountAmount = Math.max(0, parseFloat(discountInput.replace(",", ".")) || 0);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false); // trava síncrona contra duplo clique
   const [summary, setSummary] = useState<null | {
     ticketId: string;
     shopName: string;
@@ -197,6 +210,7 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
 
   const handleConfirm = async () => {
     if (!user) return;
+    if (submittingRef.current) return; // duplo clique: ignora reentrância síncrona
     if (items.length === 0) {
       toast.error("Adicione ao menos um item.");
       return;
@@ -214,84 +228,73 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
       return;
     }
 
+    submittingRef.current = true;
     setSaving(true);
     try {
-      // 1) Cria ticket
-      const { data: ticket, error: tErr } = await supabase
-        .from("tickets")
-        .insert({
-          barbershop_id: appointment.barbershop_id,
-          appointment_id: appointment.id,
-          client_id: appointment.client_id,
-          barber_id: appointment.barber_id,
-          closed_by: user.id,
-          subtotal,
-          discount_type: discountType,
-          discount_amount: discountValue,
-          total,
-          notes: notes.trim() || null,
-        })
-        .select("id")
-        .single();
-      if (tErr || !ticket) throw tErr || new Error("Falha ao criar comanda");
+      // 1) Abre (ou recupera) a comanda ABERTA do agendamento. Idempotente no
+      //    banco: não duplica comanda para o mesmo agendamento.
+      const { data: ticketId, error: oErr } = await supabase.rpc("open_ticket", {
+        _barbershop_id: appointment.barbershop_id,
+        _appointment_id: appointment.id,
+      });
+      if (oErr || !ticketId) throw oErr || new Error("Falha ao abrir comanda");
 
-      // 2) Itens
+      // 2) Sincroniza os itens desta tela com a comanda: limpa e reinsere. Os
+      //    triggers do banco validam tenant, congelam o preço do catálogo
+      //    (serviço/produto) e recalculam o total do item — o front não decide
+      //    preço nem total.
+      const { error: delErr } = await supabase.from("ticket_items").delete().eq("ticket_id", ticketId);
+      if (delErr) throw delErr;
+
       const itemsPayload = items.map((it) => ({
-        ticket_id: ticket.id,
+        ticket_id: ticketId,
         barbershop_id: appointment.barbershop_id,
         item_type: it.item_type,
         service_id: it.item_type === "service" ? it.service_id ?? null : null,
         product_id: it.item_type === "product" ? it.product_id ?? null : null,
         description: it.description.trim(),
-        unit_price: it.unit_price,
+        unit_price: it.unit_price, // ignorado pelo trigger para serviço/produto
         quantity: it.quantity,
-        total: it.unit_price * it.quantity,
       }));
       const { error: iErr } = await supabase.from("ticket_items").insert(itemsPayload);
       if (iErr) throw iErr;
 
-      // 3) Pagamentos
-      const paymentsPayload = payments.map((p) => ({
-        ticket_id: ticket.id,
-        barbershop_id: appointment.barbershop_id,
-        payment_method_id: p.payment_method_id,
-        method_name: p.method_name,
-        amount: p.amount,
-      }));
-      const { error: pErr } = await supabase.from("ticket_payments").insert(paymentsPayload);
-      if (pErr) throw pErr;
+      // 3) Desconto (o total é derivado no banco a partir do subtotal + desconto).
+      const { error: dErr } = await supabase
+        .from("tickets")
+        .update({ discount_type: discountType, discount_amount: discountAmount, notes: notes.trim() || null })
+        .eq("id", ticketId);
+      if (dErr) throw dErr;
 
-      // 4) Marca agendamento como concluído
-      const { error: aErr } = await supabase
-        .from("appointments")
-        .update({ status: "completed" })
-        .eq("id", appointment.id);
-      if (aErr) throw aErr;
+      // 4) Fecha de forma transacional: revalida estoque, baixa atômico,
+      //    recalcula o total, grava pagamentos e conclui o agendamento.
+      const { error: cErr } = await supabase.rpc("close_ticket", {
+        _ticket_id: ticketId,
+        _payments: payments.map((p) => ({
+          method_name: p.method_name,
+          amount: p.amount,
+          payment_method_id: p.payment_method_id,
+        })),
+      });
+      if (cErr) throw cErr;
 
-      // 5) Buscar dados para o recibo (barbearia + cliente + barbeiro se necessário)
-      const needsBarberFetch = !appointment.barber_name;
-      const [shopRes, profRes, phoneRes, barberRes] = await Promise.all([
+      // 5) Recibo AUTORITATIVO: relê a comanda fechada e seus itens do banco.
+      const [closedRes, dbItemsRes, shopRes, profRes, phoneRes, barberRes] = await Promise.all([
+        supabase.from("tickets").select("subtotal,total,discount_type,discount_amount").eq("id", ticketId).single(),
+        supabase.from("ticket_items").select("item_type,service_id,product_id,description,unit_price,quantity").eq("ticket_id", ticketId),
         supabase
           .from("barbershops")
           .select("name,receipt_title,receipt_subtitle,receipt_footer,receipt_thank_you_message,receipt_whatsapp_intro")
           .eq("id", appointment.barbershop_id)
           .maybeSingle(),
-        fetchProfileSummaries([appointment.client_id]).then((m) => ({
-          data: m[appointment.client_id] ?? null,
-        })),
+        fetchProfileSummaries([appointment.client_id]).then((m) => ({ data: m[appointment.client_id] ?? null })),
         supabase.rpc("get_client_phone", { _client_id: appointment.client_id }),
-        needsBarberFetch
-          ? fetchProfileSummaries([appointment.barber_id]).then((m) => ({
-              data: m[appointment.barber_id] ?? null,
-            }))
-          : Promise.resolve({ data: null } as any),
+        appointment.barber_name
+          ? Promise.resolve({ data: null as { full_name?: string } | null })
+          : fetchProfileSummaries([appointment.barber_id]).then((m) => ({ data: m[appointment.barber_id] ?? null })),
       ]);
 
-      const barberName =
-        appointment.barber_name ||
-        (barberRes?.data as { full_name?: string } | null)?.full_name ||
-        "Barbeiro";
-
+      const barberName = appointment.barber_name || barberRes?.data?.full_name || "Barbeiro";
       let startedAt: Date | null = null;
       if (appointment.date && appointment.start_time) {
         const t = appointment.start_time.length === 5 ? `${appointment.start_time}:00` : appointment.start_time;
@@ -299,22 +302,35 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         if (!isNaN(d.getTime())) startedAt = d;
       }
 
-      const shop = (shopRes.data as any) || {};
-      toast.success(`Atendimento finalizado — ${fmt(total)}`);
+      const shop = (shopRes.data as Record<string, string> | null) || {};
+      const closed = closedRes.data;
+      const srvSubtotal = Number(closed?.subtotal ?? subtotal);
+      const srvTotal = Number(closed?.total ?? total);
+      const srvItems: DraftItem[] = (dbItemsRes.data ?? []).map((it) => ({
+        key: uid(),
+        item_type: it.item_type as ItemType,
+        service_id: it.service_id,
+        product_id: it.product_id,
+        description: it.description,
+        unit_price: Number(it.unit_price),
+        quantity: it.quantity,
+      }));
+
+      toast.success(`Atendimento finalizado — ${fmt(srvTotal)}`);
       setSummary({
-        ticketId: ticket.id,
+        ticketId,
         shopName: shop.name || "Barbearia",
         clientName: profRes.data?.full_name || "Cliente",
         clientPhone: (phoneRes.data as string | null) || null,
         barberName,
         startedAt,
-        items: items.map((it) => ({ ...it })),
+        items: srvItems.length ? srvItems : items.map((it) => ({ ...it })),
         payments: payments.map((p) => ({ ...p })),
-        subtotal,
-        discountType,
-        discountAmount,
-        discountValue,
-        total,
+        subtotal: srvSubtotal,
+        discountType: (closed?.discount_type as "fixed" | "percent") || discountType,
+        discountAmount: Number(closed?.discount_amount ?? discountAmount),
+        discountValue: Math.max(0, srvSubtotal - srvTotal),
+        total: srvTotal,
         notes: notes.trim(),
         closedAt: new Date(),
         receiptTitle: shop.receipt_title || "Recibo de atendimento",
@@ -324,10 +340,12 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
         receiptWaIntro: shop.receipt_whatsapp_intro || "Olá, {cliente}! Segue o resumo do seu atendimento:",
       });
       onClosed?.();
-    } catch (e: any) {
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String((e as { message?: string })?.message ?? e);
       console.error(e);
-      toast.error(e?.message || "Não foi possível finalizar a comanda.");
+      toast.error(friendlyTicketError(msg));
     } finally {
+      submittingRef.current = false;
       setSaving(false);
     }
   };
@@ -472,7 +490,17 @@ export function CloseTicketDialog({ open, onOpenChange, appointment, onClosed }:
                   type="number"
                   min={1}
                   value={it.quantity}
-                  onChange={(e) => updateItem(it.key, { quantity: Math.max(1, parseInt(e.target.value) || 1) })}
+                  onChange={(e) => {
+                    let q = Math.max(1, parseInt(e.target.value) || 1);
+                    if (it.item_type === "product") {
+                      const stock = products.find((p) => p.id === it.product_id)?.stock_quantity ?? q;
+                      if (q > stock) {
+                        toast.error(`Estoque disponível: ${stock}`);
+                        q = Math.max(1, stock);
+                      }
+                    }
+                    updateItem(it.key, { quantity: q });
+                  }}
                   className="bg-input w-16 h-9"
                 />
                 <Input
