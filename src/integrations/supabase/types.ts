@@ -337,6 +337,51 @@ export type Database = {
           },
         ]
       }
+      billing_webhook_events: {
+        Row: {
+          barbershop_id: string | null
+          environment: string
+          event_id: string
+          event_type: string | null
+          id: string
+          provider: string
+          received_at: string
+        }
+        Insert: {
+          barbershop_id?: string | null
+          environment: string
+          event_id: string
+          event_type?: string | null
+          id?: string
+          provider?: string
+          received_at?: string
+        }
+        Update: {
+          barbershop_id?: string | null
+          environment?: string
+          event_id?: string
+          event_type?: string | null
+          id?: string
+          provider?: string
+          received_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_webhook_events_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_webhook_events_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_blocks: {
         Row: {
           barbershop_id: string
@@ -862,7 +907,9 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          barbershop_id: string | null
           cancel_at_period_end: boolean | null
+          canceled_at: string | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
@@ -873,11 +920,14 @@ export type Database = {
           price_id: string
           product_id: string
           status: string
+          trial_end: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -888,11 +938,14 @@ export type Database = {
           price_id: string
           product_id: string
           status?: string
+          trial_end?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -903,10 +956,26 @@ export type Database = {
           price_id?: string
           product_id?: string
           status?: string
+          trial_end?: string | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       team_invitations: {
         Row: {
@@ -1259,108 +1328,24 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
-      get_dashboard_summary: {
-        Args: { _barbershop_id: string; _barber_id?: string | null }
-        Returns: {
-          appointments_today: number
-          scheduled_today: number
-          completed_today: number
-          cancelled_today: number
-          no_show_today: number
-          open_tickets: number
-        }[]
-      }
-      report_barber_scope: {
-        Args: { _barbershop_id: string; _barber_id?: string | null }
-        Returns: string
-      }
-      report_sales_summary: {
+      apply_subscription_from_webhook: {
         Args: {
           _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
+          _cancel_at_period_end: boolean
+          _canceled_at: string
+          _current_period_end: string
+          _current_period_start: string
+          _environment: string
+          _paddle_customer_id: string
+          _paddle_subscription_id: string
+          _plan_name: string
+          _price_id: string
+          _product_id: string
+          _status: string
+          _trial_end: string
+          _user_id: string
         }
-        Returns: {
-          gross: number
-          discount: number
-          net: number
-          closed_count: number
-          avg_ticket: number
-          services_count: number
-          products_count: number
-        }[]
-      }
-      report_sales_timeseries: {
-        Args: {
-          _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
-        }
-        Returns: {
-          day: string
-          net: number
-          closed_count: number
-        }[]
-      }
-      report_services: {
-        Args: {
-          _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
-        }
-        Returns: {
-          service_id: string
-          name: string
-          revenue: number
-          quantity: number
-        }[]
-      }
-      report_products: {
-        Args: {
-          _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
-        }
-        Returns: {
-          product_id: string
-          name: string
-          revenue: number
-          quantity: number
-          stock_quantity: number
-          active: boolean
-        }[]
-      }
-      report_by_barber: {
-        Args: {
-          _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
-        }
-        Returns: {
-          barber_id: string
-          tickets_count: number
-          services_count: number
-          net: number
-          avg_ticket: number
-        }[]
-      }
-      report_payment_methods: {
-        Args: {
-          _barbershop_id: string
-          _start: string
-          _end: string
-          _barber_id?: string | null
-        }
-        Returns: {
-          method_name: string
-          amount: number
-          tickets_count: number
-        }[]
+        Returns: undefined
       }
       barbershop_is_system_sentinel: {
         Args: { _barbershop_id: string }
@@ -1418,7 +1403,32 @@ export type Database = {
           total_appointments: number
         }[]
       }
+      get_barbershop_subscription: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          cancel_at_period_end: boolean
+          canceled_at: string
+          current_period_end: string
+          current_period_start: string
+          environment: string
+          price_id: string
+          status: string
+          trial_end: string
+          updated_at: string
+        }[]
+      }
       get_client_phone: { Args: { _client_id: string }; Returns: string }
+      get_dashboard_summary: {
+        Args: { _barber_id?: string; _barbershop_id: string }
+        Returns: {
+          appointments_today: number
+          cancelled_today: number
+          completed_today: number
+          no_show_today: number
+          open_tickets: number
+          scheduled_today: number
+        }[]
+      }
       get_noshow_report: {
         Args: { _barbershop_id: string; _days?: number }
         Returns: {
@@ -1490,6 +1500,107 @@ export type Database = {
           _client_id?: string
         }
         Returns: string
+      }
+      record_billing_event: {
+        Args: {
+          _environment: string
+          _event_id: string
+          _event_type: string
+          _provider: string
+        }
+        Returns: boolean
+      }
+      report_barber_scope: {
+        Args: { _barber_id?: string; _barbershop_id: string }
+        Returns: string
+      }
+      report_by_barber: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          avg_ticket: number
+          barber_id: string
+          net: number
+          services_count: number
+          tickets_count: number
+        }[]
+      }
+      report_payment_methods: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          amount: number
+          method_name: string
+          tickets_count: number
+        }[]
+      }
+      report_products: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          active: boolean
+          name: string
+          product_id: string
+          quantity: number
+          revenue: number
+          stock_quantity: number
+        }[]
+      }
+      report_sales_summary: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          avg_ticket: number
+          closed_count: number
+          discount: number
+          gross: number
+          net: number
+          products_count: number
+          services_count: number
+        }[]
+      }
+      report_sales_timeseries: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          closed_count: number
+          day: string
+          net: number
+        }[]
+      }
+      report_services: {
+        Args: {
+          _barber_id?: string
+          _barbershop_id: string
+          _end: string
+          _start: string
+        }
+        Returns: {
+          name: string
+          quantity: number
+          revenue: number
+          service_id: string
+        }[]
       }
       role_counts_toward_barber_limit: {
         Args: { _role: Database["public"]["Enums"]["app_role"] }

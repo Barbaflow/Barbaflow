@@ -139,20 +139,12 @@ export function PlanCard() {
           <p className="text-sm text-muted-foreground mb-3">
             Agendamentos ilimitados ✨
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={handleManageSubscription}
-            disabled={portalLoading}
-          >
-            {portalLoading ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-            ) : (
+          <Link to="/assinatura" search={{ barbershop: undefined }}>
+            <Button size="sm" variant="outline" className="w-full">
               <Settings className="w-3.5 h-3.5 mr-1" />
-            )}
-            Gerenciar assinatura
-          </Button>
+              Gerenciar assinatura
+            </Button>
+          </Link>
           </>
         )}
       </CardContent>

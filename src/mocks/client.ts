@@ -568,6 +568,136 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
     });
   },
 
+  /* ── Assinatura SaaS da barbearia (espelham as RPCs de cobrança) ────────── */
+
+  /**
+   * Lê a assinatura corrente da barbearia para a página de cobrança. Só
+   * admin_barbearia/super_admin daquele tenant — barbeiro/cliente/anon recusados.
+   */
+  get_barbershop_subscription: (args) => {
+    const caller = getMockSessionUserId();
+    if (!caller) throw new MockRpcError("nao_autenticado", "insufficient_privilege");
+    const bs = String(args._barbershop_id ?? "");
+    const isAdmin =
+      getTableRows("user_roles").some(
+        (r) => r.user_id === caller && r.barbershop_id === bs && r.role === "admin_barbearia",
+      ) || userIsSuperAdmin(caller);
+    if (!isAdmin) {
+      throw new MockRpcError(
+        "forbidden: só o administrador gerencia a assinatura desta barbearia",
+        "insufficient_privilege",
+      );
+    }
+    const subs = getTableRows("subscriptions")
+      .filter((s) => s.barbershop_id === bs)
+      .sort((a, b) => {
+        const ac = a.status !== "canceled" ? 1 : 0;
+        const bc = b.status !== "canceled" ? 1 : 0;
+        if (ac !== bc) return bc - ac; // não-cancelada primeiro
+        return String(b.updated_at ?? "") > String(a.updated_at ?? "") ? 1 : -1;
+      });
+    const s = subs[0];
+    if (!s) return [];
+    return [
+      {
+        status: s.status,
+        price_id: s.price_id,
+        environment: s.environment,
+        current_period_start: s.current_period_start ?? null,
+        current_period_end: s.current_period_end ?? null,
+        cancel_at_period_end: s.cancel_at_period_end ?? false,
+        canceled_at: s.canceled_at ?? null,
+        trial_end: s.trial_end ?? null,
+        updated_at: s.updated_at ?? null,
+      },
+    ];
+  },
+
+  /**
+   * Idempotência de webhook (espelha record_billing_event). Devolve true se o
+   * evento é novo, false se já foi registrado. Simula o backend confiável.
+   */
+  record_billing_event: (args) => {
+    const provider = String(args._provider ?? "paddle");
+    const eventId = String(args._event_id ?? "");
+    const rows = getTableRows("billing_webhook_events");
+    if (rows.some((r) => r.provider === provider && r.event_id === eventId)) return false;
+    setTableRows("billing_webhook_events", [
+      ...rows,
+      {
+        id: newMockId(),
+        provider,
+        event_id: eventId,
+        event_type: args._event_type ?? null,
+        environment: String(args._environment ?? ""),
+        barbershop_id: null,
+        received_at: new Date().toISOString(),
+      },
+    ]);
+    return true;
+  },
+
+  /**
+   * Aplica a assinatura vinda do webhook (espelha apply_subscription_from_webhook):
+   * valida POSSE (a barbearia é do usuário ou ele a administra), faz upsert
+   * idempotente por paddle_subscription_id e ajusta o plano da barbearia.
+   */
+  apply_subscription_from_webhook: (args) => {
+    const userId = String(args._user_id ?? "");
+    const bs = args._barbershop_id ? String(args._barbershop_id) : null;
+
+    if (bs) {
+      const owns = getTableRows("barbershops").some((b) => b.id === bs && b.owner_id === userId);
+      const admins = getTableRows("user_roles").some(
+        (r) => r.user_id === userId && r.barbershop_id === bs && r.role === "admin_barbearia",
+      );
+      if (!owns && !admins) {
+        throw new MockRpcError(
+          `tenant_ownership_invalid: usuário ${userId} não administra a barbearia ${bs}`,
+        );
+      }
+    }
+
+    const subId = String(args._paddle_subscription_id ?? "");
+    const status = String(args._status ?? "");
+    const now = new Date().toISOString();
+    const rows = getTableRows("subscriptions");
+    const rec = {
+      user_id: userId,
+      barbershop_id: bs,
+      paddle_subscription_id: subId,
+      paddle_customer_id: String(args._paddle_customer_id ?? ""),
+      product_id: String(args._product_id ?? ""),
+      price_id: String(args._price_id ?? ""),
+      status,
+      current_period_start: args._current_period_start ?? null,
+      current_period_end: args._current_period_end ?? null,
+      cancel_at_period_end: Boolean(args._cancel_at_period_end),
+      canceled_at: args._canceled_at ?? null,
+      trial_end: args._trial_end ?? null,
+      environment: String(args._environment ?? "sandbox"),
+      updated_at: now,
+    };
+    const idx = rows.findIndex((s) => s.paddle_subscription_id === subId);
+    if (idx >= 0) rows[idx] = { ...rows[idx], ...rec };
+    else rows.push({ id: newMockId(), created_at: now, ...rec });
+    setTableRows("subscriptions", rows);
+
+    if (bs) {
+      const planName = ["active", "trialing", "past_due"].includes(status)
+        ? String(args._plan_name ?? "pro")
+        : "free";
+      const plan = getTableRows("plans").find((p) => p.name === planName);
+      if (plan) {
+        setTableRows(
+          "barbershops",
+          getTableRows("barbershops").map((b) => (b.id === bs ? { ...b, plan_id: plan.id } : b)),
+        );
+      }
+    }
+    return null;
+  },
+
   /**
    * Abre uma comanda (manual ou por agendamento) — espelha a RPC `open_ticket`.
    * Valida papel+tenant, é idempotente por agendamento e adiciona o serviço
