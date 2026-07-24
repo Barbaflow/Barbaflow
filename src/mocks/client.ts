@@ -13,7 +13,43 @@ import {
   barbershopUnderAppointmentLimit,
   barbershopUnderBarberLimit,
   effectiveInvitationStatus,
+  recalcTicketTotals,
+  ticketDiscountValue,
 } from "./rules";
+
+/**
+ * Erro de RPC do modo mock. Espelha um `RAISE EXCEPTION` do Postgres: a
+ * mensagem carrega o token que a interface reconhece (ex.: `estoque_insuficiente`,
+ * `comanda_ja_fechada`). `runRpc` o converte no `{ data:null, error }` que o
+ * supabase-js devolveria — o chamador nunca vê uma promise rejeitada.
+ */
+class MockRpcError extends Error {
+  code: string;
+  constructor(message: string, code = "MOCK_RULE") {
+    super(message);
+    this.name = "MockRpcError";
+    this.code = code;
+  }
+}
+
+const round2 = (n: number): number => Math.round(n * 100) / 100;
+
+/** Papéis de equipe (atendem/administram) de um usuário numa barbearia. */
+function userIsStaffOf(userId: unknown, barbershopId: unknown): boolean {
+  return getTableRows("user_roles").some(
+    (row) =>
+      row.user_id === userId &&
+      row.barbershop_id === barbershopId &&
+      (row.role === "barbeiro" || row.role === "admin_barbearia"),
+  );
+}
+
+/** Papel global super_admin de um usuário qualquer. */
+function userIsSuperAdmin(userId: unknown): boolean {
+  return getTableRows("user_roles").some(
+    (row) => row.user_id === userId && row.role === "super_admin",
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* RPCs                                                                */
@@ -490,6 +526,223 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       return end === null || end === undefined || String(end) > nowISO;
     });
   },
+
+  /**
+   * Abre uma comanda (manual ou por agendamento) — espelha a RPC `open_ticket`.
+   * Valida papel+tenant, é idempotente por agendamento e adiciona o serviço
+   * inicial. NÃO movimenta estoque. Devolve o id da comanda.
+   */
+  open_ticket: (args) => {
+    const caller = getMockSessionUserId();
+    if (!caller) throw new MockRpcError("nao_autenticado", "insufficient_privilege");
+
+    const barbershopId = String(args._barbershop_id ?? "");
+    if (!(userIsStaffOf(caller, barbershopId) || userIsSuperAdmin(caller))) {
+      throw new MockRpcError("forbidden: só a equipe da barbearia abre comanda", "insufficient_privilege");
+    }
+
+    let clientId = args._client_id ? String(args._client_id) : null;
+    let barberId = args._barber_id ? String(args._barber_id) : null;
+    const appointmentId = args._appointment_id ? String(args._appointment_id) : null;
+
+    let initialServiceId: string | null = null;
+    if (appointmentId) {
+      const appt = getTableRows("appointments").find((a) => a.id === appointmentId);
+      if (!appt || appt.barbershop_id !== barbershopId) {
+        throw new MockRpcError("tenant_invalido: agendamento de outra barbearia");
+      }
+      // Idempotência: reaproveita a comanda aberta; recusa se já foi fechada.
+      const existing = getTableRows("tickets").find(
+        (t) => t.appointment_id === appointmentId && t.status !== "cancelada",
+      );
+      if (existing) {
+        if (existing.status === "aberta") return existing.id;
+        throw new MockRpcError("comanda_ja_fechada: este agendamento já possui comanda fechada");
+      }
+      clientId = clientId ?? (appt.client_id ? String(appt.client_id) : null);
+      barberId = barberId ?? (appt.barber_id ? String(appt.barber_id) : null);
+      initialServiceId = appt.service_id ? String(appt.service_id) : null;
+    }
+
+    if (!barberId) throw new MockRpcError("barber_id obrigatório para abrir comanda");
+    if (!userIsStaffOf(barberId, barbershopId)) {
+      throw new MockRpcError("tenant_invalido: barbeiro não é desta barbearia");
+    }
+
+    const now = new Date().toISOString();
+    const ticketId = newMockId();
+    setTableRows("tickets", [
+      ...getTableRows("tickets"),
+      {
+        id: ticketId,
+        barbershop_id: barbershopId,
+        appointment_id: appointmentId,
+        client_id: clientId,
+        barber_id: barberId,
+        opened_by: caller,
+        closed_by: null,
+        closed_at: null,
+        status: "aberta",
+        subtotal: 0,
+        discount_type: "fixed",
+        discount_amount: 0,
+        total: 0,
+        notes: null,
+        created_at: now,
+        updated_at: now,
+      },
+    ]);
+
+    // Serviço inicial do agendamento entra com o preço do catálogo (snapshot).
+    if (initialServiceId) {
+      const service = getTableRows("services").find((s) => s.id === initialServiceId);
+      const unit = Number(service?.price ?? 0);
+      setTableRows("ticket_items", [
+        ...getTableRows("ticket_items"),
+        {
+          id: newMockId(),
+          ticket_id: ticketId,
+          barbershop_id: barbershopId,
+          item_type: "service",
+          service_id: initialServiceId,
+          product_id: null,
+          description: String(service?.name ?? "Serviço"),
+          unit_price: unit,
+          quantity: 1,
+          total: round2(unit),
+          created_at: now,
+          updated_at: now,
+        },
+      ]);
+      recalcTicketTotals(ticketId);
+    }
+
+    return ticketId;
+  },
+
+  /**
+   * Fecha uma comanda — espelha a RPC `close_ticket`: revalida estoque, baixa
+   * TUDO ou NADA (sem baixa parcial), recalcula o total, grava pagamentos
+   * informativos, fecha e conclui o agendamento. Sem gateway de pagamento.
+   */
+  close_ticket: (args) => {
+    const caller = getMockSessionUserId();
+    if (!caller) throw new MockRpcError("nao_autenticado", "insufficient_privilege");
+
+    const ticketId = String(args._ticket_id ?? "");
+    const ticket = getTableRows("tickets").find((t) => t.id === ticketId);
+    if (!ticket) throw new MockRpcError("comanda inexistente", "no_data_found");
+
+    const barbershopId = String(ticket.barbershop_id);
+    if (!(userIsStaffOf(caller, barbershopId) || userIsSuperAdmin(caller))) {
+      throw new MockRpcError("forbidden: só a equipe da barbearia fecha comanda", "insufficient_privilege");
+    }
+    if (ticket.status !== "aberta") throw new MockRpcError("comanda_nao_aberta");
+
+    const items = getTableRows("ticket_items").filter((i) => i.ticket_id === ticketId);
+    if (items.length === 0) throw new MockRpcError("comanda_sem_itens");
+
+    // Necessidade por produto e revalidação de estoque ANTES de qualquer baixa.
+    const need = new Map<string, number>();
+    for (const it of items) {
+      if (it.item_type === "product" && it.product_id) {
+        const pid = String(it.product_id);
+        need.set(pid, (need.get(pid) ?? 0) + Number(it.quantity ?? 0));
+      }
+    }
+    const products = getTableRows("products");
+    for (const [productId, qty] of need) {
+      const product = products.find((p) => p.id === productId && p.barbershop_id === barbershopId);
+      if (!product) throw new MockRpcError("tenant_invalido: produto fora da barbearia");
+      if (Number(product.stock_quantity ?? 0) < qty) {
+        throw new MockRpcError(
+          `estoque_insuficiente: produto ${productId} (tem ${Number(product.stock_quantity ?? 0)}, precisa ${qty})`,
+        );
+      }
+    }
+
+    const now = new Date().toISOString();
+
+    // Baixa atômica (só depois de todos validados — nunca baixa parcial).
+    if (need.size > 0) {
+      setTableRows(
+        "products",
+        products.map((p) => {
+          const qty = need.get(String(p.id));
+          if (!qty) return p;
+          return { ...p, stock_quantity: Number(p.stock_quantity ?? 0) - qty, updated_at: now };
+        }),
+      );
+    }
+
+    // Subtotal recalculado dos itens; total derivado do desconto (fonte no banco).
+    const subtotal = round2(items.reduce((s, i) => s + Number(i.total ?? 0), 0));
+    const discountVal = ticketDiscountValue(
+      subtotal,
+      String(ticket.discount_type ?? "fixed"),
+      Number(ticket.discount_amount ?? 0),
+    );
+    const total = Math.max(0, round2(subtotal - discountVal));
+
+    // Pagamentos informativos (valida valor e tenant da forma).
+    const rawPayments = args._payments;
+    const payments = Array.isArray(rawPayments)
+      ? rawPayments
+      : typeof rawPayments === "string"
+        ? (JSON.parse(rawPayments) as unknown[])
+        : [];
+    const paymentRows: MockRow[] = [];
+    for (const pay of payments as Array<Record<string, unknown>>) {
+      const amount = Number(pay?.amount ?? 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        throw new MockRpcError("pagamento com valor inválido");
+      }
+      const methodId = pay?.payment_method_id ? String(pay.payment_method_id) : null;
+      if (
+        methodId &&
+        !getTableRows("payment_methods").some(
+          (pm) => pm.id === methodId && pm.barbershop_id === barbershopId,
+        )
+      ) {
+        throw new MockRpcError("tenant_invalido: forma de pagamento de outra barbearia");
+      }
+      paymentRows.push({
+        id: newMockId(),
+        ticket_id: ticketId,
+        barbershop_id: barbershopId,
+        payment_method_id: methodId,
+        method_name: String(pay?.method_name ?? "Não informado"),
+        amount,
+        created_at: now,
+      });
+    }
+    if (paymentRows.length > 0) {
+      setTableRows("ticket_payments", [...getTableRows("ticket_payments"), ...paymentRows]);
+    }
+
+    setTableRows(
+      "tickets",
+      getTableRows("tickets").map((t) =>
+        t.id === ticketId
+          ? { ...t, status: "fechada", subtotal, total, closed_at: now, closed_by: caller, updated_at: now }
+          : t,
+      ),
+    );
+
+    // Conclui o agendamento vinculado (regra atual).
+    if (ticket.appointment_id) {
+      setTableRows(
+        "appointments",
+        getTableRows("appointments").map((a) =>
+          a.id === ticket.appointment_id && a.barbershop_id === barbershopId && a.status !== "cancelled"
+            ? { ...a, status: "completed", updated_at: now }
+            : a,
+        ),
+      );
+    }
+
+    return ticketId;
+  },
 };
 
 /** Passo da grade de horários gerada pelas RPCs, em minutos. */
@@ -614,7 +867,21 @@ function runRpc(name: string, args: RpcArgs): MockResult<unknown> {
     };
   }
 
-  return { data: handler(args), error: null, count: null, status: 200, statusText: "OK" };
+  try {
+    return { data: handler(args), error: null, count: null, status: 200, statusText: "OK" };
+  } catch (e) {
+    // Um RAISE EXCEPTION do mock vira `{ data:null, error }`, como o supabase-js.
+    if (e instanceof MockRpcError) {
+      return {
+        data: null,
+        error: { message: e.message, details: "", hint: "", code: e.code },
+        count: null,
+        status: 400,
+        statusText: "Error",
+      };
+    }
+    throw e;
+  }
 }
 
 /* ------------------------------------------------------------------ */

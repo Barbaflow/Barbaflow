@@ -45,6 +45,7 @@ import {
   History,
   TrendingDown,
   UserCog,
+  ReceiptText,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -455,6 +456,12 @@ export function AdminDashboard() {
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
                               <Scissors className="w-3 h-3 mr-1" />
                               Serviços
+                            </Button>
+                          </Link>
+                          <Link to="/comandas" search={{ barbershop: shop.id, comanda: undefined }}>
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
+                              <ReceiptText className="w-3 h-3 mr-1" />
+                              Comandas
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
