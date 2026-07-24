@@ -337,51 +337,6 @@ export type Database = {
           },
         ]
       }
-      billing_webhook_events: {
-        Row: {
-          barbershop_id: string | null
-          environment: string
-          event_id: string
-          event_type: string | null
-          id: string
-          provider: string
-          received_at: string
-        }
-        Insert: {
-          barbershop_id?: string | null
-          environment: string
-          event_id: string
-          event_type?: string | null
-          id?: string
-          provider?: string
-          received_at?: string
-        }
-        Update: {
-          barbershop_id?: string | null
-          environment?: string
-          event_id?: string
-          event_type?: string | null
-          id?: string
-          provider?: string
-          received_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "billing_webhook_events_barbershop_id_fkey"
-            columns: ["barbershop_id"]
-            isOneToOne: false
-            referencedRelation: "barbearias_publicas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "billing_webhook_events_barbershop_id_fkey"
-            columns: ["barbershop_id"]
-            isOneToOne: false
-            referencedRelation: "barbershops"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       client_blocks: {
         Row: {
           barbershop_id: string
@@ -907,9 +862,7 @@ export type Database = {
       }
       subscriptions: {
         Row: {
-          barbershop_id: string | null
           cancel_at_period_end: boolean | null
-          canceled_at: string | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
@@ -920,14 +873,11 @@ export type Database = {
           price_id: string
           product_id: string
           status: string
-          trial_end: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
-          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
-          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -938,14 +888,11 @@ export type Database = {
           price_id: string
           product_id: string
           status?: string
-          trial_end?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
-          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
-          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -956,26 +903,10 @@ export type Database = {
           price_id?: string
           product_id?: string
           status?: string
-          trial_end?: string | null
           updated_at?: string | null
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "subscriptions_barbershop_id_fkey"
-            columns: ["barbershop_id"]
-            isOneToOne: false
-            referencedRelation: "barbearias_publicas"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscriptions_barbershop_id_fkey"
-            columns: ["barbershop_id"]
-            isOneToOne: false
-            referencedRelation: "barbershops"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       team_invitations: {
         Row: {
@@ -1328,25 +1259,6 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
-      apply_subscription_from_webhook: {
-        Args: {
-          _barbershop_id: string
-          _cancel_at_period_end: boolean
-          _canceled_at: string
-          _current_period_end: string
-          _current_period_start: string
-          _environment: string
-          _paddle_customer_id: string
-          _paddle_subscription_id: string
-          _plan_name: string
-          _price_id: string
-          _product_id: string
-          _status: string
-          _trial_end: string
-          _user_id: string
-        }
-        Returns: undefined
-      }
       barbershop_is_system_sentinel: {
         Args: { _barbershop_id: string }
         Returns: boolean
@@ -1401,20 +1313,6 @@ export type Database = {
           manual_blocked_until: string
           noshow_count: number
           total_appointments: number
-        }[]
-      }
-      get_barbershop_subscription: {
-        Args: { _barbershop_id: string }
-        Returns: {
-          cancel_at_period_end: boolean
-          canceled_at: string
-          current_period_end: string
-          current_period_start: string
-          environment: string
-          price_id: string
-          status: string
-          trial_end: string
-          updated_at: string
         }[]
       }
       get_client_phone: { Args: { _client_id: string }; Returns: string }
@@ -1500,15 +1398,6 @@ export type Database = {
           _client_id?: string
         }
         Returns: string
-      }
-      record_billing_event: {
-        Args: {
-          _environment: string
-          _event_id: string
-          _event_type: string
-          _provider: string
-        }
-        Returns: boolean
       }
       report_barber_scope: {
         Args: { _barber_id?: string; _barbershop_id: string }
