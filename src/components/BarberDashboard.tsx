@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlanCard } from "@/components/PlanCard";
+import { OperationalDashboard } from "@/components/OperationalDashboard";
 import { NotificationBell } from "@/components/NotificationBell";
 import { InstallAppButton } from "@/components/InstallAppButton";
 import { EnableNotificationsButton } from "@/components/EnableNotificationsButton";
@@ -412,7 +413,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
       )}
 
       <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
-        {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} />}
+        {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} onSelectTab={setActiveTab} />}
         {activeTab === "services" && <ServicesTab isAdmin={isAdmin} />}
         {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
@@ -425,7 +426,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
 
 // ─── Overview Tab ────────────────────────────────────────
 
-function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
+function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: (tab: AdminTab) => void }) {
   const { user } = useAuth();
   // Tenant REAL. O antigo `barbershopId` nunca é null e cai em
   // DEFAULT_BARBERSHOP_ID — o uuid da barbearia fictícia do mock —, então no
@@ -440,7 +441,6 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   // no dia SEGUINTE toda noite a partir das 21:00 em UTC−3, porque o corte da
   // data acontecia depois da conversão para UTC.
   const [selectedDate, setSelectedDate] = useState(() => todayISOInTenantTZ());
-  const [weekMetrics, setWeekMetrics] = useState({ totalWeek: 0, revenueWeek: 0 });
   const [selectedBarber, setSelectedBarber] = useState<string>("all");
   const [barbers, setBarbers] = useState<{ id: string; name: string }[]>([]);
   const [showNewAppt, setShowNewAppt] = useState(false);
@@ -719,41 +719,9 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
     setLoading(false);
   }, [user, barbershopId, tenantStatus, selectedDate, isAdmin, selectedBarber]);
 
-  const fetchWeekMetrics = useCallback(async () => {
-    if (!user || !barbershopId) return;
-    const weekStart = addDaysISO(selectedDate, -weekdayOfISO(selectedDate));
-    const weekEnd = addDaysISO(weekStart, 6);
-
-    let query = supabase
-      .from("appointments")
-      .select("status, service:services(price)")
-      .eq("barbershop_id", barbershopId)
-      .gte("date", weekStart)
-      .lte("date", weekEnd);
-
-    if (!isAdmin) {
-      query = query.eq("barber_id", user.id);
-    } else if (selectedBarber !== "all") {
-      query = query.eq("barber_id", selectedBarber);
-    }
-
-    const { data } = await query;
-    if (data) {
-      const totalWeek = data.length;
-      const revenueWeek = data
-        .filter((a) => a.status === "completed")
-        .reduce((sum, a) => {
-          const svc = Array.isArray(a.service) ? a.service[0] : a.service;
-          return sum + (svc ? Number(svc.price) : 0);
-        }, 0);
-      setWeekMetrics({ totalWeek, revenueWeek });
-    }
-  }, [user, barbershopId, selectedDate, isAdmin, selectedBarber]);
-
   useEffect(() => {
     fetchAppointments();
-    fetchWeekMetrics();
-  }, [fetchAppointments, fetchWeekMetrics]);
+  }, [fetchAppointments]);
 
   // Realtime: refresh ticket badges when tickets/payments change for this barbershop
   useEffect(() => {
@@ -798,7 +766,6 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
   const handleStatusChange = async (id: string, newStatus: "completed" | "cancelled" | "no_show") => {
     await supabase.from("appointments").update({ status: newStatus }).eq("id", id);
     fetchAppointments();
-    fetchWeekMetrics();
   };
 
   return (
@@ -1064,7 +1031,6 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
           }
           onCreated={() => {
             fetchAppointments();
-            fetchWeekMetrics();
           }}
         />
       )}
@@ -1086,7 +1052,6 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         }}
         onRescheduled={() => {
           fetchAppointments();
-          fetchWeekMetrics();
         }}
       />
 
@@ -1112,7 +1077,6 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
             // hide the summary screen (PDF/WhatsApp). The dialog clears
             // itself via onOpenChange when the user clicks "Concluir".
             fetchAppointments();
-            fetchWeekMetrics();
           }}
         />
       )}
@@ -1177,49 +1141,16 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
         </Card>
       )}
 
-      {/* Metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <CalendarIcon className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Hoje</span>
-            </div>
-            <p className="text-2xl font-display font-bold text-foreground">{metrics.total}</p>
-            <p className="text-[10px] text-muted-foreground">{metrics.scheduled} pendente{metrics.scheduled !== 1 ? "s" : ""}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-green-500" />
-              <span className="text-xs text-muted-foreground">Receita dia</span>
-            </div>
-            <p className="text-2xl font-display font-bold text-foreground">R$ {metrics.revenue.toFixed(0)}</p>
-            <p className="text-[10px] text-muted-foreground">{metrics.completed} concluído{metrics.completed !== 1 ? "s" : ""}</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <TrendingUp className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Semana</span>
-            </div>
-            <p className="text-2xl font-display font-bold text-foreground">{weekMetrics.totalWeek}</p>
-            <p className="text-[10px] text-muted-foreground">agendamentos</p>
-          </CardContent>
-        </Card>
-        <Card className="bg-card border-border">
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-1">
-              <DollarSign className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground">Receita semana</span>
-            </div>
-            <p className="text-2xl font-display font-bold text-foreground">R$ {weekMetrics.revenueWeek.toFixed(0)}</p>
-            <p className="text-[10px] text-muted-foreground">concluídos</p>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Dashboard operacional (resumo do dia, faturamento, comandas, estoque, ações) */}
+      {barbershopId && user && (
+        <OperationalDashboard
+          barbershopId={barbershopId}
+          isAdmin={isAdmin}
+          userId={user.id}
+          timezone={barbershop?.timezone ?? "America/Sao_Paulo"}
+          onOpenProducts={() => onSelectTab("products")}
+        />
+      )}
 
       <PlanCard />
 
@@ -1231,7 +1162,7 @@ function OverviewTab({ isAdmin }: { isAdmin: boolean }) {
       )}
 
       {/* Appointments list */}
-      <div>
+      <div id="agenda-do-dia">
         <h3 className="font-display text-lg font-semibold text-foreground mb-3">
           {isAdmin
             ? selectedBarber !== "all"
@@ -1512,7 +1443,10 @@ function SemBarbearia({ recurso }: { recurso: string }) {
 
 function ProductsTab() {
   const { user } = useAuth();
-  const { barbershopId } = useBarbershop();
+  // Tenant REAL: `resolvedBarbershopId` é null enquanto não há barbearia, em vez
+  // do legado `barbershopId` (que cai em DEFAULT_BARBERSHOP_ID e consultaria/
+  // gravaria produtos de um tenant inventado no modo Supabase).
+  const { resolvedBarbershopId: barbershopId, tenantStatus } = useBarbershop();
   const [products, setProducts] = useState<{ id: string; name: string; description: string | null; price: number; stock_quantity: number; active: boolean; image_url: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
@@ -1533,6 +1467,11 @@ function ProductsTab() {
   const [editSaving, setEditSaving] = useState(false);
 
   const fetchProducts = useCallback(async () => {
+    if (!barbershopId) {
+      setProducts([]);
+      setLoading(tenantStatus === "loading");
+      return;
+    }
     setLoading(true);
     const { data } = await supabase
       .from("products")
@@ -1567,7 +1506,7 @@ function ProductsTab() {
   };
 
   const handleAdd = async () => {
-    if (!newName.trim() || !newPrice || !user) return;
+    if (!newName.trim() || !newPrice || !user || !barbershopId) return;
     setSaving(true);
     const { data: inserted, error } = await supabase.from("products").insert({
       barbershop_id: barbershopId,
