@@ -47,7 +47,6 @@ import {
   UserCog,
   ReceiptText,
   BarChart3,
-  CreditCard,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -470,12 +469,6 @@ export function AdminDashboard() {
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
                               <BarChart3 className="w-3 h-3 mr-1" />
                               Relatórios
-                            </Button>
-                          </Link>
-                          <Link to="/assinatura" search={{ barbershop: shop.id }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <CreditCard className="w-3 h-3 mr-1" />
-                              Assinatura
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
