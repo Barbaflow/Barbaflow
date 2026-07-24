@@ -862,7 +862,9 @@ export type Database = {
       }
       subscriptions: {
         Row: {
+          barbershop_id: string | null
           cancel_at_period_end: boolean | null
+          canceled_at: string | null
           created_at: string | null
           current_period_end: string | null
           current_period_start: string | null
@@ -873,11 +875,14 @@ export type Database = {
           price_id: string
           product_id: string
           status: string
+          trial_end: string | null
           updated_at: string | null
           user_id: string
         }
         Insert: {
+          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -888,11 +893,14 @@ export type Database = {
           price_id: string
           product_id: string
           status?: string
+          trial_end?: string | null
           updated_at?: string | null
           user_id: string
         }
         Update: {
+          barbershop_id?: string | null
           cancel_at_period_end?: boolean | null
+          canceled_at?: string | null
           created_at?: string | null
           current_period_end?: string | null
           current_period_start?: string | null
@@ -903,8 +911,39 @@ export type Database = {
           price_id?: string
           product_id?: string
           status?: string
+          trial_end?: string | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      billing_webhook_events: {
+        Row: {
+          barbershop_id: string | null
+          environment: string
+          event_id: string
+          event_type: string | null
+          id: string
+          provider: string
+          received_at: string
+        }
+        Insert: {
+          barbershop_id?: string | null
+          environment: string
+          event_id: string
+          event_type?: string | null
+          id?: string
+          provider?: string
+          received_at?: string
+        }
+        Update: {
+          barbershop_id?: string | null
+          environment?: string
+          event_id?: string
+          event_type?: string | null
+          id?: string
+          provider?: string
+          received_at?: string
         }
         Relationships: []
       }
@@ -1259,6 +1298,48 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      get_barbershop_subscription: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          status: string
+          price_id: string
+          environment: string
+          current_period_start: string | null
+          current_period_end: string | null
+          cancel_at_period_end: boolean | null
+          canceled_at: string | null
+          trial_end: string | null
+          updated_at: string | null
+        }[]
+      }
+      record_billing_event: {
+        Args: {
+          _provider: string
+          _event_id: string
+          _event_type: string
+          _environment: string
+        }
+        Returns: boolean
+      }
+      apply_subscription_from_webhook: {
+        Args: {
+          _user_id: string
+          _barbershop_id: string | null
+          _paddle_subscription_id: string
+          _paddle_customer_id: string
+          _product_id: string
+          _price_id: string
+          _status: string
+          _plan_name: string
+          _current_period_start: string | null
+          _current_period_end: string | null
+          _cancel_at_period_end: boolean
+          _canceled_at: string | null
+          _trial_end: string | null
+          _environment: string
+        }
+        Returns: undefined
+      }
       report_barber_scope: {
         Args: { _barbershop_id: string; _barber_id?: string | null }
         Returns: string
