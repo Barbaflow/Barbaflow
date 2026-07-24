@@ -21,7 +21,9 @@ import {
 import {
   authorizeWrite,
   checkInsertPlanLimit,
+  computeTicketItemFields,
   filterReadableRows,
+  recalcTicketTotals,
   type MockOperation,
   validateAppointment,
   validateBarberOwnedRow,
@@ -231,6 +233,19 @@ function newId(): string {
  * como faz o trigger `increment_appointment_counter` no banco real. É esse
  * contador em cache que `check_appointment_limit` consulta.
  */
+/**
+ * Recalcula subtotal/total das comandas afetadas por uma escrita de itens —
+ * espelha o trigger `ticket_recalc` do banco (a fonte de verdade dos valores).
+ */
+function recalcAffectedTickets(rows: readonly MockRow[]): void {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    const id = typeof row.ticket_id === "string" ? row.ticket_id : null;
+    if (id) ids.add(id);
+  }
+  for (const id of ids) recalcTicketTotals(id);
+}
+
 function incrementAppointmentCounters(created: readonly MockRow[]): void {
   const perShop = new Map<string, number>();
   for (const row of created) {
@@ -525,6 +540,11 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           if (problem) {
             return fail<MockRow[]>([], ruleError(problem), 409);
           }
+          // Item de comanda: preço vem do catálogo (snapshot) e total = preço×qtd,
+          // como os triggers do banco — o front não decide preço nem total.
+          if (this.table === "ticket_items") {
+            Object.assign(candidate, computeTicketItemFields(candidate));
+          }
           accepted.push(candidate);
         }
 
@@ -538,6 +558,10 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         // Nova avaliação recalcula a média/contagem da barbearia (trigger real).
         if (this.table === "reviews") {
           recomputeReviewAggregates(created);
+        }
+        // Itens alteram o subtotal/total da comanda (trigger `ticket_recalc`).
+        if (this.table === "ticket_items") {
+          recalcAffectedTickets(created);
         }
         affected = created;
         break;
@@ -592,6 +616,15 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           }
         }
 
+        // Item de comanda: o total é sempre preço(snapshot)×quantidade, nunca o
+        // valor enviado pelo front (trigger `enforce_ticket_item` do banco).
+        if (this.table === "ticket_items") {
+          for (const updated of pending) {
+            const original = all.find((row) => row.id === updated.id);
+            Object.assign(updated, computeTicketItemFields(updated, original));
+          }
+        }
+
         setTableRows(this.table, next);
 
         // Efeitos colaterais espelhando os triggers do banco.
@@ -607,6 +640,14 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
             if (original) notifyOnReviewReply(original, updated);
           }
           recomputeReviewAggregates(pending);
+        }
+        // Mudar item recalcula a comanda; mudar a comanda (desconto) deriva o
+        // total do subtotal − desconto — ambos via `recalcTicketTotals`.
+        if (this.table === "ticket_items") {
+          recalcAffectedTickets(pending);
+        }
+        if (this.table === "tickets") {
+          for (const updated of pending) recalcTicketTotals(String(updated.id));
         }
 
         affected = pending;
@@ -633,6 +674,10 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
         // Excluir avaliação recalcula a média da barbearia afetada.
         if (this.table === "reviews") {
           recomputeReviewAggregates(affected);
+        }
+        // Remover item recalcula subtotal/total da comanda.
+        if (this.table === "ticket_items") {
+          recalcAffectedTickets(affected);
         }
         break;
       }
