@@ -30,7 +30,6 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as ComandasRouteImport } from './routes/comandas'
 import { Route as ClientesRouteImport } from './routes/clientes'
 import { Route as BarbeariasRouteImport } from './routes/barbearias'
-import { Route as AssinaturaRouteImport } from './routes/assinatura'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AgendarIndexRouteImport } from './routes/agendar.index'
@@ -144,11 +143,6 @@ const BarbeariasRoute = BarbeariasRouteImport.update({
   path: '/barbearias',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AssinaturaRoute = AssinaturaRouteImport.update({
-  id: '/assinatura',
-  path: '/assinatura',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AgendaRoute = AgendaRouteImport.update({
   id: '/agenda',
   path: '/agenda',
@@ -190,7 +184,6 @@ const AdminChurnRoute = AdminChurnRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/assinatura': typeof AssinaturaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
   '/comandas': typeof ComandasRoute
@@ -221,7 +214,6 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/assinatura': typeof AssinaturaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
   '/comandas': typeof ComandasRoute
@@ -253,7 +245,6 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/agenda': typeof AgendaRoute
-  '/assinatura': typeof AssinaturaRoute
   '/barbearias': typeof BarbeariasRoute
   '/clientes': typeof ClientesRoute
   '/comandas': typeof ComandasRoute
@@ -286,7 +277,6 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/agenda'
-    | '/assinatura'
     | '/barbearias'
     | '/clientes'
     | '/comandas'
@@ -317,7 +307,6 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/agenda'
-    | '/assinatura'
     | '/barbearias'
     | '/clientes'
     | '/comandas'
@@ -348,7 +337,6 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/agenda'
-    | '/assinatura'
     | '/barbearias'
     | '/clientes'
     | '/comandas'
@@ -380,7 +368,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AgendaRoute: typeof AgendaRoute
-  AssinaturaRoute: typeof AssinaturaRoute
   BarbeariasRoute: typeof BarbeariasRoute
   ClientesRoute: typeof ClientesRoute
   ComandasRoute: typeof ComandasRoute
@@ -558,13 +545,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BarbeariasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/assinatura': {
-      id: '/assinatura'
-      path: '/assinatura'
-      fullPath: '/assinatura'
-      preLoaderRoute: typeof AssinaturaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/agenda': {
       id: '/agenda'
       path: '/agenda'
@@ -620,7 +600,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AgendaRoute: AgendaRoute,
-  AssinaturaRoute: AssinaturaRoute,
   BarbeariasRoute: BarbeariasRoute,
   ClientesRoute: ClientesRoute,
   ComandasRoute: ComandasRoute,

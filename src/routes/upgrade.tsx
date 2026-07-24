@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { usePlan } from "@/hooks/use-plan";
-import { useTenantScope } from "@/hooks/use-tenant-scope";
-import { toast } from "sonner";
+import { useBarbershop } from "@/hooks/use-barbershop";
 import { usePaddleCheckout } from "@/hooks/use-paddle-checkout";
 import { PaymentTestModeBanner } from "@/components/PaymentTestModeBanner";
 import { Button } from "@/components/ui/button";
@@ -94,9 +93,7 @@ const PLAN_CONFIG: Record<string, {
 function UpgradePage() {
   const { user } = useAuth();
   const { planName } = usePlan();
-  // Só o administrador da barbearia contrata plano — e sobre o tenant RESOLVIDO
-  // (nunca o barbershopId legado, que cairia no DEFAULT_BARBERSHOP_ID).
-  const scope = useTenantScope({ allow: ["admin_barbearia"] });
+  const { barbershopId } = useBarbershop();
   const { openCheckout, loading: checkoutLoading } = usePaddleCheckout();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -116,19 +113,12 @@ function UpgradePage() {
     const config = PLAN_CONFIG[plan.name];
     if (!config?.priceId || !user) return;
 
-    // Autorização no cliente: só admin com tenant resolvido inicia o checkout.
-    // (A validação real de posse acontece no webhook — apply_subscription_from_webhook.)
-    if (!scope.isAdmin || !scope.tenantId) {
-      toast.error("Apenas o administrador da barbearia pode contratar um plano.");
-      return;
-    }
-
     openCheckout({
       priceId: config.priceId,
       customerEmail: user.email ?? undefined,
       customData: {
         userId: user.id,
-        barbershopId: scope.tenantId,
+        barbershopId: barbershopId,
       },
       successUrl: `${window.location.origin}/dashboard?checkout=success`,
     });
