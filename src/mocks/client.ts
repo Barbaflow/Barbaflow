@@ -785,6 +785,44 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
     return ticketId;
   },
 
+  /* ── Dashboard operacional (espelha get_dashboard_summary) ──────────────── */
+
+  get_dashboard_summary: (args) => {
+    const bs = String(args._barbershop_id ?? "");
+    // Reusa a autorização dos relatórios: barbeiro → próprio escopo; admin/super
+    // → toda a barbearia; cliente/anon → erro (o guard de tenant também barra).
+    const scope = reportBarberScope(bs, args._barber_id);
+    const tz = String(
+      getTableRows("barbershops").find((b) => b.id === bs)?.timezone ?? "America/Sao_Paulo",
+    );
+    const today = new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+
+    const appts = getTableRows("appointments").filter(
+      (a) =>
+        a.barbershop_id === bs && a.date === today && (scope === null || a.barber_id === scope),
+    );
+    const openTickets = getTableRows("tickets").filter(
+      (t) => t.barbershop_id === bs && t.status === "aberta" && (scope === null || t.barber_id === scope),
+    );
+    const countStatus = (s: string) => appts.filter((a) => a.status === s).length;
+
+    return [
+      {
+        appointments_today: appts.length,
+        scheduled_today: countStatus("scheduled"),
+        completed_today: countStatus("completed"),
+        cancelled_today: countStatus("cancelled"),
+        no_show_today: countStatus("no_show"),
+        open_tickets: openTickets.length,
+      },
+    ];
+  },
+
   /* ── Relatórios de vendas (espelham as RPCs report_* do banco) ──────────── */
 
   report_sales_summary: (args) => {
@@ -919,6 +957,8 @@ const TENANT_GUARDED_RPCS = new Set([
   // consultar o estado do limite daquele tenant.
   "check_barber_limit",
   "check_appointment_limit",
+  // Dashboard operacional: contagens do dia só para a equipe (ou super_admin).
+  "get_dashboard_summary",
   // Relatórios: agregados só para a equipe daquela barbearia (ou super_admin).
   // O recorte por profissional (barbeiro vê só o próprio) é feito no handler.
   "report_sales_summary",
