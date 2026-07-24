@@ -1259,6 +1259,17 @@ export type Database = {
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      get_dashboard_summary: {
+        Args: { _barbershop_id: string; _barber_id?: string | null }
+        Returns: {
+          appointments_today: number
+          scheduled_today: number
+          completed_today: number
+          cancelled_today: number
+          no_show_today: number
+          open_tickets: number
+        }[]
+      }
       report_barber_scope: {
         Args: { _barbershop_id: string; _barber_id?: string | null }
         Returns: string
