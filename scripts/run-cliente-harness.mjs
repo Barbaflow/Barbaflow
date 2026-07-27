@@ -25,6 +25,7 @@
  *   * concorrência não duplica nem perde o agendamento original.
  */
 import { spawn } from "node:child_process";
+import { pularPorFaltaDeBanco } from "./harness-db-skip.mjs";
 
 const CONTAINER = "supabase_db_barbaflow";
 
@@ -557,11 +558,7 @@ SELECT count(*) FROM public.appointments
 async function main() {
   const ping = await psql("SELECT 1;");
   if (ping.code !== 0) {
-    console.log(
-      `\nPULADO — Postgres local indisponível (container "${CONTAINER}").\n` +
-        `Suba o stack com "npx supabase start" e rode de novo.`,
-    );
-    process.exit(0);
+    pularPorFaltaDeBanco(CONTAINER, ping.out.trim().slice(0, 300));
   }
 
   group("pré-condição");

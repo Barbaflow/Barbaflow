@@ -13,6 +13,7 @@
  * banco (FOR UPDATE em close_ticket), não do React.
  */
 import { spawn } from "node:child_process";
+import { pularPorFaltaDeBanco } from "./harness-db-skip.mjs";
 
 const CONTAINER = "supabase_db_barbaflow";
 
@@ -288,8 +289,7 @@ async function testCorridaUltimaUnidade() {
 async function main() {
   const ping = await psql("SELECT 1;");
   if (ping.code !== 0) {
-    console.log(`\nPULADO — Postgres local indisponível (container "${CONTAINER}").\nSuba com "npx supabase start" e rode de novo.\n${ping.out.trim().slice(0, 300)}`);
-    process.exit(0);
+    pularPorFaltaDeBanco(CONTAINER, ping.out.trim().slice(0, 300));
   }
   group("pré-condição");
   const temRpc = await psql(`SELECT proname FROM pg_proc WHERE proname IN ('open_ticket','close_ticket');`);
