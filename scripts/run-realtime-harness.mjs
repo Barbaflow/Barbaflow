@@ -56,9 +56,20 @@ function testFonteDoUsePlan() {
     check(`distingue "${estado}"`, src.includes(`| "${estado}"`) || src.includes(`"${estado}"`));
   }
   check("expõe refreshPlan", src.includes("refreshPlan"));
+  // Toda consulta com `error` precisa sair por `fail(...)` — nunca seguir
+  // adiante e virar um plano "carregado". A mensagem passada a `fail` é
+  // deliberadamente genérica: o detalhe técnico vai para o console via
+  // logTechnicalError. Ver src/lib/error-reporting.ts.
+  const ramosDeErro = src.match(/if \(error\) \{[\s\S]{0,240}?\n\s*\}/g) ?? [];
   check(
     "erro de consulta não vira plano carregado",
-    src.includes('status: "error"') && src.includes("fail(error.message)"),
+    src.includes('status: "error"') &&
+      ramosDeErro.length > 0 &&
+      ramosDeErro.every((ramo) => /return fail\(/.test(ramo)),
+  );
+  check(
+    "mensagem técnica do erro não é exibida ao usuário",
+    !src.includes("fail(error.message)"),
   );
 
   group("modo mock não abre Realtime");

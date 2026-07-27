@@ -21,6 +21,7 @@
  * uma transação, que é a única forma de o RLS de fato ser aplicado.
  */
 import { spawn } from "node:child_process";
+import { pularPorFaltaDeBanco } from "./harness-db-skip.mjs";
 
 const CONTAINER = "supabase_db_barbaflow";
 
@@ -433,11 +434,7 @@ async function testRegras() {
 async function main() {
   const ping = await psql("SELECT 1;");
   if (ping.code !== 0) {
-    console.log(
-      `\nPULADO — Postgres local indisponível (container "${CONTAINER}").\n` +
-        `Suba o stack com "npx supabase start" e rode de novo.\n${ping.out.trim().slice(0, 300)}`,
-    );
-    process.exit(0);
+    pularPorFaltaDeBanco(CONTAINER, ping.out.trim().slice(0, 300));
   }
 
   const temConstraint = await psql(
