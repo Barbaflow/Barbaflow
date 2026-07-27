@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useBarbershop } from "./use-barbershop";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 /**
  * Situação da resolução do plano. Existe porque `loading: false` sozinho não
@@ -115,7 +116,10 @@ export function usePlan(barbershopIdOverride?: string | null): PlanInfo {
           .eq("id", tenantId)
           .maybeSingle();
         if (cancelled) return;
-        if (error) return fail(error.message);
+        if (error) {
+          logTechnicalError("use-plan", "carregar barbearia do plano", error);
+          return fail("Não foi possível carregar seu plano.");
+        }
         planId = shop?.plan_id ?? null;
         used = shop?.appointments_this_month ?? 0;
       }
@@ -134,7 +138,10 @@ export function usePlan(barbershopIdOverride?: string | null): PlanInfo {
         .eq("id", planId)
         .maybeSingle();
       if (cancelled) return;
-      if (error) return fail(error.message);
+      if (error) {
+        logTechnicalError("use-plan", "carregar plano", error);
+        return fail("Não foi possível carregar seu plano.");
+      }
 
       if (!data) {
         // `plan_id` aponta para um plano que não existe mais.

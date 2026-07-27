@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Clock, DollarSign } from "lucide-react";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface Service {
   id: string;
@@ -53,7 +54,8 @@ export function ServicesList({ barbershopId, tenantLoading = false }: ServicesLi
       .then(({ data, error }) => {
         if (cancelled) return;
         if (error) {
-          setLoadError(error.message);
+          logTechnicalError("ServicesList", "carregar serviços", error);
+          setLoadError("Não foi possível carregar os serviços. Tente novamente.");
           setServices([]);
         } else {
           setServices(data ?? []);

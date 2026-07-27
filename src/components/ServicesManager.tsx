@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Plus, Trash2, Edit, Wrench, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface Service {
   id: string;
@@ -81,7 +82,8 @@ export function ServicesManager({ barbershopId, canManageAll = false }: Services
       .order("name");
     if (error) {
       // Erro do banco não pode virar "lista vazia": são estados diferentes.
-      setLoadError(error.message);
+      logTechnicalError("ServicesManager", "carregar serviços", error);
+      setLoadError("Não foi possível carregar os serviços. Tente novamente.");
       setServices([]);
     } else {
       setServices(data || []);
@@ -118,7 +120,8 @@ export function ServicesManager({ barbershopId, canManageAll = false }: Services
       .select("id");
     setEditSaving(false);
     if (error) {
-      toast.error("Erro ao atualizar serviço.", { description: error.message });
+      logTechnicalError("ServicesManager", "atualizar serviço", error);
+      toast.error("Não foi possível atualizar o serviço. Tente novamente.");
       return;
     }
     if (!data || data.length === 0) {
@@ -143,7 +146,8 @@ export function ServicesManager({ barbershopId, canManageAll = false }: Services
     });
     setSaving(false);
     if (error) {
-      toast.error("Erro ao adicionar serviço.", { description: error.message });
+      logTechnicalError("ServicesManager", "adicionar serviço", error);
+      toast.error("Não foi possível adicionar o serviço. Tente novamente.");
       return;
     }
     toast.success("Serviço adicionado!");
@@ -161,7 +165,8 @@ export function ServicesManager({ barbershopId, canManageAll = false }: Services
       .eq("barbershop_id", barbershopId)
       .select("id");
     if (error) {
-      toast.error("Erro ao alterar o serviço.", { description: error.message });
+      logTechnicalError("ServicesManager", "alterar status do serviço", error);
+      toast.error("Não foi possível alterar o serviço. Tente novamente.");
       return;
     }
     if (!data || data.length === 0) {
@@ -180,7 +185,8 @@ export function ServicesManager({ barbershopId, canManageAll = false }: Services
       .eq("barbershop_id", barbershopId)
       .select("id");
     if (error) {
-      toast.error("Erro ao excluir serviço.", { description: error.message });
+      logTechnicalError("ServicesManager", "excluir serviço", error);
+      toast.error("Não foi possível excluir o serviço. Tente novamente.");
       return;
     }
     if (!data || data.length === 0) {

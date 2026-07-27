@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Scissors, CheckCircle } from "lucide-react";
 import { Link } from "@tanstack/react-router";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 export const Route = createFileRoute("/reset-password")({
   head: () => ({
@@ -69,7 +71,8 @@ function ResetPasswordPage() {
       if (error) throw error;
       setSuccess(true);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro ao redefinir senha.");
+      logTechnicalError("reset-password", "redefinir senha", err);
+      setError(authErrorMessage(err, "Não foi possível redefinir a senha. Tente novamente."));
     } finally {
       setSubmitting(false);
     }

@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, CalendarOff, Palmtree, PartyPopper, UserX } from "lucide-react";
 import { toast } from "sonner";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface ScheduleBlocksProps {
   /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
@@ -131,7 +132,8 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
       .eq("barbershop_id", barbershopId)
       .eq("id", id);
     if (error) {
-      toast.error("Erro ao remover o bloqueio.", { description: error.message });
+      logTechnicalError("ScheduleBlocks", "remover bloqueio", error);
+      toast.error("Não foi possível remover o bloqueio. Tente novamente.");
       return;
     }
     toast.success("Bloqueio removido.");

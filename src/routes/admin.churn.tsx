@@ -22,6 +22,7 @@ import {
 } from "recharts";
 import { ArrowLeft, TrendingDown, MessageSquare, Users } from "lucide-react";
 import { toast } from "sonner";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 export const Route = createFileRoute("/admin/churn")({
   head: () => ({
@@ -107,7 +108,8 @@ function ChurnReportPage() {
       .limit(1000)
       .then(({ data, error }) => {
         if (error) {
-          toast.error("Erro ao carregar feedback", { description: error.message });
+          logTechnicalError("admin.churn", "carregar feedbacks", error);
+          toast.error("Não foi possível carregar os feedbacks. Tente novamente.");
           setRows([]);
         } else {
           setRows((data ?? []) as FeedbackRow[]);

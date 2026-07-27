@@ -27,6 +27,8 @@ import {
   isAddressComplete,
   type AddressValue,
 } from "@/components/AddressFields";
+import { logTechnicalError } from "@/lib/error-reporting";
+import { isSupabaseAuthError } from "@/lib/auth-errors";
 
 const STEPS = ["Barbearia", "Endereço", "Branding", "Revisão"] as const;
 
@@ -166,9 +168,10 @@ export function OnboardingWizard() {
       });
 
       if (roleError) {
+        logTechnicalError("OnboardingWizard", "criar vínculo de administrador", roleError);
         throw new Error(
-          `A barbearia foi criada, mas o vínculo de administrador falhou: ${roleError.message}. ` +
-            "Abra o painel para concluir a configuração.",
+          "A barbearia foi criada, mas o vínculo de administrador não foi concluído. " +
+            "Abra o painel para finalizar a configuração.",
         );
       }
 
@@ -180,7 +183,14 @@ export function OnboardingWizard() {
       toast.success("Barbearia criada com sucesso!");
       navigate({ to: "/dashboard", search: { checkout: undefined } });
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erro inesperado.");
+      logTechnicalError("OnboardingWizard", "criar barbearia", err);
+      // Mensagens lançadas pelo próprio wizard são para o usuário; erros do
+      // Supabase caem no texto contextual.
+      toast.error(
+        isSupabaseAuthError(err) || !(err instanceof Error)
+          ? "Não foi possível criar a barbearia. Tente novamente."
+          : err.message,
+      );
     } finally {
       // Libera a guarda para que uma falha possa ser corrigida e reenviada.
       submittingRef.current = false;

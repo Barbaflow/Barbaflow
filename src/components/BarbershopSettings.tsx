@@ -22,6 +22,7 @@ import {
 } from "@/components/AddressFields";
 import { MapPin } from "lucide-react";
 import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface BarbershopData {
   id: string;
@@ -337,7 +338,8 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .maybeSingle()
       .then(({ data: shop, error }) => {
         if (error) {
-          setLoadError(error.message);
+          logTechnicalError("BarbershopSettings", "carregar barbearia", error);
+          setLoadError("Não foi possível carregar os dados da barbearia. Tente novamente.");
           return;
         }
         if (!shop) {
@@ -415,7 +417,10 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .update(patch)
       .eq("id", barbershopId)
       .select("id");
-    if (error) return error.message;
+    if (error) {
+      logTechnicalError("BarbershopSettings", "salvar alterações da barbearia", error);
+      return "Não foi possível salvar as alterações. Tente novamente.";
+    }
     if (!rows || rows.length === 0) {
       return "O banco recusou a alteração: você não tem permissão para editar esta barbearia.";
     }
@@ -541,9 +546,10 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
       .upload(path, file, { upsert: true });
 
     if (error) {
-      // A mensagem do storage é útil (cota, mime, policy do bucket) — não a
-      // trocamos por um "erro" genérico.
-      toast.error("Erro ao fazer upload do logo.", { description: error.message });
+      // A mensagem do storage é útil para diagnóstico (cota, mime, policy do
+      // bucket) — vai para o console, não para a tela.
+      logTechnicalError("BarbershopSettings", "upload do logo", error);
+      toast.error("Não foi possível enviar o logo. Tente novamente.");
       setUploading(false);
       return;
     }

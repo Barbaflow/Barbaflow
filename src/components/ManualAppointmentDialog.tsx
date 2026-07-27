@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { displayBRPhone, maskBRPhone, toStorageBRPhone, isValidBRPhone } from "@/lib/phone";
 import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
 import { isRetroactiveSlot } from "@/lib/tz";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 // Local YYYY-MM-DD (avoids timezone shift from toISOString)
 const dateToISO = (d: Date) =>
@@ -532,7 +533,8 @@ export function ManualAppointmentDialog({
       .update({ status: "cancelled" })
       .eq("id", editAppointment.id);
     if (error) {
-      toast.error(error.message || "Erro ao cancelar agendamento.");
+      logTechnicalError("ManualAppointmentDialog", "cancelar agendamento", error);
+      toast.error("Não foi possível cancelar o agendamento. Tente novamente.");
     } else {
       toast.success("Agendamento cancelado. O cliente será notificado.");
       onCreated();

@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { CloseComandaDialog } from "@/components/CloseComandaDialog";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface Props {
   ticketId: string | null;
@@ -135,7 +136,8 @@ export function ComandaDetailDialog({ ticketId, barbershopId, canManage, onOpenC
       .eq("id", ticketId)
       .maybeSingle();
     if (error) {
-      setLoadError(error.message);
+      logTechnicalError("ComandaDetailDialog", "carregar comanda", error);
+      setLoadError("Não foi possível carregar a comanda. Tente novamente.");
       setLoading(false);
       return;
     }
