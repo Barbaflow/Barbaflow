@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { NewComandaDialog } from "@/components/NewComandaDialog";
 import { ComandaDetailDialog } from "@/components/ComandaDetailDialog";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface Props {
   barbershopId: string;
@@ -73,7 +74,8 @@ export function ComandasManager({ barbershopId, canManage, initialTicketId }: Pr
       .order("created_at", { ascending: filter === "aberta" });
 
     if (error) {
-      setLoadError(error.message);
+      logTechnicalError("ComandasManager", "carregar comandas", error);
+      setLoadError("Não foi possível carregar as comandas. Tente novamente.");
       setTickets([]);
       setLoading(false);
       return;

@@ -7,6 +7,8 @@ import { lovable } from "@/integrations/lovable/index";
 import { supabase } from "@/integrations/supabase/client";
 import { Scissors } from "lucide-react";
 import { maskBRPhone, isValidBRPhone, toStorageBRPhone } from "@/lib/phone";
+import { authErrorMessage } from "@/lib/auth-errors";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface AuthFormProps {
   /** Path to redirect to after a successful login or after the email confirmation flow. */
@@ -52,7 +54,8 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
         setSuccess("Verifique seu email para confirmar o cadastro. Após confirmar, você poderá fazer login.");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Erro inesperado");
+      logTechnicalError("AuthForm", `autenticação (${mode})`, err);
+      setError(authErrorMessage(err, "Não foi possível concluir. Tente novamente."));
     } finally {
       setSubmitting(false);
     }

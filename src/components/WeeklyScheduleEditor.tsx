@@ -25,6 +25,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface WeeklyScheduleEditorProps {
   /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
@@ -124,7 +125,8 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
       .eq("id", id);
 
     if (error) {
-      toast.error("Erro ao atualizar o horário.", { description: error.message });
+      logTechnicalError("WeeklyScheduleEditor", "atualizar horário", error);
+      toast.error("Não foi possível atualizar o horário. Tente novamente.");
       return;
     }
     setSchedule((prev) => prev.map((s) => (s.id === id ? { ...s, is_active: active } : s)));
@@ -138,7 +140,8 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
       .eq("id", id);
 
     if (error) {
-      toast.error("Erro ao remover o horário.", { description: error.message });
+      logTechnicalError("WeeklyScheduleEditor", "remover horário", error);
+      toast.error("Não foi possível remover o horário. Tente novamente.");
       return;
     }
     toast.success("Horário removido.");
@@ -194,7 +197,8 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     });
 
     if (error) {
-      toast.error("Erro ao gerar horários.", { description: error.message });
+      logTechnicalError("WeeklyScheduleEditor", "gerar grade de horários", error);
+      toast.error("Não foi possível gerar os horários. Tente novamente.");
     } else {
       toast.success(`${data} horários gerados para os próximos 14 dias!`);
     }

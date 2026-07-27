@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
 import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 type Invitation = Tables<"team_invitations">;
 
@@ -90,7 +91,8 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       role: "barbeiro" as const,
     });
     if (error) {
-      toast.error("Erro ao se adicionar como barbeiro.", { description: error.message });
+      logTechnicalError("TeamManager", "auto-adicionar como barbeiro", error);
+      toast.error("Não foi possível adicionar você como profissional. Tente novamente.");
     } else {
       toast.success("Você foi adicionado como barbeiro!");
       fetchTeam();
@@ -119,7 +121,8 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
     if (rolesError) {
       // Erro do banco não pode virar "equipe vazia": são estados diferentes.
-      setLoadError(rolesError.message);
+      logTechnicalError("TeamManager", "carregar equipe", rolesError);
+      setLoadError("Não foi possível carregar a equipe. Tente novamente.");
       setMembers([]);
       setInvitations([]);
       setLoading(false);
@@ -202,9 +205,10 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       if (error.code === "23505") {
         toast.error("Já existe um convite pendente para este email.");
       } else {
-        // O limite de profissionais é enforçado no banco (trigger). Mostrar a
-        // mensagem real diferencia "limite do plano" de "erro genérico".
-        toast.error("Erro ao enviar convite.", { description: error.message });
+        // O limite de profissionais é enforçado no banco (trigger). A causa
+        // exata fica no console; a tela mostra o texto da operação.
+        logTechnicalError("TeamManager", "enviar convite", error);
+        toast.error("Não foi possível enviar o convite. Tente novamente.");
       }
     } else {
       toast.success(`Convite enviado para ${inviteEmail.trim()}`);
@@ -225,7 +229,8 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
       .eq("id", id);
 
     if (error) {
-      toast.error("Erro ao cancelar convite.", { description: error.message });
+      logTechnicalError("TeamManager", "cancelar convite", error);
+      toast.error("Não foi possível cancelar o convite. Tente novamente.");
     } else {
       toast.success("Convite cancelado.");
       fetchTeam();
@@ -241,8 +246,9 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
     if (error) {
       // O banco protege o ÚLTIMO admin_barbearia (constraint trigger diferido);
-      // mostrar a mensagem real evita transformar essa regra em "erro genérico".
-      toast.error("Erro ao remover membro.", { description: error.message });
+      // a mensagem do trigger fica no console para o diagnóstico.
+      logTechnicalError("TeamManager", "remover membro", error);
+      toast.error("Não foi possível remover o profissional. Tente novamente.");
     } else {
       toast.success(`${memberName || "Membro"} removido da equipe.`);
       fetchTeam();

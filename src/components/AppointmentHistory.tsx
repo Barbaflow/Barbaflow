@@ -23,6 +23,7 @@ import { RescheduleDialog, type RescheduleTarget } from "./RescheduleDialog";
 import { fetchBarberDisplayNames } from "@/lib/barber-names";
 import { displayBRPhone } from "@/lib/phone";
 import { Link } from "@tanstack/react-router";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface Appointment {
   id: string;
@@ -146,7 +147,8 @@ export function AppointmentHistory({ barbershopId }: AppointmentHistoryProps) {
 
     if (err) {
       // Falha de consulta não pode virar lista vazia: são estados diferentes.
-      setError(err.message || "Erro ao carregar agendamentos.");
+      logTechnicalError("AppointmentHistory", "carregar agendamentos", err);
+      setError("Não foi possível carregar seus agendamentos. Tente novamente.");
       setAppointments([]);
     } else {
       const rawAppointments = (data || []) as unknown as Omit<Appointment, "barber_profile">[];
