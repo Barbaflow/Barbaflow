@@ -306,8 +306,11 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border px-4 py-4 md:px-8">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        {/* Em ~390px os 8 botões de ação (só ícones) somavam mais que a viewport
+            e empurravam o "sair" para fora da tela. `flex-wrap` deixa a barra
+            descer para uma segunda linha em vez de estourar a página. */}
+        <div className="max-w-6xl mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2">
+          <div className="flex items-center gap-3 min-w-0">
             {barbershop?.logo_url ? (
               <img src={barbershop.logo_url} alt={name} className="h-9 w-9 rounded-full object-cover" />
             ) : (
@@ -322,7 +325,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap md:flex-nowrap items-center justify-end gap-1 sm:gap-2 ml-auto">
             {barbershop?.subdomain && barbershop.subdomain !== "_system" && (
               <>
                 <a

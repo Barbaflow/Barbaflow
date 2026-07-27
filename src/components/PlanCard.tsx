@@ -9,6 +9,7 @@ import { Crown, Zap, ArrowUpRight, Settings, Loader2 } from "lucide-react";
 import { usePlan } from "@/hooks/use-plan";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 const PLAN_LABELS: Record<string, string> = {
   free: "Free",
@@ -120,39 +121,45 @@ export function PlanCard() {
             />
             {isAtLimit ? (
               <p className="text-xs text-destructive mb-2">
-                Limite atingido! Faça upgrade para continuar agendando.
+                {BILLING_UI_ENABLED
+                  ? "Limite atingido! Faça upgrade para continuar agendando."
+                  : "Limite de agendamentos do plano Free atingido."}
               </p>
             ) : isWarning ? (
               <p className="text-xs text-yellow-500 mb-2">
                 Você está chegando ao limite do plano Free.
               </p>
             ) : null}
-            <Link to="/upgrade">
-              <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
-                Upgrade Pro — R$ 99/mês
-              </Button>
-            </Link>
+            {BILLING_UI_ENABLED && (
+              <Link to="/upgrade">
+                <Button size="sm" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                  <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
+                  Upgrade Pro — R$ 99/mês
+                </Button>
+              </Link>
+            )}
           </>
         ) : (
           <>
           <p className="text-sm text-muted-foreground mb-3">
             Agendamentos ilimitados ✨
           </p>
-          <Button
-            size="sm"
-            variant="outline"
-            className="w-full"
-            onClick={handleManageSubscription}
-            disabled={portalLoading}
-          >
-            {portalLoading ? (
-              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
-            ) : (
-              <Settings className="w-3.5 h-3.5 mr-1" />
-            )}
-            Gerenciar assinatura
-          </Button>
+          {BILLING_UI_ENABLED && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="w-full"
+              onClick={handleManageSubscription}
+              disabled={portalLoading}
+            >
+              {portalLoading ? (
+                <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+              ) : (
+                <Settings className="w-3.5 h-3.5 mr-1" />
+              )}
+              Gerenciar assinatura
+            </Button>
+          )}
           </>
         )}
       </CardContent>

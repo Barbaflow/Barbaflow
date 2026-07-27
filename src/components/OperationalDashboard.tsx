@@ -27,6 +27,7 @@ import { fmtBRL } from "@/lib/comandas";
 import { fetchProfileSummaries, type ProfileSummaryMap } from "@/lib/profile-summaries";
 import { resolvePeriod, previousPeriod } from "@/lib/report-period";
 import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
+import { loadOpenComandas, sectionErrorMessage, type OpenComandaRow } from "@/lib/dashboard-sections";
 
 /** Estoque considerado "baixo" — o schema não tem limiar por produto. */
 const LOW_STOCK_THRESHOLD = 5;
@@ -62,13 +63,7 @@ interface UpcomingAppt {
   barber_id: string;
   serviceName: string;
 }
-interface OpenComanda {
-  id: string;
-  client_id: string | null;
-  barber_id: string;
-  total: number;
-  created_at: string;
-}
+type OpenComanda = OpenComandaRow;
 interface LowStock {
   id: string;
   name: string;
@@ -85,7 +80,9 @@ export function OperationalDashboard({ barbershopId, isAdmin, userId, timezone, 
   const [resumo, setResumo] = useSection<{ day: DaySummary; fat: Faturamento }>();
   const [proximos, setProximos] = useState<SectionState<UpcomingAppt[]>>({ status: "loading", data: null });
   const [comandas, setComandas] = useState<SectionState<OpenComanda[]>>({ status: "loading", data: null });
-  const [comandasCount, setComandasCount] = useState(0);
+  // `null` = contagem indisponível (nunca carregou ou a consulta falhou). Não é
+  // o mesmo que zero, e o badge trata os dois casos de forma diferente.
+  const [comandasCount, setComandasCount] = useState<number | null>(null);
   const [estoque, setEstoque] = useState<SectionState<LowStock[]>>({ status: "loading", data: null });
   const [names, setNames] = useState<ProfileSummaryMap>({});
 
@@ -170,31 +167,42 @@ export function OperationalDashboard({ barbershopId, isAdmin, userId, timezone, 
   /* ── Comandas abertas (valores persistidos) ── */
   const loadComandas = useCallback(async () => {
     setComandas({ status: "loading", data: null });
-    let head = supabase
-      .from("tickets")
-      .select("id", { count: "exact", head: true })
-      .eq("barbershop_id", barbershopId)
-      .eq("status", "aberta");
-    if (!isAdmin) head = head.eq("barber_id", userId);
-    const { count } = await head;
-    setComandasCount(count ?? 0);
 
-    let q = supabase
-      .from("tickets")
-      .select("id, client_id, barber_id, total, created_at")
-      .eq("barbershop_id", barbershopId)
-      .eq("status", "aberta")
-      .order("created_at", { ascending: false })
-      .limit(5);
-    if (!isAdmin) q = q.eq("barber_id", userId);
-    const { data, error } = await q;
-    if (error) {
+    const result = await loadOpenComandas({
+      // Contagem continua por `head: true` — nenhuma linha trafega só para contar.
+      count: () => {
+        let q = supabase
+          .from("tickets")
+          .select("id", { count: "exact", head: true })
+          .eq("barbershop_id", barbershopId)
+          .eq("status", "aberta");
+        if (!isAdmin) q = q.eq("barber_id", userId);
+        return q;
+      },
+      list: () => {
+        let q = supabase
+          .from("tickets")
+          .select("id, client_id, barber_id, total, created_at")
+          .eq("barbershop_id", barbershopId)
+          .eq("status", "aberta")
+          .order("created_at", { ascending: false })
+          .limit(5);
+        if (!isAdmin) q = q.eq("barber_id", userId);
+        return q;
+      },
+    });
+
+    if (result.status === "error") {
+      // Sem número confiável: zeramos para `null` para que o badge não exiba um
+      // total inventado nem um valor obsoleto da carga anterior.
+      setComandasCount(null);
       setComandas({ status: "error", data: null });
       return;
     }
-    const rows = (data ?? []) as OpenComanda[];
-    setComandas({ status: "ready", data: rows });
-    collectNames(rows.flatMap((r) => [r.client_id, r.barber_id]));
+
+    setComandasCount(result.count);
+    setComandas({ status: "ready", data: result.rows });
+    collectNames(result.rows.flatMap((r) => [r.client_id, r.barber_id]));
   }, [barbershopId, isAdmin, userId]);
 
   /* ── Estoque baixo (produtos ativos, esgotados primeiro) ── */
@@ -350,7 +358,7 @@ function ProximosSection({
         {state.status === "loading" ? (
           <Skeleton className="h-24 rounded-lg" />
         ) : state.status === "error" ? (
-          <SectionError title="" onRetry={onRetry} inline />
+          <SectionError onRetry={onRetry} inline />
         ) : !state.data || state.data.length === 0 ? (
           <EmptyInline message="Nenhum atendimento restante hoje." />
         ) : (
@@ -390,7 +398,8 @@ function ComandasSection({
   onRetry,
 }: {
   state: SectionState<OpenComanda[]>;
-  count: number;
+  /** `null` quando a contagem não pôde ser obtida — não renderiza badge algum. */
+  count: number | null;
   nameOf: (id: string | null) => string;
   onRetry: () => void;
 }) {
@@ -399,7 +408,7 @@ function ComandasSection({
       <CardHeader className="pb-2">
         <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
           <ReceiptText className="w-4 h-4 text-primary" /> Comandas abertas
-          {count > 0 && (
+          {count !== null && count > 0 && (
             <span className="ml-auto text-xs bg-primary/15 text-primary rounded-full px-2 py-0.5">{count}</span>
           )}
         </CardTitle>
@@ -408,7 +417,7 @@ function ComandasSection({
         {state.status === "loading" ? (
           <Skeleton className="h-24 rounded-lg" />
         ) : state.status === "error" ? (
-          <SectionError title="" onRetry={onRetry} inline />
+          <SectionError onRetry={onRetry} inline />
         ) : !state.data || state.data.length === 0 ? (
           <EmptyInline message="Nenhuma comanda aberta." />
         ) : (
@@ -463,7 +472,7 @@ function EstoqueSection({
         {state.status === "loading" ? (
           <Skeleton className="h-20 rounded-lg" />
         ) : state.status === "error" ? (
-          <SectionError title="" onRetry={onRetry} inline />
+          <SectionError onRetry={onRetry} inline />
         ) : !state.data || state.data.length === 0 ? (
           <EmptyInline message="Nenhum produto com estoque baixo." />
         ) : (
@@ -562,11 +571,11 @@ function FatItem({ label, value, accent }: { label: string; value: string; accen
   );
 }
 
-function SectionError({ title, onRetry, inline }: { title: string; onRetry: () => void; inline?: boolean }) {
+function SectionError({ title, onRetry, inline }: { title?: string; onRetry: () => void; inline?: boolean }) {
   const body = (
     <div className={`flex items-center gap-2 ${inline ? "py-3" : "p-4"} text-sm`}>
       <AlertTriangle className="w-4 h-4 text-destructive shrink-0" />
-      <span className="text-muted-foreground">Falha ao carregar {title}.</span>
+      <span className="text-muted-foreground">{sectionErrorMessage(title)}</span>
       <Button variant="ghost" size="sm" onClick={onRetry}>Tentar novamente</Button>
     </div>
   );

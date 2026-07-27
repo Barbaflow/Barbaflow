@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Crown, ArrowUpRight } from "lucide-react";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 interface PlanPaywallModalProps {
   open: boolean;
@@ -31,12 +32,14 @@ export function PlanPaywallModal({ open, onOpenChange }: PlanPaywallModalProps) 
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-4">
-          <Link to="/upgrade" className="block">
-            <Button className="w-full bg-primary text-primary-foreground" size="lg">
-              <ArrowUpRight className="w-4 h-4 mr-2" />
-              Ver planos e fazer upgrade
-            </Button>
-          </Link>
+          {BILLING_UI_ENABLED && (
+            <Link to="/upgrade" className="block">
+              <Button className="w-full bg-primary text-primary-foreground" size="lg">
+                <ArrowUpRight className="w-4 h-4 mr-2" />
+                Ver planos e fazer upgrade
+              </Button>
+            </Link>
+          )}
           <Button
             variant="ghost"
             className="w-full text-muted-foreground"
