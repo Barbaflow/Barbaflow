@@ -5,6 +5,13 @@ import { AdminDashboard } from "@/components/AdminDashboard";
 import { BarberDashboard } from "@/components/BarberDashboard";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  resolveDashboardRole,
+  dashboardRedirect,
+  isDifferentUser,
+  type DashboardRole,
+  type QueryFailure,
+} from "@/lib/dashboard-role";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
@@ -27,10 +34,6 @@ export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
 });
 
-/** Estados sintéticos de papel — não existem em public.app_role. */
-const NEEDS_ONBOARDING = "__needs_onboarding__";
-const ORPHAN_OWNER = "__orphan_owner__";
-
 type OrphanShop = { id: string; name: string; subdomain: string };
 
 function DashboardPage() {
@@ -39,16 +42,31 @@ function DashboardPage() {
   // `barbershopId`, que nunca é null e cai no uuid da barbearia do mock. Aqui
   // ele só serve de dependência do efeito de papel — nenhuma consulta o usa —,
   // mas ler o campo legado convidava a exatamente esse erro.
-  const { resolvedBarbershopId, barbershop, loading: barbershopLoading } = useBarbershop();
+  const { resolvedBarbershopId, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
   const { checkout } = Route.useSearch();
-  const [role, setRole] = useState<string | null>(null);
-  const [roleLoading, setRoleLoading] = useState(true);
+  const [role, setRole] = useState<DashboardRole | null>(null);
+  const [roleStatus, setRoleStatus] = useState<"loading" | "ready" | "error">("loading");
   const [orphanShop, setOrphanShop] = useState<OrphanShop | null>(null);
   const [repairing, setRepairing] = useState(false);
   const toastShown = useRef(false);
-  const clientRedirectDone = useRef(false);
-  const onboardingRedirectDone = useRef(false);
+  const redirectDone = useRef(false);
+  /**
+   * id do usuário cujo papel já foi resolvido COM SUCESSO — evita reexecutar as
+   * consultas a cada novo objeto `user`. Volta a `null` em erro, senão uma falha
+   * transitória deixaria o painel travado sem chance de nova tentativa.
+   */
+  const resolvedForUser = useRef<string | null>(null);
+  /**
+   * Usuário cuja resolução falhou. Segura o efeito para que um erro persistente
+   * não vire uma enxurrada de re-tentativas automáticas — daqui em diante só o
+   * botão "Tentar novamente" reconsulta.
+   */
+  const failedForUser = useRef<string | null>(null);
+  /** Descarta resultado de execução antiga quando outra já assumiu. */
+  const runId = useRef(0);
+  /** Último usuário observado, para limpar o estado ao trocar de conta. */
+  const lastUserId = useRef<string | null>(null);
 
   useEffect(() => {
     if (checkout === "success" && !toastShown.current) {
@@ -66,86 +84,128 @@ function DashboardPage() {
     }
   }, [user, loading, navigate]);
 
+  // Trocou de conta: nada do usuário anterior — papel, barbearia órfã ou estado
+  // de erro — pode sobreviver para o próximo. Declarado ANTES do efeito de
+  // resolução para que a limpeza aconteça primeiro no mesmo ciclo.
+  useEffect(() => {
+    const id = user?.id ?? null;
+    if (isDifferentUser(lastUserId.current, id)) {
+      runId.current += 1; // invalida qualquer consulta em voo do usuário antigo
+      resolvedForUser.current = null;
+      failedForUser.current = null;
+      redirectDone.current = false;
+      setRole(null);
+      setOrphanShop(null);
+      setRoleStatus("loading");
+    }
+    lastUserId.current = id;
+  }, [user]);
+
+  const resolveRoles = useCallback(
+    async (userId: string) => {
+      const myRun = ++runId.current;
+      setRoleStatus("loading");
+
+      const superAdminR = await supabase.rpc("has_role", { _user_id: userId, _role: "super_admin" });
+
+      // Todos os papéis do usuário, em qualquer barbearia: um admin/barbeiro
+      // que abre /dashboard sempre vê o painel, mesmo que o tenant resolvido
+      // seja um em que ele é apenas cliente.
+      const rolesR = await supabase.from("user_roles").select("role").eq("user_id", userId);
+      // `null` (e não `[]`) quando a consulta falhou — a diferença é o ponto
+      // todo: lista vazia é resposta, erro não é.
+      const rolesList = rolesR.error || !rolesR.data ? null : rolesR.data.map((r) => r.role as string);
+
+      // Só quem não tem papel algum precisa deste desempate; a maioria dos
+      // acessos nem dispara a consulta. Procuramos a PRESENÇA de uma barbearia
+      // criada por este usuário: único sinal confiável de vínculo incompleto.
+      const precisaOwner = !superAdminR.error && !superAdminR.data && rolesList !== null && rolesList.length === 0;
+      let ownedRow: OrphanShop | null = null;
+      let ownedOutcome: { value: boolean; error: QueryFailure | null } | undefined;
+
+      if (precisaOwner) {
+        const ownedR = await supabase
+          .from("barbershops")
+          .select("id, name, subdomain")
+          .eq("owner_id", userId)
+          .neq("subdomain", "_system")
+          .limit(1)
+          .maybeSingle();
+        ownedRow = ownedR.data ?? null;
+        ownedOutcome = { value: Boolean(ownedR.data), error: ownedR.error };
+      }
+
+      // Outra execução (retry ou troca de usuário) assumiu no meio do caminho.
+      if (myRun !== runId.current) return;
+
+      const resolution = resolveDashboardRole({
+        superAdmin: { value: Boolean(superAdminR.data), error: superAdminR.error },
+        roles: { value: rolesList, error: rolesR.error },
+        owned: ownedOutcome,
+      });
+
+      if (resolution.status === "expired") {
+        // Token inválido/expirado: limpa a sessão morta e devolve ao login, em
+        // vez de oferecer um "tentar novamente" que falharia de novo.
+        resolvedForUser.current = null;
+        failedForUser.current = null;
+        await supabase.auth.signOut();
+        navigate({ to: "/login", search: { redirect: undefined }, replace: true });
+        return;
+      }
+
+      if (resolution.status === "error") {
+        // Sem decisão: nada de redirecionar e nada de conteúdo administrativo.
+        // `failedForUser` impede re-tentativa automática em laço; a reconsulta
+        // passa a ser exclusivamente pelo botão "Tentar novamente".
+        resolvedForUser.current = null;
+        failedForUser.current = userId;
+        setRole(null);
+        setOrphanShop(null);
+        setRoleStatus("error");
+        return;
+      }
+
+      failedForUser.current = null;
+      resolvedForUser.current = userId;
+      setOrphanShop(ownedRow);
+      setRole(resolution.role);
+      setRoleStatus("ready");
+    },
+    [navigate],
+  );
+
   useEffect(() => {
     if (!user || barbershopLoading) return;
+    // Sem esta trava, qualquer novo objeto `user` vindo do useAuth (ou um toggle
+    // de `barbershopLoading`) refazia as consultas e realimentava o render.
+    // Ela só é gravada em caso de sucesso, então erro sempre permite retry.
+    if (resolvedForUser.current === user.id || failedForUser.current === user.id) return;
+    // Marcado ANTES da chamada: a trava também cobre a consulta em andamento,
+    // senão um novo objeto `user` durante o voo dispararia outra rodada.
+    resolvedForUser.current = user.id;
+    void resolveRoles(user.id);
+  }, [user, resolvedBarbershopId, barbershopLoading, resolveRoles]);
 
-    // Check if super_admin first
-    supabase
-      .rpc("has_role", { _user_id: user.id, _role: "super_admin" })
-      .then(({ data: isSuperAdmin }) => {
-        if (isSuperAdmin) {
-          setRole("super_admin");
-          setRoleLoading(false);
-          return;
-        }
+  const retryRoles = useCallback(() => {
+    if (!user) return;
+    failedForUser.current = null;
+    resolvedForUser.current = user.id;
+    void resolveRoles(user.id);
+  }, [user, resolveRoles]);
 
-        // Check ALL roles for this user across all barbershops.
-        // Priority globally: admin_barbearia > barbeiro > cliente.
-        // This ensures an admin/barber going to /dashboard always sees the management panel,
-        // even if the resolved barbershopId context happens to be one where they're only a client.
-        supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .then(async ({ data }) => {
-            const allRoles = (data || []).map((r) => r.role);
-            if (allRoles.includes("admin_barbearia")) {
-              setRole("admin_barbearia");
-              setRoleLoading(false);
-              return;
-            }
-            if (allRoles.includes("barbeiro")) {
-              setRole("barbeiro");
-              setRoleLoading(false);
-              return;
-            }
-            if (allRoles.length > 0) {
-              setRole(allRoles[0]);
-              setRoleLoading(false);
-              return;
-            }
-
-            // Nenhum papel. Antes isto virava "cliente" e o usuário era
-            // despachado para /meus-agendamentos — sem nunca chegar ao
-            // onboarding. Agora distinguimos os dois casos possíveis:
-            //   * já é dono de uma barbearia → o vínculo de admin faltou
-            //     (barbearia órfã); oferecemos a recuperação, nunca uma
-            //     segunda barbearia;
-            //   * não é dono de nada → primeiro acesso: vai para /onboarding.
-            const { data: owned } = await supabase
-              .from("barbershops")
-              .select("id, name, subdomain")
-              .eq("owner_id", user.id)
-              .neq("subdomain", "_system")
-              .limit(1)
-              .maybeSingle();
-
-            setOrphanShop(owned ?? null);
-            setRole(owned ? ORPHAN_OWNER : NEEDS_ONBOARDING);
-            setRoleLoading(false);
-          });
-      });
-  }, [user, resolvedBarbershopId, barbershopLoading]);
-
-  // Sem papel e sem barbearia: onboarding é o destino, automaticamente.
+  // Quem não tem papel operacional vai para a própria área de cliente. O
+  // onboarding não é destino daqui: criar barbearia é uma ação declarada, feita
+  // pelos CTAs públicos. O único destino possível não volta para /dashboard,
+  // então não há loop; o ref garante um único disparo por montagem.
   useEffect(() => {
-    if (roleLoading || role !== NEEDS_ONBOARDING || onboardingRedirectDone.current) return;
-    onboardingRedirectDone.current = true;
-    navigate({ to: "/onboarding", replace: true });
-  }, [role, roleLoading, navigate]);
-
-  // Cliente: redirect to the barbershop's booking page (or history as fallback)
-  useEffect(() => {
-    if (roleLoading || !role || clientRedirectDone.current) return;
-    if (role === "cliente") {
-      clientRedirectDone.current = true;
-      if (barbershop?.subdomain && barbershop.subdomain !== "_system") {
-        navigate({ to: "/agendar/$slug", params: { slug: barbershop.subdomain }, replace: true });
-      } else {
-        navigate({ to: "/meus-agendamentos", replace: true });
-      }
-    }
-  }, [role, roleLoading, barbershop, navigate]);
+    // `roleStatus !== "ready"` cobre o caso de erro: sem decisão, sem redirect.
+    if (roleStatus !== "ready" || !role || redirectDone.current) return;
+    const to = dashboardRedirect(role);
+    if (!to) return;
+    redirectDone.current = true;
+    navigate({ to, replace: true });
+  }, [role, roleStatus, navigate]);
 
   /** Cria o vínculo de admin que faltou, sem criar outra barbearia. */
   const repairOrphanOwner = useCallback(async () => {
@@ -158,17 +218,39 @@ function DashboardPage() {
     });
     if (error) {
       setRepairing(false);
-      toast.error("Não foi possível concluir a configuração.", { description: error.message });
+      // O detalhe técnico (tabela, política, código SQL) fica no console; o
+      // usuário vê só o que pode fazer a respeito.
+      console.error("[dashboard] falha ao reparar vínculo de proprietário:", error);
+      toast.error("Não foi possível concluir a configuração. Tente novamente.");
       return;
     }
     toast.success("Configuração concluída!");
     window.location.reload();
   }, [user, orphanShop, repairing]);
 
-  if (loading || !user || roleLoading || barbershopLoading) {
+  if (loading || !user || roleStatus === "loading" || barbershopLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // Não deu para determinar o acesso. Nada de painel, nada de redirect e nada
+  // de detalhe interno do banco na mensagem — só o que o usuário pode fazer.
+  if (roleStatus === "error") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <div className="max-w-md w-full text-center space-y-5">
+          <h1 className="font-display text-2xl text-foreground">Não foi possível verificar seu acesso</h1>
+          <p className="text-sm text-muted-foreground">
+            A verificação das suas permissões não pôde ser concluída. Isso costuma ser temporário.
+            Tente novamente em instantes.
+          </p>
+          <Button onClick={retryRoles} className="w-full">
+            Tentar novamente
+          </Button>
+        </div>
       </div>
     );
   }
@@ -187,7 +269,7 @@ function DashboardPage() {
 
   // Dono sem vínculo de admin: barbearia existe, papel não. Nunca criamos uma
   // segunda barbearia — oferecemos concluir o vínculo que faltou.
-  if (role === ORPHAN_OWNER && orphanShop) {
+  if (role === "orphan_owner" && orphanShop) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background px-6">
         <div className="max-w-md w-full text-center space-y-5">
@@ -205,7 +287,7 @@ function DashboardPage() {
     );
   }
 
-  // Cliente e "precisa de onboarding" — tratados pelos efeitos de redirect acima
+  // Cliente — o efeito de redirect acima já o está mandando para a própria área
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
