@@ -8,6 +8,7 @@ import { useCanAccessFeature } from "@/hooks/use-plan";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Crown, ArrowLeft, ShieldAlert } from "lucide-react";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 export const Route = createFileRoute("/relatorios")({
   head: () => ({
@@ -117,12 +118,14 @@ function RelatoriosPage() {
           faturamento, serviços, produtos, profissionais e formas de pagamento.
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link to="/upgrade">
-            <Button variant="gold" size="lg">
-              <Crown className="w-4 h-4" />
-              Fazer upgrade
-            </Button>
-          </Link>
+          {BILLING_UI_ENABLED && (
+            <Link to="/upgrade">
+              <Button variant="gold" size="lg">
+                <Crown className="w-4 h-4" />
+                Fazer upgrade
+              </Button>
+            </Link>
+          )}
           <BackToDashboard ghost />
         </div>
       </CenteredCard>

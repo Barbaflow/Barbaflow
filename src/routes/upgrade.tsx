@@ -16,6 +16,7 @@ import {
   Building2,
   ArrowLeft,
 } from "lucide-react";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 export const Route = createFileRoute("/upgrade")({
   head: () => ({
@@ -206,6 +207,12 @@ function UpgradePage() {
                     {isCurrent ? (
                       <Button variant="outline" className="w-full" disabled>
                         Plano atual
+                      </Button>
+                    ) : isUpgrade && !BILLING_UI_ENABLED ? (
+                      // Frente de assinaturas pausada: a página segue informando
+                      // os planos, mas não oferece um checkout que falharia.
+                      <Button variant="outline" className="w-full" disabled>
+                        Indisponível no momento
                       </Button>
                     ) : isUpgrade ? (
                       <Button

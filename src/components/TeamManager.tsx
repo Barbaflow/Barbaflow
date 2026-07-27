@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 type Invitation = Tables<"team_invitations">;
 
@@ -361,8 +362,10 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
             <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center gap-2">
               <AlertCircle className="w-4 h-4 shrink-0" />
               <span>
-                Limite de {barberLimit} barbeiro(s) atingido no plano {planName === "free" ? "Free" : planName}.{" "}
-                <Link to="/upgrade" className="underline font-medium">Fazer upgrade</Link>
+                Limite de {barberLimit} barbeiro(s) atingido no plano {planName === "free" ? "Free" : planName}.
+                {BILLING_UI_ENABLED && (
+                  <> <Link to="/upgrade" className="underline font-medium">Fazer upgrade</Link></>
+                )}
               </span>
             </div>
           ) : (

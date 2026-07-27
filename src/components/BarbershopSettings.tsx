@@ -21,6 +21,7 @@ import {
   type AddressValue,
 } from "@/components/AddressFields";
 import { MapPin } from "lucide-react";
+import { BILLING_UI_ENABLED } from "@/lib/billing-ui";
 
 interface BarbershopData {
   id: string;
@@ -636,11 +637,13 @@ export function BarbershopSettings({ barbershopId }: { barbershopId: string }) {
           <p className="text-sm text-muted-foreground max-w-sm">
             Faça upgrade para personalizar o logo e as cores da sua barbearia.
           </p>
-          <Link to="/upgrade">
-            <Button variant="gold" size="sm">
-              Fazer Upgrade
-            </Button>
-          </Link>
+          {BILLING_UI_ENABLED && (
+            <Link to="/upgrade">
+              <Button variant="gold" size="sm">
+                Fazer Upgrade
+              </Button>
+            </Link>
+          )}
         </div>
         <CardContent className="p-6 opacity-40 pointer-events-none">
           <div className="flex items-center gap-6 mb-6">
