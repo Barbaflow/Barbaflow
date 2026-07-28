@@ -11,7 +11,7 @@
  * com avaliações, persistência e restauração.
  */
 import { mockSupabaseClient } from "@/mocks/client";
-import { getTableRows, resetMockDatabase } from "@/mocks/store";
+import { getTableRows, setTableRows, resetMockDatabase } from "@/mocks/store";
 import { clearMockSession } from "@/mocks/auth";
 import {
   MOCK_ADMIN_EMAIL,
@@ -467,6 +467,323 @@ async function testRestore(): Promise<void> {
 }
 
 /* ------------------------------------------------------------------ */
+/* Contador de não lidas                                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * O contador do sino sai de `select(count:"exact", head:true)` — não de contar
+ * as linhas da página. A diferença aparece quando há mais não lidas do que o
+ * `limit(20)` da lista: antes, 25 não lidas exibiam 20.
+ */
+async function testUnreadCount(): Promise<void> {
+  group("notificações — contador de não lidas");
+  resetMockDatabase();
+  clearMockSession();
+
+  const carlaId = await loginEmail(EMAILS[MOCK_USER_IDS.clienteCarla]);
+
+  const head = await mockSupabaseClient
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", carlaId)
+    .eq("read", false);
+
+  check("head:true não devolve linhas", Array.isArray(head.data) && head.data.length === 0);
+  check("count é um número", typeof head.count === "number", String(head.count));
+
+  const reais = (await ownNotifications()).filter((n) => n.read === false).length;
+  check("count bate com as não lidas reais", head.count === reais, `count=${head.count} reais=${reais}`);
+
+  /* ---- o ponto central: count ignora o limit ---- */
+  const extras = getTableRows("notifications");
+  const novas: Row[] = [];
+  for (let i = 0; i < 25; i++) {
+    novas.push({
+      id: `aa000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
+      user_id: carlaId,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      appointment_id: null,
+      type: "new_appointment",
+      title: `Volume ${i}`,
+      message: "Notificação de volume para testar o contador",
+      read: false,
+      created_at: new Date(Date.now() - i * 1000).toISOString(),
+    });
+  }
+  setTableRows("notifications", [...extras, ...novas]);
+
+  const pagina = rowsOf(
+    await mockSupabaseClient
+      .from("notifications")
+      .select("id, read")
+      .eq("user_id", carlaId)
+      .order("created_at", { ascending: false })
+      .limit(20),
+  );
+  const contagem = await mockSupabaseClient
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", carlaId)
+    .eq("read", false);
+
+  check("página respeita o limit(20)", pagina.length === 20, `${pagina.length}`);
+  check(
+    "contador NÃO fica preso ao limit",
+    typeof contagem.count === "number" && contagem.count > 20,
+    `count=${contagem.count}`,
+  );
+  check(
+    "contar a página daria número errado (regressão que motivou o count)",
+    pagina.filter((n) => n.read === false).length < (contagem.count ?? 0),
+  );
+
+  /* ---- contador é privado: outro usuário tem o próprio total ---- */
+  clearMockSession();
+  const anaId = await loginEmail(EMAILS[MOCK_USER_IDS.barberAna]);
+  const daAna = await mockSupabaseClient
+    .from("notifications")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", anaId)
+    .eq("read", false);
+  check(
+    "contador da Ana não inclui as 25 da Carla",
+    (daAna.count ?? 0) < (contagem.count ?? 0),
+    `ana=${daAna.count} carla=${contagem.count}`,
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Destinos (deep-links)                                               */
+/* ------------------------------------------------------------------ */
+
+async function testDeepLinks(): Promise<void> {
+  group("notificações — destinos");
+
+  const {
+    resolveNotificationDestination,
+    isValidUuid,
+    isValidSubdomain,
+    NOTIFICATION_TYPES,
+  } = await import("@/lib/notification-links");
+  type Perspectiva = "staff" | "client";
+
+  /** Rota literal de um tipo, ou `null` se não houver (ou se for `review`). */
+  const rota = (tipo: unknown, p: Perspectiva): string | null => {
+    const d = resolveNotificationDestination(tipo, p);
+    return d && d.kind === "route" ? d.to : null;
+  };
+
+  /* ---- destino válido por tipo e perspectiva ---- */
+  check("staff: novo agendamento vai para a agenda", rota("new_appointment", "staff") === "/agenda");
+  check(
+    "cliente: confirmação vai para meus agendamentos",
+    rota("appointment_confirmed", "client") === "/meus-agendamentos",
+  );
+  check(
+    "cancelamento leva a destinos diferentes por perspectiva",
+    rota("appointment_cancelled", "staff") === "/agenda" &&
+      rota("appointment_cancelled", "client") === "/meus-agendamentos",
+  );
+  check(
+    "reagendamento também é sensível à perspectiva",
+    rota("appointment_rescheduled", "staff") === "/agenda" &&
+      rota("appointment_rescheduled", "client") === "/meus-agendamentos",
+  );
+  check(
+    "resposta de avaliação exige resolução assíncrona",
+    resolveNotificationDestination("review_reply", "client")?.kind === "review",
+  );
+  check(
+    "bloqueio por faltas é assunto do cliente",
+    rota("noshow_blocked", "client") === "/meus-agendamentos",
+  );
+
+  /* ---- link inválido não quebra: devolve null, não lança ---- */
+  for (const invalido of ["", "tipo_inexistente", null, undefined, 42, {}]) {
+    check(
+      `tipo inválido (${JSON.stringify(invalido)}) não gera destino`,
+      resolveNotificationDestination(invalido, "client") === null,
+    );
+  }
+
+  /* ---- destino que não faz sentido para o papel também é null ---- */
+  check(
+    "cliente não é levado à agenda por novo agendamento",
+    resolveNotificationDestination("new_appointment", "client") === null,
+  );
+  check(
+    "staff não é levado a meus-agendamentos por confirmação de cliente",
+    resolveNotificationDestination("appointment_confirmed", "staff") === null,
+  );
+
+  /* ---- todos os tipos do banco têm decisão explícita ---- */
+  const semDecisao = NOTIFICATION_TYPES.filter(
+    (t) =>
+      resolveNotificationDestination(t, "staff") === null &&
+      resolveNotificationDestination(t, "client") === null,
+  );
+  check("todo tipo conhecido tem destino em ao menos uma perspectiva", semDecisao.length === 0, semDecisao.join(", "));
+
+  /* ---- validação de parâmetros: nada é montado com lixo ---- */
+  check("uuid válido é aceito", isValidUuid(MOCK_BARBERSHOP_ID));
+  for (const ruim of ["", "../admin", "1; DROP TABLE", null, undefined]) {
+    check(`uuid inválido rejeitado (${JSON.stringify(ruim)})`, !isValidUuid(ruim));
+  }
+  check("slug válido é aceito", isValidSubdomain("modelo"));
+  for (const ruim of ["", "../etc", "MAIUSCULO", "com espaço", "-comeca-com-hifen", null]) {
+    check(`slug inválido rejeitado (${JSON.stringify(ruim)})`, !isValidSubdomain(ruim));
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Realtime                                                            */
+/* ------------------------------------------------------------------ */
+
+async function testRealtimeChannel(): Promise<void> {
+  group("notificações — realtime");
+
+  const hook = await import("@/hooks/use-notifications");
+  check("hook expõe estado de erro", "useNotifications" in hook);
+
+  const fonte = await lerFonte("src/hooks/use-notifications.tsx");
+
+  check(
+    "canal é nomeado por usuário (não é um tópico global)",
+    /channel\(\s*canal\s*\)/.test(fonte) && /notifications:\$\{user\.id\}/.test(fonte),
+  );
+  // O comentário do hook cita o nome antigo para explicar o que mudou — a
+  // asserção precisa olhar só o código executável, senão acusa a própria
+  // documentação como se fosse a regressão.
+  const codigo = fonte
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//"))
+    .join("\n");
+  check(
+    "canal antigo com nome constante não existe mais no código",
+    !codigo.includes("user-notifications"),
+  );
+  check("consulta o total com count exato", /count:\s*"exact"/.test(codigo) && /head:\s*true/.test(codigo));
+  check("contador não sai apenas do filter da página", !/setUnreadCount\(data\.filter/.test(codigo));
+  check(
+    "filtro do servidor é por user_id",
+    /filter:\s*`user_id=eq\.\$\{user\.id\}`/.test(fonte),
+  );
+  check(
+    "INSERT do realtime deduplica por id",
+    /prev\.some\(\(n\) => n\.id === nova\.id\)/.test(fonte),
+  );
+  check("cleanup remove o canal", /removeChannel\(channel\)/.test(fonte));
+  check(
+    "efeito do canal depende do usuário (recria ao trocar de conta)",
+    /removeChannel\(channel\);\s*\};\s*\}, \[user\]\)/.test(fonte.replace(/\s+/g, " ").replace(/ /g, " ")) ||
+      /\}, \[user\]\);/.test(fonte),
+  );
+
+  /* ---- dois canais para o mesmo usuário não colidem ---- */
+  const a = mockSupabaseClient.channel("notifications:u1:aaaa");
+  const b = mockSupabaseClient.channel("notifications:u1:bbbb");
+  check("canais distintos são objetos distintos", a !== b);
+  await mockSupabaseClient.removeChannel(a);
+  await mockSupabaseClient.removeChannel(b);
+  check("removeChannel não lança", true);
+
+  /* ---- erro, retry e reversão otimista ---- */
+  group("notificações — erro e retry");
+
+  check("erro de consulta vira estado próprio (loadError)", /setLoadError\(/.test(codigo));
+  check(
+    "falha NÃO esvazia a lista já carregada",
+    /if \(lista\.error \|\| contagem\.error\) \{[\s\S]{0,320}?setLoading\(false\);\s*return;/.test(codigo) &&
+      !/if \(lista\.error[\s\S]{0,320}?setNotifications\(\[\]\)/.test(codigo),
+  );
+  check("erro técnico vai para logTechnicalError", /logTechnicalError\("useNotifications"/.test(codigo));
+  check("refetch reexecuta a consulta", /refetch:\s*fetchNotifications/.test(codigo));
+  check("retry limpa o erro anterior", /setLoadError\(null\)/.test(codigo));
+  check(
+    "markAsRead reverte quando o banco recusa",
+    /markAsRead[\s\S]{0,900}?if \(error\)[\s\S]{0,400}?read: false/.test(codigo),
+  );
+  check(
+    "markAllAsRead restaura a lista anterior em caso de falha",
+    /markAllAsRead[\s\S]{0,1200}?if \(error\)[\s\S]{0,300}?setNotifications\(anterior\)/.test(codigo),
+  );
+  check("sem sessão não deixa o loading preso", /if \(!user\) \{[\s\S]{0,240}?setLoading\(false\)/.test(codigo));
+  check("resposta atrasada não sobrescreve a atual", /meu !== requestId\.current/.test(codigo));
+
+  const sino = await lerFonte("src/components/NotificationBell.tsx");
+  check("sino exibe estado de erro", sino.includes("loadError"));
+  check("sino oferece nova tentativa", sino.includes("Tentar novamente") && sino.includes("refetch"));
+  check("sino distingue vazio de erro", sino.includes("isEmpty"));
+  check(
+    "marcar como lida não bloqueia a navegação",
+    /if \(!n\.read\) void markAsRead\(n\.id\);\s*\n\s*const destino/.test(sino),
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Troca de usuário e de tenant                                        */
+/* ------------------------------------------------------------------ */
+
+async function testUserAndTenantSwitch(): Promise<void> {
+  group("notificações — troca de usuário e tenant");
+  resetMockDatabase();
+  clearMockSession();
+
+  const carlaId = await loginEmail(EMAILS[MOCK_USER_IDS.clienteCarla]);
+  const daCarla = await ownNotifications();
+  check("Carla tem notificações", daCarla.length > 0);
+  check("todas são dela", daCarla.every((n) => n.user_id === carlaId));
+
+  clearMockSession();
+  const anaId = await loginEmail(EMAILS[MOCK_USER_IDS.barberAna]);
+  const daAna = await ownNotifications();
+  check("após trocar de conta, a lista é da nova sessão", daAna.every((n) => n.user_id === anaId));
+  check(
+    "nenhuma notificação da conta anterior vaza",
+    !daAna.some((n) => daCarla.some((c) => c.id === n.id)),
+  );
+
+  /* ---- tenant: as notificações carregam a barbearia de origem ---- */
+  const comTenant = daAna.filter((n) => typeof n.barbershop_id === "string" && n.barbershop_id);
+  check("notificações trazem barbershop_id", comTenant.length === daAna.length);
+
+  const tenantsDistintos = new Set(daAna.map((n) => String(n.barbershop_id)));
+  check(
+    "o hook seleciona barbershop_id (permite distinguir a origem)",
+    (await lerFonte("src/hooks/use-notifications.tsx")).includes("barbershop_id"),
+    `tenants presentes: ${tenantsDistintos.size}`,
+  );
+
+  /* ---- cliente não recebe notificação administrativa ---- */
+  clearMockSession();
+  await loginEmail(EMAILS[MOCK_USER_IDS.clienteCarla]);
+  const carlaTipos = new Set((await ownNotifications()).map((n) => String(n.type)));
+  check(
+    "cliente não recebe new_appointment (tipo administrativo)",
+    !carlaTipos.has("new_appointment"),
+    [...carlaTipos].join(", "),
+  );
+
+  /* ---- e o staff não recebe a confirmação destinada ao cliente ---- */
+  clearMockSession();
+  await loginEmail(EMAILS[MOCK_USER_IDS.barberAna]);
+  const anaTipos = new Set((await ownNotifications()).map((n) => String(n.type)));
+  check(
+    "profissional recebe tipos operacionais",
+    anaTipos.size === 0 || [...anaTipos].some((t) => t.startsWith("new_") || t.startsWith("appointment_")),
+    [...anaTipos].join(", "),
+  );
+}
+
+/** Lê um arquivo do repositório (as verificações de fonte usam isto). */
+async function lerFonte(rel: string): Promise<string> {
+  const { readFileSync } = await import("node:fs");
+  const path = await import("node:path");
+  return readFileSync(path.join(process.cwd(), rel), "utf8");
+}
+
+/* ------------------------------------------------------------------ */
 /* Runner                                                              */
 /* ------------------------------------------------------------------ */
 
@@ -479,6 +796,10 @@ export interface HarnessOutcome {
 export async function runHarness(): Promise<HarnessOutcome> {
   const groups: Array<[string, () => Promise<void>]> = [
     ["notificacoes-basico", testNotificationsBasics],
+    ["notificacoes-contador", testUnreadCount],
+    ["notificacoes-destinos", testDeepLinks],
+    ["notificacoes-realtime", testRealtimeChannel],
+    ["notificacoes-troca", testUserAndTenantSwitch],
     ["notificacoes-eventos", testNotificationEvents],
     ["avaliacoes", testReviews],
     ["restaurar", testRestore],
