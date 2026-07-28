@@ -1681,6 +1681,8 @@ export const MOCK_PRODUCT_IDS = {
   cremeAInativo: "0f0f0f01-0000-4000-8000-000000000004",
   pomadaB: "0f0f0f02-0000-4000-8000-000000000001",
   oleoBInativo: "0f0f0f02-0000-4000-8000-000000000002",
+  /** Produto ativo numa barbearia PENDENTE — nunca deve sair no catálogo público. */
+  ceraEPendente: "0f0f0f05-0000-4000-8000-000000000001",
 } as const;
 
 function buildProducts(): TableRow<"products">[] {
@@ -1747,6 +1749,19 @@ function buildProducts(): TableRow<"products">[] {
       price: 90,
       stock_quantity: 0,
       active: false,
+    },
+    {
+      // Ativo e com estoque, mas a barbearia E está `pending`. Existe para
+      // provar que o catálogo público filtra por aprovação da barbearia, e
+      // não apenas por `active` do produto.
+      ...base,
+      id: MOCK_PRODUCT_IDS.ceraEPendente,
+      barbershop_id: MOCK_BARBERSHOP_E_ID,
+      name: "Cera modeladora (barbearia pendente)",
+      description: "Não deve aparecer em nenhum catálogo público.",
+      price: 40,
+      stock_quantity: 7,
+      active: true,
     },
   ];
 }
