@@ -28,6 +28,8 @@ import { useBarbershop } from "@/hooks/use-barbershop";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { NotificationBell } from "@/components/NotificationBell";
 import { supabase } from "@/integrations/supabase/client";
+import { passwordRecoveryRedirectUrl } from "@/lib/auth-redirect";
+import { RESET_REQUEST_FALLBACK, RESET_REQUEST_SUCCESS } from "@/lib/password-recovery";
 import { toast } from "sonner";
 
 const DELETION_REASONS: { value: string; label: string }[] = [
@@ -130,19 +132,19 @@ function PerfilPage() {
   };
 
   const handlePasswordReset = async () => {
-    if (!user?.email) return;
+    if (!user?.email || sendingReset) return;
     setSendingReset(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: passwordRecoveryRedirectUrl(),
       });
       if (error) {
-        toast.error("Não foi possível enviar o email. Tente novamente.");
+        toast.error(RESET_REQUEST_FALLBACK);
       } else {
-        toast.success("Email de redefinição enviado! Verifique sua caixa de entrada.");
+        toast.success(RESET_REQUEST_SUCCESS);
       }
     } catch {
-      toast.error("Erro ao enviar email de redefinição.");
+      toast.error(RESET_REQUEST_FALLBACK);
     } finally {
       setSendingReset(false);
     }
