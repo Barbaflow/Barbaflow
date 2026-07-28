@@ -47,6 +47,7 @@ import {
   UserCog,
   ReceiptText,
   BarChart3,
+  Inbox,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -276,6 +277,12 @@ export function AdminDashboard() {
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">Histórico</span>
             </Button>
+            <Link to="/admin/mensagens">
+              <Button variant="ghost" size="sm">
+                <Inbox className="w-4 h-4" />
+                <span className="hidden sm:inline">Mensagens</span>
+              </Button>
+            </Link>
             <Link to="/admin/churn">
               <Button variant="ghost" size="sm">
                 <TrendingDown className="w-4 h-4" />
