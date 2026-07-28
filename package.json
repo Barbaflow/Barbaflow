@@ -34,7 +34,6 @@
     "seed:test:cleanup": "node scripts/cleanup-barbaflow-test.mjs"
   },
   "dependencies": {
-    "@cloudflare/vite-plugin": "^1.25.5",
     "@dnd-kit/core": "^6.3.1",
     "@hookform/resolvers": "^5.2.2",
     "@lovable.dev/cloud-auth-js": "^1.1.1",
@@ -79,6 +78,7 @@
     "input-otp": "^1.4.2",
     "jspdf": "^4.2.1",
     "lucide-react": "^1.8.0",
+    "nitro": "3.0.260603-beta",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
@@ -96,7 +96,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
-    "@lovable.dev/vite-tanstack-config": "^1.3.0",
+    "@lovable.dev/vite-tanstack-config": "^2.7.7",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
