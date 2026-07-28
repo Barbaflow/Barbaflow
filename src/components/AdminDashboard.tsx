@@ -293,7 +293,7 @@ export function AdminDashboard() {
             </Link>
             <InstallAppButton />
             <EnableNotificationsButton />
-            <NotificationBell />
+            <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
             </Button>
