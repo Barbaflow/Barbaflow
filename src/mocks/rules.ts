@@ -399,9 +399,22 @@ export function authorizeWrite(
       return authorizeTicket(row, existing);
     case "ticket_items":
       return authorizeTicketItem(row, existing);
+    case "contact_submissions":
+      return authorizeContactSubmission(operation);
     default:
       return null;
   }
+}
+
+/**
+ * `contact_submissions` tem INSERT liberado para anon e authenticated — é o
+ * formulário público de `/contato`, e é assim no banco real. O que NÃO existe
+ * é policy de UPDATE ou DELETE: uma vez enviada, a mensagem não é editada nem
+ * apagada por ninguém pela API, nem pelo super_admin.
+ */
+function authorizeContactSubmission(operation: MockOperation): string | null {
+  if (operation === "insert") return null;
+  return "Mensagens de contato não podem ser alteradas nem removidas.";
 }
 
 /** Só a equipe da barbearia (ou super_admin) mexe em comandas — espelha a RLS. */
@@ -702,15 +715,29 @@ function authorizeNotification(operation: MockOperation, row: MockRow, existing?
 }
 
 /**
- * Restringe o que o ator pode LER. Notificações são privadas: cada usuário só
- * enxerga as suas (mesmo que a consulta esqueça o filtro por user_id). As
- * demais tabelas permanecem legíveis como antes.
+ * Restringe o que o ator pode LER.
+ *
+ *   - `notifications`: cada usuário só enxerga as suas, mesmo que a consulta
+ *     esqueça o filtro por `user_id`;
+ *   - `contact_submissions`: só o super_admin lê. Espelha a policy
+ *     "Super admins can read contact submissions" (migration 20260416012649):
+ *     a tabela guarda nome, e-mail, telefone e texto livre de quem escreveu
+ *     pelo site, e não pertence a nenhuma barbearia.
+ *
+ * As demais tabelas permanecem legíveis como antes.
  */
 export function filterReadableRows(table: string, rows: MockRow[]): MockRow[] {
-  if (table !== "notifications") return rows;
-  const actor = getMockActor();
-  if (!actor) return [];
-  return rows.filter((row) => row.user_id === actor.id);
+  if (table === "notifications") {
+    const actor = getMockActor();
+    if (!actor) return [];
+    return rows.filter((row) => row.user_id === actor.id);
+  }
+
+  if (table === "contact_submissions") {
+    return actorIsSuperAdmin() ? rows : [];
+  }
+
+  return rows;
 }
 
 /* ================================================================== */
