@@ -330,6 +330,12 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   private limitCount: number | null = null;
   private rangeSpec: { from: number; to: number } | null = null;
   private rowMode: "many" | "single" | "maybeSingle" = "many";
+  /** `.select(col, { count: "exact" })` — devolve o total ANTES de limit/range. */
+  private countExact = false;
+  /** `.select(col, { head: true })` — só o total, sem as linhas. */
+  private headOnly = false;
+  /** Linhas que casaram, antes de `range`/`limit` — base do `count`. */
+  private totalBeforeSlice: number | null = null;
 
   constructor(table: string) {
     this.table = table;
@@ -337,9 +343,15 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
 
   /* ---------------- operações ---------------- */
 
-  select(columns?: string, _options?: { count?: string; head?: boolean }): this {
+  select(columns?: string, options?: { count?: string; head?: boolean }): this {
     // `.insert(...).select()` mantém a operação de escrita; só registramos os embeds.
     this.embeds = parseSelect(columns).embeds;
+    // `{ count: "exact", head: true }` é como o app pede um TOTAL sem trazer as
+    // linhas — é assim que o contador de notificações não lidas deixa de ficar
+    // preso ao `limit()` da lista. Sem isto o mock devolveria `count: null` e a
+    // paridade com o banco se perderia justamente no número exibido.
+    this.countExact = options?.count === "exact" || options?.count === "planned" || options?.count === "estimated";
+    this.headOnly = options?.head === true;
     return this;
   }
 
@@ -708,6 +720,10 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
           });
         }
 
+        // O total do PostgREST é contado antes de `range`/`limit` — é o que
+        // permite paginar sabendo quantas linhas existem no total.
+        this.totalBeforeSlice = affected.length;
+
         if (this.rangeSpec) {
           affected = affected.slice(this.rangeSpec.from, this.rangeSpec.to + 1);
         }
@@ -724,6 +740,14 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
     }
 
     const total = affected.length;
+
+    // `head: true` devolve só a contagem — nenhuma linha, como no PostgREST.
+    if (this.headOnly) {
+      return ok<MockRow[]>([], this.totalBeforeSlice ?? total);
+    }
+    if (this.countExact && this.rowMode === "many") {
+      return ok<MockRow[]>(affected, this.totalBeforeSlice ?? total);
+    }
 
     if (this.rowMode === "single") {
       if (total !== 1) {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, CheckCheck } from "lucide-react";
+import { Bell, CheckCheck, AlertCircle, RotateCw } from "lucide-react";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +11,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { logTechnicalError } from "@/lib/error-reporting";
+import {
+  resolveNotificationDestination,
+  isValidSubdomain,
+  isValidUuid,
+  type NotificationPerspective,
+} from "@/lib/notification-links";
 import { cn } from "@/lib/utils";
 
 function timeAgo(dateStr: string) {
@@ -29,73 +36,102 @@ const typeColors: Record<string, string> = {
   appointment_confirmed: "bg-green-500",
   appointment_cancelled: "bg-red-500",
   appointment_completed: "bg-primary",
+  appointment_rescheduled: "bg-amber-500",
   review_reply: "bg-gold",
+  noshow_blocked: "bg-red-500",
+  noshow_unblocked: "bg-green-500",
 };
 
-export function NotificationBell() {
-  const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+interface NotificationBellProps {
+  /**
+   * De onde o sino está sendo exibido. Decide o destino dos tipos que chegam
+   * aos dois lados (cancelamento, reagendamento): o painel leva à agenda, a
+   * área do cliente leva aos agendamentos dele.
+   */
+  perspective?: NotificationPerspective;
+}
+
+export function NotificationBell({ perspective = "client" }: NotificationBellProps) {
+  const { notifications, unreadCount, loading, loadError, isEmpty, markAsRead, markAllAsRead, refetch } =
+    useNotifications();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [navigatingId, setNavigatingId] = useState<string | null>(null);
 
-  const handleClick = async (n: Notification & { barbershop_id?: string }) => {
-    if (!n.read) markAsRead(n.id);
+  /** Resolve a avaliação e navega para a página pública da barbearia. */
+  const abrirRespostaDeAvaliacao = async (n: Notification) => {
+    if (!isValidUuid(n.barbershop_id)) return;
 
-    if (n.type === "review_reply") {
-      setNavigatingId(n.id);
-      try {
-        // Fetch barbershop_id + subdomain for this notification
-        const { data: notifRow } = await supabase
-          .from("notifications")
-          .select("barbershop_id, appointment_id")
-          .eq("id", n.id)
+    const { data: shop, error: erroShop } = await supabase
+      .from("barbearias_publicas")
+      .select("subdomain")
+      .eq("id", n.barbershop_id)
+      .maybeSingle();
+
+    if (erroShop || !isValidSubdomain(shop?.subdomain)) {
+      logTechnicalError("NotificationBell", "resolver barbearia da avaliação", erroShop);
+      return;
+    }
+
+    // Melhor esforço: sem a avaliação exata, ainda abrimos a página. Um id que
+    // não resolve nunca deve impedir a navegação.
+    let reviewId: string | null = null;
+    if (user) {
+      if (isValidUuid(n.appointment_id)) {
+        const { data } = await supabase
+          .from("reviews")
+          .select("id")
+          .eq("appointment_id", n.appointment_id)
+          .eq("client_id", user.id)
           .maybeSingle();
-
-        if (!notifRow?.barbershop_id) return;
-
-        const { data: shop } = await supabase
-          .from("barbearias_publicas")
-          .select("subdomain")
-          .eq("id", notifRow.barbershop_id)
-          .maybeSingle();
-
-        if (!shop?.subdomain) return;
-
-        // Find the review id (by appointment_id if available, else most recent
-        // reply on a review by this client in that barbershop)
-        let reviewId: string | null = null;
-        if (notifRow.appointment_id && user) {
-          const { data } = await supabase
-            .from("reviews")
-            .select("id")
-            .eq("appointment_id", notifRow.appointment_id)
-            .eq("client_id", user.id)
-            .maybeSingle();
-          reviewId = data?.id ?? null;
-        }
-        if (!reviewId && user) {
-          const { data } = await supabase
-            .from("reviews")
-            .select("id, reply_at")
-            .eq("barbershop_id", notifRow.barbershop_id)
-            .eq("client_id", user.id)
-            .not("reply", "is", null)
-            .order("reply_at", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          reviewId = data?.id ?? null;
-        }
-
-        setOpen(false);
-        navigate({
-          to: "/agendar/$slug",
-          params: { slug: shop.subdomain },
-          hash: reviewId ? `review-${reviewId}` : undefined,
-        });
-      } finally {
-        setNavigatingId(null);
+        reviewId = isValidUuid(data?.id) ? data.id : null;
       }
+      if (!reviewId) {
+        const { data } = await supabase
+          .from("reviews")
+          .select("id, reply_at")
+          .eq("barbershop_id", n.barbershop_id)
+          .eq("client_id", user.id)
+          .not("reply", "is", null)
+          .order("reply_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        reviewId = isValidUuid(data?.id) ? data.id : null;
+      }
+    }
+
+    setOpen(false);
+    navigate({
+      to: "/agendar/$slug",
+      params: { slug: shop.subdomain },
+      hash: reviewId ? `review-${reviewId}` : undefined,
+    });
+  };
+
+  const handleClick = async (n: Notification) => {
+    // Marcar como lida é independente de navegar: se o destino falhar, a
+    // notificação já foi lida — e se a leitura falhar, a navegação acontece
+    // do mesmo jeito.
+    if (!n.read) void markAsRead(n.id);
+
+    const destino = resolveNotificationDestination(n.type, perspective);
+    if (!destino) return;
+
+    setNavigatingId(n.id);
+    try {
+      if (destino.kind === "review") {
+        await abrirRespostaDeAvaliacao(n);
+        return;
+      }
+      setOpen(false);
+      // Rota literal vinda da tabela de destinos — nunca do conteúdo da linha.
+      navigate({ to: destino.to });
+    } catch (err) {
+      // Um destino que não resolve não pode derrubar a aplicação.
+      logTechnicalError("NotificationBell", `abrir notificação (${n.type})`, err);
+    } finally {
+      setNavigatingId(null);
     }
   };
 
@@ -111,44 +147,62 @@ export function NotificationBell() {
           )}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-80 p-0" align="end">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+      <PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-0" align="end">
+        <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
           <h4 className="text-sm font-semibold text-foreground">Notificações</h4>
           {unreadCount > 0 && (
             <button
-              onClick={() => markAllAsRead()}
-              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+              onClick={() => void markAllAsRead()}
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors shrink-0"
             >
               <CheckCheck className="w-3 h-3" />
               Marcar todas
             </button>
           )}
         </div>
+
         <ScrollArea className="max-h-80">
-          {notifications.length === 0 ? (
+          {loading && notifications.length === 0 ? (
+            <div className="space-y-2 p-4">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 rounded-md bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : loadError ? (
+            /* Falha de consulta tem tela própria — nunca se disfarça de
+               "nenhuma notificação". */
+            <div className="px-4 py-6 space-y-3 text-center">
+              <AlertCircle className="w-5 h-5 mx-auto text-destructive" />
+              <p className="text-sm text-muted-foreground">{loadError}</p>
+              <Button variant="outline" size="sm" onClick={() => void refetch()}>
+                <RotateCw className="w-3 h-3" />
+                Tentar novamente
+              </Button>
+            </div>
+          ) : isEmpty ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
               Nenhuma notificação
             </div>
           ) : (
             <div className="divide-y divide-border">
               {notifications.map((n) => {
-                const clickable = n.type === "review_reply";
+                const clickable = resolveNotificationDestination(n.type, perspective) !== null;
                 return (
                   <button
                     key={n.id}
-                    onClick={() => handleClick(n)}
+                    onClick={() => void handleClick(n)}
                     disabled={navigatingId === n.id}
                     className={cn(
                       "w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors flex gap-3 disabled:opacity-60",
                       !n.read && "bg-primary/5",
-                      clickable && "cursor-pointer",
+                      clickable ? "cursor-pointer" : "cursor-default",
                     )}
                   >
                     <div className="mt-1 flex-shrink-0">
                       <div
                         className={cn(
                           "w-2 h-2 rounded-full",
-                          n.read ? "bg-muted-foreground/30" : (typeColors[n.type] || "bg-primary")
+                          n.read ? "bg-muted-foreground/30" : (typeColors[n.type] || "bg-primary"),
                         )}
                       />
                     </div>
@@ -161,7 +215,7 @@ export function NotificationBell() {
                           {timeAgo(n.created_at)}
                         </span>
                       </div>
-                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2 break-words">
                         {n.message}
                       </p>
                     </div>
