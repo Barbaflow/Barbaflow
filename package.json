@@ -24,7 +24,6 @@
     "harness:dashboard": "node scripts/run-dashboard-harness.mjs",
     "harness:erros": "node scripts/run-erros-role-harness.mjs",
     "harness:remote-scripts": "node scripts/run-remote-scripts-harness.mjs",
-    "harness:catalogo-publico": "node scripts/run-catalogo-publico-harness.mjs",
     "db:status:remote": "node scripts/db-status-remote.mjs",
     "db:lint:remote": "node scripts/db-lint-remote.mjs",
     "db:dry-run": "node scripts/db-dry-run.mjs",

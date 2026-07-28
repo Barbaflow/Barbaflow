@@ -180,37 +180,6 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       )
       .map((row) => ({ start_time: row.start_time, end_time: row.end_time })),
 
-  /**
-   * Catálogo público de produtos — espelha a RPC real (migration
-   * 20260727120000). O visitante anônimo não lê `products` no banco: a tabela
-   * guarda `stock_quantity` e produtos inativos.
-   *
-   * Paridade que importa aqui: só produtos `active` de barbearia `approved`,
-   * `in_stock` booleano no lugar da quantidade, e NENHUM `stock_quantity` no
-   * objeto devolvido. Barbearia inexistente ou não aprovada devolve lista
-   * vazia — sem distinguir os casos.
-   */
-  get_public_products: (args) => {
-    const barbershopId = String(args._barbershop_id ?? "");
-    if (!barbershopId) return [];
-
-    const loja = getTableRows("barbershops").find((b) => b.id === barbershopId);
-    if (!loja || loja.status !== "approved") return [];
-
-    return getTableRows("products")
-      .filter((p) => p.barbershop_id === barbershopId && p.active === true)
-      .map((p) => ({
-        id: p.id,
-        barbershop_id: p.barbershop_id,
-        name: p.name,
-        description: p.description ?? null,
-        price: Number(p.price ?? 0),
-        image_url: p.image_url ?? null,
-        in_stock: Number(p.stock_quantity ?? 0) > 0,
-      }))
-      .sort((a, b) => String(a.name).localeCompare(String(b.name)) || String(a.id).localeCompare(String(b.id)));
-  },
-
   get_barber_display_names: (args) => {
     const ids = Array.isArray(args._user_ids) ? args._user_ids : [];
     return getTableRows("profiles")
