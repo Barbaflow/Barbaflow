@@ -9,6 +9,16 @@ import { getTableRows, setTableRows, type MockRow } from "./store";
 import { getMockActor } from "./session";
 import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
 
+/**
+ * Recusa de uma regra de escrita.
+ *
+ * A forma normal é só a mensagem. A forma com `code` existe para quando o
+ * frontend precisa distinguir ESTA recusa das outras: aí o mock devolve o mesmo
+ * SQLSTATE que o Postgres devolveria, e a tela pode ramificar pelo código em
+ * vez de comparar texto. Hoje só `contact_submissions` usa.
+ */
+export type MockRuleViolation = string | { message: string; code: string };
+
 /** Papéis que podem atender clientes. */
 const ATTENDING_ROLES = new Set(["barbeiro", "admin_barbearia"]);
 
@@ -411,10 +421,116 @@ export function authorizeWrite(
  * formulário público de `/contato`, e é assim no banco real. O que NÃO existe
  * é policy de UPDATE ou DELETE: uma vez enviada, a mensagem não é editada nem
  * apagada por ninguém pela API, nem pelo super_admin.
+ *
+ * Isto é a RLS. O conteúdo do INSERT é conferido em `validateContactSubmission`.
  */
 function authorizeContactSubmission(operation: MockOperation): string | null {
   if (operation === "insert") return null;
   return "Mensagens de contato não podem ser alteradas nem removidas.";
+}
+
+/**
+ * Limites de conteúdo de `contact_submissions`. Os mesmos números vivem em três
+ * lugares: o formulário (`src/routes/contato.tsx`), as CHECK constraints da
+ * migration 20260729120000 e este objeto. O harness `mensagens-contato` compara
+ * os daqui com os do `.sql` — divergir faz a suíte falhar.
+ */
+export const CONTACT_LIMITS = { name: 100, email: 255, phone: 20, message: 2000 } as const;
+
+/** Mesma expressão do formulário e da constraint: algo@algo.algo, sem espaços. */
+const CONTACT_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Teto de vazão por e-mail, espelhando o trigger
+ * `enforce_contact_submission_rate_limit` (migration 20260729120000): até 3
+ * mensagens do mesmo remetente a cada 10 minutos.
+ */
+export const CONTACT_RATE_LIMIT = { max: 3, windowMinutes: 10 } as const;
+
+/**
+ * SQLSTATEs que o banco devolve nas duas recusas, e que o mock repete para que
+ * o formulário público possa distingui-las sem comparar texto de mensagem:
+ *
+ *   • `23514` — check_violation, das CHECK constraints de tamanho e formato;
+ *   • `P0001` — o `RAISE EXCEPTION` do trigger de vazão.
+ *
+ * `/contato` ramifica em `P0001` para dizer ao visitante que ele já enviou
+ * demais, em vez do erro genérico.
+ */
+export const CONTACT_CHECK_SQLSTATE = "23514";
+export const CONTACT_RATE_LIMIT_SQLSTATE = "P0001";
+
+/**
+ * CHECK constraints e trigger de vazão de `contact_submissions` (migration
+ * 20260729120000).
+ *
+ * Vive aqui, e não na tela, porque `anon` tem INSERT direto na Data API: a
+ * validação de `contato.tsx` não alcança quem chama o PostgREST na mão, e o
+ * mock precisa recusar o que o banco recusaria.
+ *
+ * `pending` são as outras linhas do mesmo insert em lote. O trigger real é
+ * BEFORE INSERT por linha e enxerga as anteriores da mesma instrução, então
+ * contá-las aqui é o que mantém as duas pontas com o mesmo resultado.
+ */
+export function validateContactSubmission(
+  row: MockRow,
+  pending: readonly MockRow[] = [],
+): MockRuleViolation | null {
+  /* ---- CHECK constraints: tamanho e formato (SQLSTATE 23514) ---- */
+
+  const check = (message: string) => ({ message, code: CONTACT_CHECK_SQLSTATE });
+
+  const name = typeof row.name === "string" ? row.name.trim() : "";
+  if (name.length < 1 || name.length > CONTACT_LIMITS.name) {
+    return check(`Mensagem de contato: nome deve ter entre 1 e ${CONTACT_LIMITS.name} caracteres.`);
+  }
+
+  const email = typeof row.email === "string" ? row.email.trim() : "";
+  if (email.length < 1 || email.length > CONTACT_LIMITS.email) {
+    return check(`Mensagem de contato: e-mail deve ter entre 1 e ${CONTACT_LIMITS.email} caracteres.`);
+  }
+  if (!CONTACT_EMAIL_PATTERN.test(email)) {
+    return check("Mensagem de contato: e-mail em formato inválido.");
+  }
+
+  // Telefone é opcional — a coluna é anulável e o formulário grava NULL quando
+  // o campo fica em branco. Só o que veio preenchido é medido.
+  if (row.phone !== null && row.phone !== undefined) {
+    const phone = typeof row.phone === "string" ? row.phone.trim() : "";
+    if (phone.length < 1 || phone.length > CONTACT_LIMITS.phone) {
+      return check(`Mensagem de contato: telefone deve ter até ${CONTACT_LIMITS.phone} caracteres.`);
+    }
+  }
+
+  const message = typeof row.message === "string" ? row.message.trim() : "";
+  if (message.length < 1 || message.length > CONTACT_LIMITS.message) {
+    return check(
+      `Mensagem de contato: mensagem deve ter entre 1 e ${CONTACT_LIMITS.message} caracteres.`,
+    );
+  }
+
+  /* ---- trigger de vazão: mesmo e-mail em janela curta ---- */
+
+  // Comparação normalizada, como o `lower(btrim(...))` do trigger: alternar
+  // maiúsculas não pode zerar a contagem.
+  const remetente = email.toLowerCase();
+  const desde = Date.now() - CONTACT_RATE_LIMIT.windowMinutes * 60 * 1000;
+  const recentes = [...getTableRows("contact_submissions"), ...pending].filter((existing) => {
+    const outro = typeof existing.email === "string" ? existing.email.trim().toLowerCase() : "";
+    if (outro !== remetente) return false;
+    const quando = new Date(String(existing.created_at)).getTime();
+    return Number.isFinite(quando) && quando > desde;
+  }).length;
+
+  if (recentes >= CONTACT_RATE_LIMIT.max) {
+    return {
+      message:
+        "Muitas mensagens enviadas deste e-mail em pouco tempo. Tente novamente em alguns minutos.",
+      code: CONTACT_RATE_LIMIT_SQLSTATE,
+    };
+  }
+
+  return null;
 }
 
 /** Só a equipe da barbearia (ou super_admin) mexe em comandas — espelha a RLS. */

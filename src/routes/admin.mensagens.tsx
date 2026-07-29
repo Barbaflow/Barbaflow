@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Mail, MessageCircle, Phone, Search, Inbox } from "lucide-react";
+import { ArrowLeft, Mail, MessageCircle, Phone, Search, Inbox, AlertTriangle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { logTechnicalError } from "@/lib/error-reporting";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
@@ -41,6 +41,13 @@ type Period = "7" | "30" | "all";
 
 const PERIOD_DAYS: Record<Period, number | null> = { "7": 7, "30": 30, all: null };
 
+/**
+ * Teto de linhas por consulta. Quando a resposta vem exatamente com este
+ * tamanho, muito provavelmente há mais mensagens do que couberam — a contagem
+ * então é exibida como "500+", nunca como se fosse o total exato.
+ */
+const LIMITE_CONSULTA = 500;
+
 /** Data e hora legíveis; a hora importa para saber se a mensagem é de agora. */
 function formatDateTime(iso: string): string {
   const d = new Date(iso);
@@ -57,6 +64,14 @@ function ContactMessagesPage() {
   const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [allowed, setAllowed] = useState<boolean | null>(null);
+  /**
+   * "Não é super_admin" e "não deu para verificar" são coisas diferentes.
+   * Colapsar as duas em `allowed = false` mostraria "Acesso negado" a um
+   * super_admin legítimo só porque a rede caiu, sem nenhuma saída. Este estado
+   * separa o segundo caso, e `roleAttempt` é o que permite tentar de novo.
+   */
+  const [roleError, setRoleError] = useState(false);
+  const [roleAttempt, setRoleAttempt] = useState(0);
   const [period, setPeriod] = useState<Period>("30");
   const [rows, setRows] = useState<ContactRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,23 +84,51 @@ function ContactMessagesPage() {
       navigate({ to: "/login", search: { redirect: undefined } });
       return;
     }
-    supabase
-      .rpc("has_role", { _user_id: user.id, _role: "super_admin" })
-      .then(({ data, error }) => {
-        setAllowed(!error && Boolean(data));
-      });
-  }, [user, authLoading, navigate]);
+    let cancelled = false;
+    setRoleError(false);
+    setAllowed(null);
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc("has_role", {
+          _user_id: user.id,
+          _role: "super_admin",
+        });
+        if (cancelled) return;
+        if (error) {
+          logTechnicalError("admin.mensagens", "verificar papel de super_admin", error);
+          setRoleError(true);
+          return;
+        }
+        setAllowed(Boolean(data));
+      } catch (err) {
+        // O supabase-js normalmente resolve com `error` em vez de rejeitar; se
+        // rejeitar mesmo assim, sem este catch o estado ficaria em `null` e o
+        // spinner giraria para sempre.
+        if (cancelled) return;
+        logTechnicalError("admin.mensagens", "verificar papel de super_admin", err);
+        setRoleError(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, authLoading, navigate, roleAttempt]);
 
   useEffect(() => {
     if (!allowed) return;
     setLoading(true);
+
+    // Trocar de período rápido deixa duas consultas no ar. Sem esta flag, a que
+    // responder por último vence — e pode ser a antiga, mostrando 30 dias sob a
+    // aba "7 dias". Mesma forma usada em use-tenant-scope.
+    let cancelled = false;
 
     const days = PERIOD_DAYS[period];
     let query = supabase
       .from("contact_submissions")
       .select("id, name, email, phone, message, created_at")
       .order("created_at", { ascending: false })
-      .limit(500);
+      .limit(LIMITE_CONSULTA);
 
     if (days !== null) {
       const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
@@ -93,6 +136,7 @@ function ContactMessagesPage() {
     }
 
     query.then(({ data, error }) => {
+      if (cancelled) return;
       if (error) {
         logTechnicalError("admin.mensagens", "carregar mensagens de contato", error);
         toast.error("Não foi possível carregar as mensagens. Tente novamente.");
@@ -102,6 +146,10 @@ function ContactMessagesPage() {
       }
       setLoading(false);
     });
+
+    return () => {
+      cancelled = true;
+    };
   }, [allowed, period]);
 
   const filtradas = useMemo(() => {
@@ -114,6 +162,21 @@ function ContactMessagesPage() {
     );
   }, [rows, busca]);
 
+  /**
+   * A consulta veio cheia até o teto: existe a chance real de haver mensagem
+   * mais antiga que ficou de fora. Mostrar "500" seco afirmaria um total que
+   * não foi apurado.
+   */
+  const truncado = rows.length >= LIMITE_CONSULTA;
+
+  /**
+   * Com busca ativa, o card passa a contar o que está de fato na tela. Antes
+   * ele mostrava o total bruto enquanto a lista mostrava o filtrado — dois
+   * números discordando na mesma tela, e o de cima era o errado.
+   */
+  const buscaAtiva = busca.trim().length > 0;
+  const contagem = buscaAtiva ? filtradas.length : rows.length;
+
   // "Novas" = últimas 24h. Sem campo de leitura no banco, é o melhor sinal
   // honesto de que algo chegou desde ontem — e não finge saber o que já foi
   // respondido.
@@ -121,6 +184,38 @@ function ContactMessagesPage() {
     const limite = Date.now() - 24 * 60 * 60 * 1000;
     return rows.filter((r) => new Date(r.created_at).getTime() >= limite).length;
   }, [rows]);
+
+  // Falha na verificação vem antes do spinner: com `roleError`, `allowed`
+  // continua `null`, e sem este ramo a tela ficaria carregando para sempre.
+  if (roleError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background px-4">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
+              Não foi possível verificar seu acesso
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              A verificação de permissão falhou — isso costuma ser problema de
+              conexão, não de permissão. Tente novamente.
+            </p>
+            <Button className="w-full" onClick={() => setRoleAttempt((n) => n + 1)}>
+              <RefreshCw className="w-4 h-4" />
+              Tentar novamente
+            </Button>
+            <Link to="/dashboard" search={{ checkout: undefined }}>
+              <Button variant="ghost" className="w-full">
+                Voltar ao painel
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (authLoading || allowed === null) {
     return (
@@ -189,15 +284,25 @@ function ContactMessagesPage() {
               <div className="flex items-center gap-2 mb-1">
                 <Inbox className="w-4 h-4 text-primary" />
                 <span className="text-xs text-muted-foreground">
-                  Mensagens no período
+                  {buscaAtiva ? "Mensagens encontradas" : "Mensagens no período"}
                 </span>
               </div>
               {loading ? (
                 <Skeleton className="h-8 w-16" />
               ) : (
-                <p className="text-2xl font-display font-bold text-foreground">
-                  {rows.length}
-                </p>
+                <>
+                  <p className="text-2xl font-display font-bold text-foreground">
+                    {contagem}
+                    {truncado ? "+" : ""}
+                  </p>
+                  {truncado && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {buscaAtiva
+                        ? `Busca feita sobre as ${LIMITE_CONSULTA} mais recentes — pode haver mais.`
+                        : `Exibindo as ${LIMITE_CONSULTA} mais recentes — pode haver mais.`}
+                    </p>
+                  )}
+                </>
               )}
             </CardContent>
           </Card>
@@ -281,7 +386,11 @@ function ContactMessagesPage() {
                       </p>
 
                       <div className="flex items-center gap-2 flex-wrap">
-                        <a href={`mailto:${m.email}`}>
+                        {/* O e-mail vem de inserção pública e o banco não o
+                            valida: sem encode, um valor como
+                            "a@b.c?subject=…&body=…" pré-preencheria o rascunho
+                            de resposta com texto de terceiro. */}
+                        <a href={`mailto:${encodeURIComponent(m.email)}`}>
                           <Button variant="secondary" size="sm">
                             <Mail className="w-4 h-4" />
                             Responder por e-mail

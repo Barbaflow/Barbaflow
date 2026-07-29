@@ -27,6 +27,13 @@ import {
   MOCK_CLIENT_BENTO_EMAIL,
   MOCK_SUPER_ADMIN_EMAIL,
 } from "@/mocks/fixtures";
+import { displayBRPhone, isPlausibleBRPhone, whatsappUrl } from "@/lib/phone";
+import {
+  CONTACT_CHECK_SQLSTATE,
+  CONTACT_LIMITS,
+  CONTACT_RATE_LIMIT,
+  CONTACT_RATE_LIMIT_SQLSTATE,
+} from "@/mocks/rules";
 
 const ROOT = process.cwd();
 
@@ -44,6 +51,12 @@ const GRANTS = path.join(
   "supabase",
   "migrations",
   "20260721140000_explicit_data_api_grants.sql",
+);
+const LIMITES = path.join(
+  ROOT,
+  "supabase",
+  "migrations",
+  "20260729120000_contact_submissions_limits.sql",
 );
 
 /** E-mail de barbeiro do seed (perfil da Ana, Barbearia A). */
@@ -217,6 +230,158 @@ async function testeEscrita() {
   check("depois de enviar, o visitante segue sem ler nada", aposEscrever.length === 0);
 }
 
+/* ══════════════ 2b. limites de conteúdo e de vazão ══════════════ */
+
+/** Envia uma mensagem pelo caminho do formulário público. */
+async function enviar(campos: Record<string, unknown>) {
+  const { error } = await mockSupabaseClient.from("contact_submissions").insert({
+    name: "Remetente de teste",
+    email: "remetente@exemplo.teste",
+    phone: null,
+    message: "Mensagem de teste.",
+    ...campos,
+  });
+  return error;
+}
+
+/** SQLSTATE que a recusa carrega — é por ele que `/contato` ramifica. */
+function codigoDe(erro: unknown): string | null {
+  if (erro && typeof erro === "object" && "code" in erro) return String(erro.code);
+  return null;
+}
+
+/**
+ * As CHECK constraints e o trigger de vazão da migration 20260729120000. O
+ * `anon` insere direto na Data API, então estes limites são a única barreira
+ * real — a validação de `contato.tsx` não alcança quem chama o PostgREST na
+ * mão.
+ */
+async function testeLimites() {
+  group("limites: o que o formulário já mandaria passa");
+
+  await logout();
+  check("mensagem normal é aceita", (await enviar({ email: "normal@exemplo.teste" })) === null);
+  check(
+    "telefone ausente continua aceito",
+    (await enviar({ email: "semfone@exemplo.teste", phone: null })) === null,
+  );
+  check(
+    "telefone preenchido é aceito",
+    (await enviar({ email: "comfone@exemplo.teste", phone: "11987650009" })) === null,
+  );
+  check(
+    "nome no limite exato é aceito",
+    (await enviar({ email: "limite@exemplo.teste", name: "a".repeat(CONTACT_LIMITS.name) })) === null,
+  );
+  check(
+    "mensagem no limite exato é aceita",
+    (await enviar({
+      email: "limite2@exemplo.teste",
+      message: "b".repeat(CONTACT_LIMITS.message),
+    })) === null,
+  );
+
+  group("limites: tamanho e formato recusados");
+
+  check("nome vazio é recusado", Boolean(await enviar({ email: "n1@exemplo.teste", name: "" })));
+  check(
+    "nome só com espaço é recusado",
+    Boolean(await enviar({ email: "n2@exemplo.teste", name: "   " })),
+  );
+  check(
+    "nome acima do limite é recusado",
+    Boolean(await enviar({ email: "n3@exemplo.teste", name: "a".repeat(CONTACT_LIMITS.name + 1) })),
+  );
+  check("e-mail sem arroba é recusado", Boolean(await enviar({ email: "semarroba.exemplo" })));
+  check("e-mail sem domínio é recusado", Boolean(await enviar({ email: "vazio@semponto" })));
+  check("e-mail com espaço é recusado", Boolean(await enviar({ email: "com espaco@exemplo.teste" })));
+  check(
+    "e-mail acima do limite é recusado",
+    Boolean(await enviar({ email: `${"a".repeat(CONTACT_LIMITS.email)}@exemplo.teste` })),
+  );
+  check(
+    "telefone acima do limite é recusado",
+    Boolean(
+      await enviar({ email: "t1@exemplo.teste", phone: "9".repeat(CONTACT_LIMITS.phone + 1) }),
+    ),
+  );
+  check(
+    "mensagem vazia é recusada",
+    Boolean(await enviar({ email: "m1@exemplo.teste", message: "   " })),
+  );
+  check(
+    "mensagem acima do limite é recusada",
+    Boolean(
+      await enviar({
+        email: "m2@exemplo.teste",
+        message: "b".repeat(CONTACT_LIMITS.message + 1),
+      }),
+    ),
+  );
+
+  group("limites: teto de vazão por e-mail");
+
+  const flood = "insistente@exemplo.teste";
+  const respostas: (unknown | null)[] = [];
+  for (let i = 0; i < CONTACT_RATE_LIMIT.max + 1; i++) {
+    respostas.push(await enviar({ email: flood, message: `Tentativa ${i + 1}.` }));
+  }
+  check(
+    `as primeiras ${CONTACT_RATE_LIMIT.max} do mesmo e-mail passam`,
+    respostas.slice(0, CONTACT_RATE_LIMIT.max).every((e) => e === null),
+  );
+  check("a seguinte é recusada", Boolean(respostas[CONTACT_RATE_LIMIT.max]));
+  check(
+    "e a recusa vem com o SQLSTATE do trigger",
+    codigoDe(respostas[CONTACT_RATE_LIMIT.max]) === CONTACT_RATE_LIMIT_SQLSTATE,
+    `code=${codigoDe(respostas[CONTACT_RATE_LIMIT.max])}`,
+  );
+
+  // O formulário mostra a mensagem de "aguarde" só para o código do trigger.
+  // Se um erro de tamanho viesse com o mesmo código, ele diria ao visitante
+  // para esperar quando o problema é o texto que ele escreveu.
+  const erroDeTamanho = await enviar({
+    email: "codigo@exemplo.teste",
+    message: "b".repeat(CONTACT_LIMITS.message + 1),
+  });
+  // Que os dois códigos sejam distintos não precisa de verificação em runtime:
+  // são tipos literais, e o `tsc` recusa compilar se alguém os igualar.
+  check(
+    "violação de CHECK usa outro SQLSTATE",
+    codigoDe(erroDeTamanho) === CONTACT_CHECK_SQLSTATE,
+    `code=${codigoDe(erroDeTamanho)}`,
+  );
+  check(
+    "maiúsculas não burlam a contagem",
+    Boolean(await enviar({ email: flood.toUpperCase(), message: "Mesma pessoa, outro caixa." })),
+  );
+  check(
+    "espaço em volta do e-mail não burla a contagem",
+    Boolean(await enviar({ email: `  ${flood}  `, message: "Mesma pessoa, com espaço." })),
+  );
+  check(
+    "outro remetente não é afetado",
+    (await enviar({ email: "outro@exemplo.teste" })) === null,
+  );
+  check(
+    "mensagem antiga do seed não conta para a janela",
+    // O seed tem mensagens de 45 min a 40 dias atrás; se a janela as contasse,
+    // o remetente mais antigo já entraria bloqueado.
+    (await enviar({ email: "rafael.moreira@exemplo.teste", message: "Voltei depois." })) === null,
+  );
+
+  group("limites: a caixa de entrada não regrediu");
+
+  await login(MOCK_SUPER_ADMIN_EMAIL);
+  const { linhas: apos, error: erroApos } = await lerMensagens();
+  check("o super_admin continua lendo depois de tudo isso", !erroApos && apos.length > 0);
+  check(
+    "nenhuma mensagem recusada foi gravada",
+    !apos.some((m) => String(m.name).trim() === "" || String(m.message).trim() === ""),
+  );
+  await logout();
+}
+
 /* ══════════════ 3. a tela ══════════════ */
 
 function testeTela() {
@@ -236,6 +401,23 @@ function testeTela() {
   );
   check("renderiza 'Acesso negado' para quem não é super_admin", codigo.includes("Acesso negado"));
   check(
+    "falha ao verificar o papel não vira 'Acesso negado'",
+    /setRoleError\(true\)/.test(codigo) && codigo.includes("Não foi possível verificar seu acesso"),
+  );
+  check(
+    "a falha de verificação oferece nova tentativa",
+    codigo.includes("Tentar novamente") && /setRoleAttempt\(\(n\) => n \+ 1\)/.test(codigo),
+  );
+  // O ramo de erro precisa vir ANTES do spinner: com `roleError`, `allowed`
+  // continua `null`, então o spinner o engoliria e a tela carregaria para sempre.
+  const posErro = codigo.indexOf("if (roleError) {");
+  const posSpinner = codigo.indexOf("if (authLoading || allowed === null)");
+  check(
+    "a falha de verificação não deixa o spinner girando",
+    posErro > 0 && posSpinner > posErro,
+    `roleError@${posErro} / spinner@${posSpinner}`,
+  );
+  check(
     "não é indexável por buscador",
     /robots[\s\S]{0,60}noindex/.test(codigo),
   );
@@ -247,7 +429,14 @@ function testeTela() {
     codigo.includes('"id, name, email, phone, message, created_at"') && !codigo.includes('select("*")'),
   );
   check("ordena da mais recente para a mais antiga", /ascending:\s*false/.test(codigo));
-  check("limita o volume da consulta", /\.limit\(\d+\)/.test(codigo));
+  check(
+    "limita o volume da consulta",
+    /const LIMITE_CONSULTA = \d+;/.test(codigo) && /\.limit\(LIMITE_CONSULTA\)/.test(codigo),
+  );
+  check(
+    "sinaliza que a consulta pode ter truncado o total",
+    /rows\.length >= LIMITE_CONSULTA/.test(codigo) && /truncado \? "\+" : ""/.test(codigo),
+  );
   check("tem estado de carregamento", codigo.includes("Skeleton"));
   check("tem estado de lista vazia", codigo.includes("Nenhuma mensagem"));
   check(
@@ -257,6 +446,10 @@ function testeTela() {
   check(
     "erro de consulta não deixa dado velho na tela",
     /setRows\(\[\]\)/.test(codigo),
+  );
+  check(
+    "resposta atrasada de outro período não sobrescreve a atual",
+    /let cancelled = false;[\s\S]{0,900}if \(cancelled\) return;[\s\S]{0,600}cancelled = true;/.test(codigo),
   );
 
   group("tela /admin/mensagens: uso");
@@ -270,12 +463,76 @@ function testeTela() {
     /\[r\.name,\s*r\.email,\s*r\.phone[^\]]*,\s*r\.message\]/.test(codigo),
   );
   check("link externo do WhatsApp usa rel seguro", codigo.includes('rel="noopener noreferrer"'));
+  check(
+    "o card de contagem acompanha a busca",
+    /const contagem = buscaAtiva \? filtradas\.length : rows\.length;/.test(codigo),
+  );
+  check(
+    "o e-mail vai codificado para o link de resposta",
+    codigo.includes("mailto:${encodeURIComponent(m.email)}") && !/mailto:\$\{m\.email\}/.test(codigo),
+  );
 
   group("painel do super admin");
 
   const painel = lerArquivo(PAINEL);
   check("o painel leva até as mensagens", painel.includes('to="/admin/mensagens"'));
   check("o link continua ao lado do de churn", painel.includes('to="/admin/churn"'));
+}
+
+/* ══════════════ 3b. telefone digitado à mão ══════════════ */
+
+/**
+ * O telefone de `contact_submissions` vem como o visitante digitou — o campo é
+ * livre e o banco não valida. As duas funções de `lib/phone` assumiam Brasil
+ * sempre; aqui se verifica que número estrangeiro não ganha máscara BR nem
+ * link do WhatsApp, e que os números brasileiros continuam funcionando.
+ */
+function testeTelefone() {
+  group("telefone: número brasileiro continua funcionando");
+
+  check("celular com DDD e nono dígito é aceito", isPlausibleBRPhone("11987650001"));
+  check("celular já com o 55 na frente é aceito", isPlausibleBRPhone("5511987650001"));
+  check("fixo de 10 dígitos é aceito", isPlausibleBRPhone("1132650001"));
+  check("celular vira máscara BR", displayBRPhone("11987650001") === "(11) 98765-0001");
+  check(
+    "celular vira link do WhatsApp com 55",
+    whatsappUrl("11987650001") === "https://wa.me/5511987650001",
+  );
+  check(
+    "número já normalizado não ganha 55 duplicado",
+    whatsappUrl("5511987650001") === "https://wa.me/5511987650001",
+  );
+
+  group("telefone: número que não pode ser brasileiro");
+
+  // 11 dígitos, mas o terceiro não é 9: não é celular brasileiro.
+  check("número dos EUA não passa por brasileiro", !isPlausibleBRPhone("+1 415 555 1234"));
+  check("número dos EUA não recebe máscara BR", displayBRPhone("+1 415 555 1234") === "+1 415 555 1234");
+  check("número dos EUA não vira link do WhatsApp", whatsappUrl("+1 415 555 1234") === null);
+
+  check("número de Portugal não passa por brasileiro", !isPlausibleBRPhone("+351 912 345 678"));
+  check("número de Portugal não vira link do WhatsApp", whatsappUrl("+351 912 345 678") === null);
+
+  check("DDD impossível é recusado", !isPlausibleBRPhone("0987650001"));
+  check("telefone curto demais é recusado", !isPlausibleBRPhone("98765"));
+  check("texto sem número é recusado", !isPlausibleBRPhone("meu whatsapp"));
+  check("texto sem número sai como veio", displayBRPhone("meu whatsapp") === "meu whatsapp");
+  check("campo vazio continua vazio", displayBRPhone(null) === "" && whatsappUrl(null) === null);
+
+  group("telefone: as mensagens do seed atravessam as duas funções");
+
+  const doSeed = getTableRows("contact_submissions")
+    .map((m) => m.phone)
+    .filter((p): p is string => typeof p === "string");
+  check("o seed tem telefone para exercitar", doSeed.length > 0, `${doSeed.length} telefones`);
+  check(
+    "todo telefone do seed é brasileiro plausível",
+    doSeed.every((p) => isPlausibleBRPhone(p)),
+  );
+  check(
+    "e todos geram link do WhatsApp",
+    doSeed.every((p) => whatsappUrl(p) !== null),
+  );
 }
 
 /* ══════════════ 4. o formulário público não regrediu ══════════════ */
@@ -289,6 +546,29 @@ function testeFormulario() {
   check("envia os campos que a tela lê", /name:|email:|message:/.test(codigo));
   check("não exige sessão para enviar", !/if\s*\(!user\)\s*return/.test(codigo));
   check("não tenta ler as mensagens de volta", !/contact_submissions"\)[\s\S]{0,80}\.select/.test(codigo));
+
+  group("formulário público: recusa por limite de envio");
+
+  check(
+    "conhece o SQLSTATE do trigger de vazão",
+    new RegExp(`RATE_LIMIT_SQLSTATE = "${CONTACT_RATE_LIMIT_SQLSTATE}"`).test(codigo),
+  );
+  check(
+    "ramifica pelo código do erro, não pelo texto da mensagem",
+    /code === RATE_LIMIT_SQLSTATE/.test(codigo),
+  );
+  check(
+    "diz ao visitante para aguardar, em vez de repetir",
+    /Você já enviou várias mensagens recentemente/.test(codigo),
+  );
+  check(
+    "mantém o erro genérico para qualquer outro caso",
+    codigo.includes("Erro ao enviar mensagem. Tente novamente."),
+  );
+  check(
+    "o sucesso do envio não mudou",
+    codigo.includes("setSubmitted(true)") && codigo.includes("Mensagem enviada com sucesso!"),
+  );
 }
 
 /* ══════════════ 5. paridade com a migration ══════════════ */
@@ -331,7 +611,118 @@ function testeMigration() {
     !/GRANT[^;]*SELECT[^;]*contact_submissions[^;]*TO anon/.test(grants),
   );
 
+  group("migration: limites de conteúdo e vazão");
+
+  const limites = readFileSync(LIMITES, "utf8");
+
+  check(
+    "cinco CHECK constraints, todas NOT VALID",
+    (limites.match(/ADD CONSTRAINT contact_submissions_\w+\s+CHECK/g) ?? []).length === 5 &&
+      (limites.match(/NOT VALID;/g) ?? []).length === 5,
+  );
+  check(
+    "nome entre 1 e o limite do formulário",
+    /contact_submissions_name_length[\s\S]{0,120}char_length\(btrim\(name\)\) BETWEEN 1 AND 100/.test(limites),
+  );
+  check(
+    "e-mail com teto de tamanho",
+    /contact_submissions_email_length[\s\S]{0,120}char_length\(btrim\(email\)\) BETWEEN 1 AND 255/.test(limites),
+  );
+  check(
+    "e-mail com o mesmo formato do formulário",
+    /contact_submissions_email_format[\s\S]{0,160}btrim\(email\) ~ '\^\[\^\[:space:\]@\]\+@/.test(limites),
+  );
+  check(
+    "telefone opcional, com teto quando vem",
+    /contact_submissions_phone_length[\s\S]{0,160}phone IS NULL OR char_length\(btrim\(phone\)\) BETWEEN 1 AND 20/.test(limites),
+  );
+  check(
+    "mensagem entre 1 e o limite do formulário",
+    /contact_submissions_message_length[\s\S]{0,140}char_length\(btrim\(message\)\) BETWEEN 1 AND 2000/.test(limites),
+  );
+
+  check(
+    "trigger de vazão é BEFORE INSERT por linha",
+    /CREATE TRIGGER contact_submissions_rate_limit[\s\S]{0,160}BEFORE INSERT ON public\.contact_submissions[\s\S]{0,80}FOR EACH ROW/.test(limites),
+  );
+  check(
+    "a função do trigger é SECURITY DEFINER",
+    /CREATE OR REPLACE FUNCTION public\.enforce_contact_submission_rate_limit\(\)[\s\S]{0,200}SECURITY DEFINER/.test(limites),
+  );
+  check(
+    "e fixa o search_path",
+    /enforce_contact_submission_rate_limit[\s\S]{0,240}SET search_path TO 'public'/.test(limites),
+  );
+  check(
+    "a contagem normaliza o e-mail",
+    /lower\(btrim\(c\.email\)\) = lower\(btrim\(NEW\.email\)\)/.test(limites),
+  );
+  check(
+    "há índice para a contagem do trigger",
+    /CREATE INDEX IF NOT EXISTS contact_submissions_email_recent_idx[\s\S]{0,140}lower\(btrim\(email\)\), created_at DESC/.test(limites),
+  );
+  check("documenta rollback conceitual", /ROLLBACK CONCEITUAL/.test(limites));
+  check("documenta as verificações após aplicar", /VERIFICAÇÕES APÓS APLICAR/.test(limites));
+
   group("paridade entre mock e SQL");
+
+  /* ---- os números do mock são os do .sql, não parecidos com eles ---- */
+
+  const numeroDe = (re: RegExp): number | null => {
+    const m = limites.match(re);
+    return m ? Number(m[1]) : null;
+  };
+
+  check(
+    "limite de nome idêntico nos dois lados",
+    numeroDe(/btrim\(name\)\) BETWEEN 1 AND (\d+)/) === CONTACT_LIMITS.name,
+    `sql=${numeroDe(/btrim\(name\)\) BETWEEN 1 AND (\d+)/)} mock=${CONTACT_LIMITS.name}`,
+  );
+  check(
+    "limite de e-mail idêntico nos dois lados",
+    numeroDe(/btrim\(email\)\) BETWEEN 1 AND (\d+)/) === CONTACT_LIMITS.email,
+    `sql=${numeroDe(/btrim\(email\)\) BETWEEN 1 AND (\d+)/)} mock=${CONTACT_LIMITS.email}`,
+  );
+  check(
+    "limite de telefone idêntico nos dois lados",
+    numeroDe(/btrim\(phone\)\) BETWEEN 1 AND (\d+)/) === CONTACT_LIMITS.phone,
+    `sql=${numeroDe(/btrim\(phone\)\) BETWEEN 1 AND (\d+)/)} mock=${CONTACT_LIMITS.phone}`,
+  );
+  check(
+    "limite de mensagem idêntico nos dois lados",
+    numeroDe(/btrim\(message\)\) BETWEEN 1 AND (\d+)/) === CONTACT_LIMITS.message,
+    `sql=${numeroDe(/btrim\(message\)\) BETWEEN 1 AND (\d+)/)} mock=${CONTACT_LIMITS.message}`,
+  );
+  check(
+    "teto de vazão idêntico nos dois lados",
+    numeroDe(/teto\s+CONSTANT integer\s+:= (\d+);/) === CONTACT_RATE_LIMIT.max,
+    `sql=${numeroDe(/teto\s+CONSTANT integer\s+:= (\d+);/)} mock=${CONTACT_RATE_LIMIT.max}`,
+  );
+  check(
+    "janela de vazão idêntica nos dois lados",
+    numeroDe(/janela\s+CONSTANT interval\s+:= interval '(\d+) minutes';/) ===
+      CONTACT_RATE_LIMIT.windowMinutes,
+    `sql=${numeroDe(/janela\s+CONSTANT interval\s+:= interval '(\d+) minutes';/)} mock=${CONTACT_RATE_LIMIT.windowMinutes}`,
+  );
+
+  /* ---- e os do formulário são os mesmos que os do banco ---- */
+
+  const formulario = lerArquivo(FORMULARIO);
+  check(
+    "o SQLSTATE do trigger é o mesmo nos três lados",
+    /USING ERRCODE = 'P0001'/.test(limites) &&
+      CONTACT_RATE_LIMIT_SQLSTATE === "P0001" &&
+      lerArquivo(FORMULARIO).includes('RATE_LIMIT_SQLSTATE = "P0001"'),
+  );
+
+  check(
+    "o formulário usa exatamente os mesmos limites",
+    formulario.includes(`form.name.length > ${CONTACT_LIMITS.name}`) &&
+      formulario.includes(`form.email.length > ${CONTACT_LIMITS.email}`) &&
+      formulario.includes(`form.message.length > ${CONTACT_LIMITS.message}`) &&
+      formulario.includes(`maxLength={${CONTACT_LIMITS.phone}}`),
+  );
+
 
   const regras = lerArquivo("src/mocks/rules.ts");
   check("o mock filtra a leitura da tabela", regras.includes('table === "contact_submissions"'));
@@ -349,7 +740,9 @@ export async function runHarness() {
 
   await testeLeitura();
   await testeEscrita();
+  await testeLimites();
   testeTela();
+  testeTelefone();
   testeFormulario();
   testeMigration();
 
