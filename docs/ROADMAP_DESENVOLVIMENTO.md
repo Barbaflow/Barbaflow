@@ -1,7 +1,8 @@
 # Roadmap de desenvolvimento — BarbaFlow
 
-> Montado em **28/07/2026** a partir de `docs/ESTADO_ATUAL_PROJETO.md`. Todo item
-> aponta para código, migration ou branch que já existem. **Nada aqui é
+> Montado em **28/07/2026** a partir de uma auditoria do código, das migrations e
+> do histórico do Git — o levantamento completo é mantido fora do repositório.
+> Todo item aponta para código, migration ou branch que já existem. **Nada aqui é
 > funcionalidade nova inventada** — o que não está no repositório não está nesta
 > lista.
 >
