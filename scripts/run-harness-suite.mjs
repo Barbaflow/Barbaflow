@@ -40,6 +40,7 @@ const CORE = [
   ["notifications", "run-notifications-reviews-harness.mjs"],
   ["realtime", "run-realtime-harness.mjs"],
   ["remote-scripts", "run-remote-scripts-harness.mjs"],
+  ["cron-endpoints", "run-cron-endpoints-harness.mjs"],
 ];
 
 /** Suítes que exigem um Postgres real (via docker exec) para provar o que testam. */
