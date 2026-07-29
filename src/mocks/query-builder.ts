@@ -25,11 +25,13 @@ import {
   filterReadableRows,
   recalcTicketTotals,
   type MockOperation,
+  type MockRuleViolation,
   validateAppointment,
   validateBarberOwnedRow,
   validateBarbershop,
   validateClientBlock,
   validateClientNote,
+  validateContactSubmission,
   validatePaymentMethod,
   validatePlanChangeLog,
   validateProduct,
@@ -107,7 +109,7 @@ function validateWrite(
   row: MockRow,
   existing?: MockRow,
   pending: readonly MockRow[] = [],
-): string | null {
+): MockRuleViolation | null {
   switch (table) {
     case "appointments":
       return validateAppointment(row, existing);
@@ -143,6 +145,8 @@ function validateWrite(
       return validatePlanChangeLog(row);
     case "reviews":
       return validateReview(row, existing);
+    case "contact_submissions":
+      return validateContactSubmission(row, pending);
     default:
       return null;
   }
@@ -182,9 +186,17 @@ function applyInsertDefaults(table: string, row: MockRow): MockRow {
   return row;
 }
 
-/** Erro no formato que os componentes já tratam (checam apenas `error`). */
-function ruleError(message: string): MockPostgrestError {
-  return { message, details: "Regra do modo offline.", hint: "", code: "MOCK_RULE" };
+/**
+ * Erro no formato que os componentes já tratam (checam apenas `error`).
+ *
+ * Quando a regra informa um SQLSTATE, ele vence o código genérico: é o que
+ * permite a uma tela ramificar pelo mesmo `code` que receberia do Postgres —
+ * ver `validateContactSubmission` e o tratamento de `P0001` em `/contato`.
+ */
+function ruleError(violation: MockRuleViolation): MockPostgrestError {
+  const message = typeof violation === "string" ? violation : violation.message;
+  const code = typeof violation === "string" ? "MOCK_RULE" : violation.code;
+  return { message, details: "Regra do modo offline.", hint: "", code };
 }
 
 /** Recusa por falta de permissão do usuário da sessão. */

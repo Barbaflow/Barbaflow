@@ -36,6 +36,7 @@ import { Route as AgendarIndexRouteImport } from './routes/agendar.index'
 import { Route as HooksResetMonthlyAppointmentsRouteImport } from './routes/hooks/reset-monthly-appointments'
 import { Route as HooksProcessAccountDeletionsRouteImport } from './routes/hooks/process-account-deletions'
 import { Route as AgendarSlugRouteImport } from './routes/agendar.$slug'
+import { Route as AdminMensagensRouteImport } from './routes/admin.mensagens'
 import { Route as AdminChurnRouteImport } from './routes/admin.churn'
 
 const UpgradeRoute = UpgradeRouteImport.update({
@@ -175,6 +176,11 @@ const AgendarSlugRoute = AgendarSlugRouteImport.update({
   path: '/agendar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminMensagensRoute = AdminMensagensRouteImport.update({
+  id: '/admin/mensagens',
+  path: '/admin/mensagens',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminChurnRoute = AdminChurnRouteImport.update({
   id: '/admin/churn',
   path: '/admin/churn',
@@ -206,6 +212,7 @@ export interface FileRoutesByFullPath {
   '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
+  '/admin/mensagens': typeof AdminMensagensRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -236,6 +243,7 @@ export interface FileRoutesByTo {
   '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
+  '/admin/mensagens': typeof AdminMensagensRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -267,6 +275,7 @@ export interface FileRoutesById {
   '/termos': typeof TermosRoute
   '/upgrade': typeof UpgradeRoute
   '/admin/churn': typeof AdminChurnRoute
+  '/admin/mensagens': typeof AdminMensagensRoute
   '/agendar/$slug': typeof AgendarSlugRoute
   '/hooks/process-account-deletions': typeof HooksProcessAccountDeletionsRoute
   '/hooks/reset-monthly-appointments': typeof HooksResetMonthlyAppointmentsRoute
@@ -299,6 +308,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/upgrade'
     | '/admin/churn'
+    | '/admin/mensagens'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/upgrade'
     | '/admin/churn'
+    | '/admin/mensagens'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '/termos'
     | '/upgrade'
     | '/admin/churn'
+    | '/admin/mensagens'
     | '/agendar/$slug'
     | '/hooks/process-account-deletions'
     | '/hooks/reset-monthly-appointments'
@@ -390,6 +402,7 @@ export interface RootRouteChildren {
   TermosRoute: typeof TermosRoute
   UpgradeRoute: typeof UpgradeRoute
   AdminChurnRoute: typeof AdminChurnRoute
+  AdminMensagensRoute: typeof AdminMensagensRoute
   AgendarSlugRoute: typeof AgendarSlugRoute
   HooksProcessAccountDeletionsRoute: typeof HooksProcessAccountDeletionsRoute
   HooksResetMonthlyAppointmentsRoute: typeof HooksResetMonthlyAppointmentsRoute
@@ -587,6 +600,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AgendarSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/mensagens': {
+      id: '/admin/mensagens'
+      path: '/admin/mensagens'
+      fullPath: '/admin/mensagens'
+      preLoaderRoute: typeof AdminMensagensRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/churn': {
       id: '/admin/churn'
       path: '/admin/churn'
@@ -622,6 +642,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermosRoute: TermosRoute,
   UpgradeRoute: UpgradeRoute,
   AdminChurnRoute: AdminChurnRoute,
+  AdminMensagensRoute: AdminMensagensRoute,
   AgendarSlugRoute: AgendarSlugRoute,
   HooksProcessAccountDeletionsRoute: HooksProcessAccountDeletionsRoute,
   HooksResetMonthlyAppointmentsRoute: HooksResetMonthlyAppointmentsRoute,

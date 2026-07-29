@@ -38,6 +38,15 @@ export const Route = createFileRoute("/contato")({
   component: ContatoPage,
 });
 
+/**
+ * SQLSTATE do `RAISE EXCEPTION` no trigger de vazão de `contact_submissions`
+ * (migration 20260729120000). O banco recusa a partir da 4ª mensagem do mesmo
+ * e-mail em 10 minutos, e essa recusa não é uma falha do envio: é um limite
+ * esperado, com uma saída clara — esperar. Dizer "erro, tente novamente" faria
+ * o visitante repetir na hora, que é exatamente o que o trigger recusa.
+ */
+const RATE_LIMIT_SQLSTATE = "P0001";
+
 function ContatoPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -79,8 +88,15 @@ function ContatoPage() {
 
       setSubmitted(true);
       toast.success("Mensagem enviada com sucesso!");
-    } catch {
-      toast.error("Erro ao enviar mensagem. Tente novamente.");
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code === RATE_LIMIT_SQLSTATE) {
+        toast.error(
+          "Você já enviou várias mensagens recentemente. Aguarde alguns minutos e tente novamente.",
+        );
+      } else {
+        toast.error("Erro ao enviar mensagem. Tente novamente.");
+      }
     } finally {
       setLoading(false);
     }

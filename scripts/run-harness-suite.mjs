@@ -41,6 +41,7 @@ const CORE = [
   ["realtime", "run-realtime-harness.mjs"],
   ["remote-scripts", "run-remote-scripts-harness.mjs"],
   ["catalogo-publico", "run-catalogo-publico-harness.mjs"],
+  ["mensagens-contato", "run-mensagens-contato-harness.mjs"],
 ];
 
 /** Suítes que exigem um Postgres real (via docker exec) para provar o que testam. */
