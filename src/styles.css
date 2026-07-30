@@ -116,16 +116,34 @@
 }
 
 /* Gold gradient utility */
+/*
+ * IMPORTANTE — use `background-image` (longhand), nunca o atalho `background`.
+ * O Lightning CSS (minificador do build de produção) rebaixa as cores `oklch()`
+ * gerando uma regra extra em `@supports (color: lab(...))` que repete apenas a
+ * propriedade do gradiente. Com o atalho `background`, essa segunda regra
+ * reseta `background-clip` para `border-box`, o gradiente passa a pintar a
+ * caixa inteira e o texto (transparente) some — aparecendo como um bloco
+ * amarelo sólido no lugar do título. Com o longhand, `background-clip` sobrevive.
+ */
 @layer utilities {
   .text-gradient-gold {
-    background: linear-gradient(135deg, var(--gold) 0%, oklch(0.85 0.12 80) 50%, var(--gold) 100%);
+    /* Fallback legível: sem recorte no texto, a cor sólida continua visível. */
+    color: var(--gold);
+    background-image: linear-gradient(135deg, var(--gold) 0%, oklch(0.85 0.12 80) 50%, var(--gold) 100%);
     -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
+  /* Só apaga o preenchimento do texto onde o recorte realmente funciona. */
+  @supports ((-webkit-background-clip: text) or (background-clip: text)) {
+    .text-gradient-gold {
+      -webkit-text-fill-color: transparent;
+    }
+  }
+
   .bg-gradient-gold {
-    background: linear-gradient(135deg, var(--gold) 0%, oklch(0.65 0.1 70) 100%);
+    background-color: transparent;
+    background-image: linear-gradient(135deg, var(--gold) 0%, oklch(0.65 0.1 70) 100%);
   }
 
   .border-gold {
