@@ -1,6 +1,10 @@
+/* Playfair Display e DM Sans são carregadas por <link> em src/routes/__root.tsx.
+   Um @import remoto não funciona aqui: depois destes dois o Lightning CSS o
+   recusa por ordem (eles são inlinados no lugar, e o import acaba atrás de
+   milhares de regras), e antes deles o bundler tenta ler a URL como arquivo
+   local. As famílias continuam declaradas em --font-display/--font-body. */
 @import "tailwindcss" source(none);
 @import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;600;700;800;900&family=DM+Sans:wght@400;500;600;700&display=swap');
 @source "../src";
 
 @custom-variant dark (&:is(.dark *));
