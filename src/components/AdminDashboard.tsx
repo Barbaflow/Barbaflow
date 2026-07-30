@@ -47,6 +47,7 @@ import {
   UserCog,
   ReceiptText,
   BarChart3,
+  Inbox,
 } from "lucide-react";
 import type { Tables } from "@/integrations/supabase/types";
 
@@ -276,6 +277,12 @@ export function AdminDashboard() {
               <History className="w-4 h-4" />
               <span className="hidden sm:inline">Histórico</span>
             </Button>
+            <Link to="/admin/mensagens">
+              <Button variant="ghost" size="sm">
+                <Inbox className="w-4 h-4" />
+                <span className="hidden sm:inline">Mensagens</span>
+              </Button>
+            </Link>
             <Link to="/admin/churn">
               <Button variant="ghost" size="sm">
                 <TrendingDown className="w-4 h-4" />
@@ -404,7 +411,11 @@ export function AdminDashboard() {
                     <CardContent className="p-0">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
                         {/* Avatar */}
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {/* sm:min-w-[260px]: a partir de `sm` a linha vira horizontal e os dois
+                            blocos à direita (meta e ações) são `flex-shrink-0`. Sem um piso de
+                            largura aqui, eles consomem a linha inteira, este bloco colapsa para
+                            0px e o badge de status transborda por cima do vizinho. */}
+                        <div className="flex items-center gap-3 flex-1 min-w-0 sm:min-w-[240px]">
                           {shop.logo_url ? (
                             <img
                               src={shop.logo_url}
@@ -421,8 +432,10 @@ export function AdminDashboard() {
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground truncate">{shop.name}</p>
-                              <Badge variant="outline" className={`text-[10px] ${statusCfg.badge}`}>
+                              {/* min-w-0: sem ele o item flex herda min-width:auto, o `truncate`
+                                  não encolhe e o nome longo empurra o badge para fora do lugar. */}
+                              <p className="font-medium text-foreground truncate min-w-0">{shop.name}</p>
+                              <Badge variant="outline" className={`text-[10px] shrink-0 ${statusCfg.badge}`}>
                                 {statusCfg.label}
                               </Badge>
                             </div>
@@ -431,7 +444,12 @@ export function AdminDashboard() {
                         </div>
 
                         {/* Meta */}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground flex-shrink-0">
+                        {/* `main` é `max-w-5xl`, então a linha tem 958px fixos em qualquer
+                            monitor: mostrar os rótulos dos botões não cabe em largura nenhuma.
+                            Eles ficam em `sr-only` (leitor de tela continua lendo) com `title`
+                            para o tooltip do mouse. `flex-wrap` sem `flex-shrink-0` deixa a
+                            fileira quebrar em telas estreitas em vez de vazar do card. */}
+                        <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Users className="w-3.5 h-3.5" />
                             {shop._teamCount}
@@ -448,39 +466,39 @@ export function AdminDashboard() {
                               `/equipe` não existe como rota: a equipe é uma
                               seção de `/configuracoes`. */}
                           <Link to="/clientes" search={{ barbershop: shop.id }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <Users className="w-3 h-3 mr-1" />
-                              Clientes
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Clientes">
+                              <Users className="w-3 h-3" />
+                              <span className="sr-only">Clientes</span>
                             </Button>
                           </Link>
                           <Link to="/servicos" search={{ barbershop: shop.id }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <Scissors className="w-3 h-3 mr-1" />
-                              Serviços
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Serviços">
+                              <Scissors className="w-3 h-3" />
+                              <span className="sr-only">Serviços</span>
                             </Button>
                           </Link>
                           <Link to="/comandas" search={{ barbershop: shop.id, comanda: undefined }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <ReceiptText className="w-3 h-3 mr-1" />
-                              Comandas
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Comandas">
+                              <ReceiptText className="w-3 h-3" />
+                              <span className="sr-only">Comandas</span>
                             </Button>
                           </Link>
                           <Link to="/relatorios" search={{ barbershop: shop.id }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <BarChart3 className="w-3 h-3 mr-1" />
-                              Relatórios
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Relatórios">
+                              <BarChart3 className="w-3 h-3" />
+                              <span className="sr-only">Relatórios</span>
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <UserCog className="w-3 h-3 mr-1" />
-                              Equipe
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Equipe">
+                              <UserCog className="w-3 h-3" />
+                              <span className="sr-only">Equipe</span>
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }}>
-                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]">
-                              <Settings className="w-3 h-3 mr-1" />
-                              Config
+                            <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Configurações">
+                              <Settings className="w-3 h-3" />
+                              <span className="sr-only">Configurações</span>
                             </Button>
                           </Link>
                           <Select

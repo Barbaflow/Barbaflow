@@ -1,19 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
+import { authorizeCronRequest } from "@/lib/cron-auth.server";
 
 // Cron-triggered route: deletes accounts whose 30-day grace period has elapsed.
 export const Route = createFileRoute("/hooks/process-account-deletions")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const authHeader = request.headers.get("authorization");
-        const token = authHeader?.replace("Bearer ", "");
-        if (!token) {
-          return new Response(JSON.stringify({ error: "Missing authorization" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
-        }
+        // Primeira instrução do handler, de propósito: esta rota apaga contas
+        // de usuário definitivamente. Nada acontece antes da autorização —
+        // nem a leitura da chave administrativa.
+        const auth = authorizeCronRequest(request);
+        if (!auth.ok) return auth.response;
 
         // Service role required for auth.admin.deleteUser
         const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -23,14 +21,6 @@ export const Route = createFileRoute("/hooks/process-account-deletions")({
             JSON.stringify({ error: "server_misconfigured" }),
             { status: 500, headers: { "Content-Type": "application/json" } },
           );
-        }
-
-        // Verify the caller is allowed (anon key acts as the cron auth token)
-        if (token !== process.env.SUPABASE_ANON_KEY && token !== process.env.SUPABASE_PUBLISHABLE_KEY) {
-          return new Response(JSON.stringify({ error: "Unauthorized" }), {
-            status: 401,
-            headers: { "Content-Type": "application/json" },
-          });
         }
 
         const admin = createClient(supabaseUrl, serviceKey, {

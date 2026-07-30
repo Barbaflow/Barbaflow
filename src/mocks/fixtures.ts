@@ -1421,6 +1421,59 @@ function buildNotifications(): TableRow<"notifications">[] {
 }
 
 /* ------------------------------------------------------------------ */
+/* Mensagens do formulário público de contato                          */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Mensagens de `/contato`. A tabela é escrita por visitante anônimo e lida só
+ * pelo super_admin — não tem `barbershop_id`, é da plataforma, não de um
+ * tenant. As mensagens cobrem o que a tela precisa renderizar: com e sem
+ * telefone, texto curto e longo, e idades diferentes (a mais nova conta como
+ * "novas nas últimas 24h").
+ */
+function buildContactSubmissions(): TableRow<"contact_submissions">[] {
+  return [
+    {
+      id: "0c0f0a01-0000-4000-8000-000000000001",
+      name: "Rafael Moreira",
+      email: "rafael.moreira@exemplo.teste",
+      phone: "11987650001",
+      message:
+        "Tenho duas unidades e queria saber se dá para gerenciar as duas na mesma conta. (mensagem fictícia)",
+      created_at: minutesAgoISO(45),
+    },
+    {
+      id: "0c0f0a01-0000-4000-8000-000000000002",
+      name: "Juliana Prado",
+      email: "juliana.prado@exemplo.teste",
+      phone: null,
+      message: "Vocês emitem nota fiscal do plano? (mensagem fictícia)",
+      created_at: minutesAgoISO(60 * 5),
+    },
+    {
+      id: "0c0f0a01-0000-4000-8000-000000000003",
+      name: "Marcos Vinícius de Almeida Sobrinho",
+      email: "marcos.sobrinho@exemplo.teste",
+      phone: "21987650003",
+      message:
+        "Bom dia. Estou testando o sistema há uma semana e gostaria de entender melhor como funciona o " +
+        "limite de agendamentos do plano gratuito, porque a minha barbearia atende bem mais que isso por " +
+        "mês e não quero ser pego de surpresa no meio do expediente. Também queria saber se existe " +
+        "desconto para pagamento anual. (mensagem fictícia)",
+      created_at: minutesAgoISO(60 * 24 * 2),
+    },
+    {
+      id: "0c0f0a01-0000-4000-8000-000000000004",
+      name: "Bianca Rocha",
+      email: "bianca.rocha@exemplo.teste",
+      phone: "31987650004",
+      message: "O aplicativo funciona offline? (mensagem fictícia)",
+      created_at: minutesAgoISO(60 * 24 * 40),
+    },
+  ];
+}
+
+/* ------------------------------------------------------------------ */
 /* Convites de equipe                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -2124,5 +2177,6 @@ export function buildSeedDatabase(): MockDatabase {
     client_notes: buildClientNotes(),
     client_blocks: buildClientBlocks(),
     team_invitations: buildTeamInvitations(),
+    contact_submissions: buildContactSubmissions(),
   };
 }

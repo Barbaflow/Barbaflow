@@ -1,19 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { authorizeCronRequest } from "@/lib/cron-auth.server";
 
 export const Route = createFileRoute("/hooks/reset-monthly-appointments")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const lovableContext = request.headers.get("lovable-context");
-        const authHeader = request.headers.get("authorization");
-
-        if (!lovableContext && !authHeader) {
-          return new Response(
-            JSON.stringify({ error: "Unauthorized" }),
-            { status: 401, headers: { "Content-Type": "application/json" } }
-          );
-        }
+        // Primeira instrução do handler, de propósito: esta rota zera o
+        // contador de TODAS as barbearias com a chave administrativa, então
+        // nada pode acontecer antes da autorização.
+        const auth = authorizeCronRequest(request);
+        if (!auth.ok) return auth.response;
 
         // Use admin client to bypass RLS and reset all barbershops
         const { error } = await supabaseAdmin
