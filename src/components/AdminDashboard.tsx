@@ -411,7 +411,11 @@ export function AdminDashboard() {
                     <CardContent className="p-0">
                       <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
                         {/* Avatar */}
-                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                        {/* sm:min-w-[260px]: a partir de `sm` a linha vira horizontal e os dois
+                            blocos à direita (meta e ações) são `flex-shrink-0`. Sem um piso de
+                            largura aqui, eles consomem a linha inteira, este bloco colapsa para
+                            0px e o badge de status transborda por cima do vizinho. */}
+                        <div className="flex items-center gap-3 flex-1 min-w-0 sm:min-w-[260px]">
                           {shop.logo_url ? (
                             <img
                               src={shop.logo_url}
@@ -428,8 +432,10 @@ export function AdminDashboard() {
                           )}
                           <div className="min-w-0">
                             <div className="flex items-center gap-2">
-                              <p className="font-medium text-foreground truncate">{shop.name}</p>
-                              <Badge variant="outline" className={`text-[10px] ${statusCfg.badge}`}>
+                              {/* min-w-0: sem ele o item flex herda min-width:auto, o `truncate`
+                                  não encolhe e o nome longo empurra o badge para fora do lugar. */}
+                              <p className="font-medium text-foreground truncate min-w-0">{shop.name}</p>
+                              <Badge variant="outline" className={`text-[10px] shrink-0 ${statusCfg.badge}`}>
                                 {statusCfg.label}
                               </Badge>
                             </div>
