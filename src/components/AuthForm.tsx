@@ -9,6 +9,13 @@ import { Scissors } from "lucide-react";
 import { maskBRPhone, isValidBRPhone, toStorageBRPhone } from "@/lib/phone";
 import { authErrorMessage } from "@/lib/auth-errors";
 import { logTechnicalError } from "@/lib/error-reporting";
+import { passwordRecoveryRedirectUrl } from "@/lib/auth-redirect";
+import {
+  resetFlowMessage,
+  validateResetEmail,
+  RESET_REQUEST_SUCCESS,
+  RESET_REQUEST_FALLBACK,
+} from "@/lib/password-recovery";
 
 interface AuthFormProps {
   /** Path to redirect to after a successful login or after the email confirmation flow. */
@@ -34,16 +41,27 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     setError("");
     setSuccess("");
     setSubmitting(true);
     try {
       if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+        const destinatario = validateResetEmail(email);
+        if (!destinatario.ok) {
+          // Validação local: a mensagem já é para o usuário e não passa pelo
+          // tratamento de erro do provedor.
+          setError(destinatario.message);
+          return;
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(destinatario.email, {
+          redirectTo: passwordRecoveryRedirectUrl(),
         });
+        // O resultado exibido não distingue e-mail cadastrado de desconhecido:
+        // só falhas de envio (rede, limite) chegam à tela.
         if (error) throw error;
-        setSuccess("Enviamos um link de recuperação para seu email.");
+        setSuccess(RESET_REQUEST_SUCCESS);
       } else if (mode === "login") {
         await signIn(email, password);
       } else {
@@ -55,7 +73,11 @@ export function AuthForm({ redirectTo }: AuthFormProps = {}) {
       }
     } catch (err: unknown) {
       logTechnicalError("AuthForm", `autenticação (${mode})`, err);
-      setError(authErrorMessage(err, "Não foi possível concluir. Tente novamente."));
+      setError(
+        mode === "forgot"
+          ? resetFlowMessage(err, RESET_REQUEST_FALLBACK)
+          : authErrorMessage(err, "Não foi possível concluir. Tente novamente."),
+      );
     } finally {
       setSubmitting(false);
     }

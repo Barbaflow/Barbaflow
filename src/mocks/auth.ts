@@ -171,7 +171,12 @@ function buildSession(account: MockAccount): Session {
 /* Estado                                                              */
 /* ------------------------------------------------------------------ */
 
-type AuthChangeEvent = "INITIAL_SESSION" | "SIGNED_IN" | "SIGNED_OUT" | "USER_UPDATED";
+type AuthChangeEvent =
+  | "INITIAL_SESSION"
+  | "SIGNED_IN"
+  | "SIGNED_OUT"
+  | "USER_UPDATED"
+  | "PASSWORD_RECOVERY";
 type AuthCallback = (event: AuthChangeEvent, session: Session | null) => void;
 
 let currentSession: Session | null = null;
@@ -224,6 +229,65 @@ function emit(event: AuthChangeEvent, session: Session | null): void {
 function findAccount(email: string): MockAccount | undefined {
   const normalized = email.trim().toLowerCase();
   return MOCK_ACCOUNTS.find((account) => account.email === normalized);
+}
+
+/* ------------------------------------------------------------------ */
+/* Recuperação de senha                                                */
+/* ------------------------------------------------------------------ */
+
+export interface MockRecoveryRequest {
+  email: string;
+  redirectTo: string | null;
+}
+
+/** Solicitações feitas nesta execução, em ordem. Consultado pelos testes. */
+const recoveryRequests: MockRecoveryRequest[] = [];
+
+/** Códigos já consumidos — o segundo uso do mesmo link precisa falhar. */
+const usedRecoveryCredentials = new Set<string>();
+
+/** Prefixo dos códigos aceitos: `mock-recovery-<email>`. */
+const RECOVERY_PREFIX = "mock-recovery-";
+
+/** Código válido de recuperação para uma conta fictícia. */
+export function mockRecoveryCredential(email: string): string {
+  return `${RECOVERY_PREFIX}${email.trim().toLowerCase()}`;
+}
+
+/** Solicitações registradas até agora (cópia). */
+export function getMockRecoveryRequests(): readonly MockRecoveryRequest[] {
+  return [...recoveryRequests];
+}
+
+/** Zera o registro entre cenários de teste. */
+export function resetMockRecoveryState(): void {
+  recoveryRequests.length = 0;
+  usedRecoveryCredentials.clear();
+}
+
+/** Troca o código por sessão, uma única vez, e emite PASSWORD_RECOVERY. */
+function consumeRecoveryCredential(credential: string) {
+  const chave = credential.trim();
+  if (!chave.startsWith(RECOVERY_PREFIX) || usedRecoveryCredentials.has(chave)) {
+    return {
+      data: { user: null, session: null },
+      error: { ...authError("Modo offline: link inválido ou já utilizado.", 401), code: "otp_expired" },
+    };
+  }
+
+  const account = findAccount(chave.slice(RECOVERY_PREFIX.length));
+  if (!account) {
+    return {
+      data: { user: null, session: null },
+      error: { ...authError("Modo offline: link inválido ou já utilizado.", 401), code: "otp_expired" },
+    };
+  }
+
+  usedRecoveryCredentials.add(chave);
+  const session = buildSession(account);
+  persistSession(session);
+  emit("PASSWORD_RECOVERY", session);
+  return { data: { user: session.user, session }, error: null };
 }
 
 /** Limpa a sessão fictícia (usado ao restaurar os dados). */
@@ -334,10 +398,18 @@ export const mockAuth = {
     return { data: { user: session?.user ?? null, session }, error: null };
   },
 
-  async updateUser(attributes: { data?: Record<string, unknown> }) {
+  async updateUser(attributes: { data?: Record<string, unknown>; password?: string; email?: string }) {
     const session = loadSession();
     if (!session) {
+      // Mesmo status que o provedor real devolve para updateUser sem sessão.
       return { data: { user: null }, error: authError("Modo offline: sem sessão ativa.", 401) };
+    }
+
+    if (typeof attributes.password === "string" && attributes.password.length < 6) {
+      return {
+        data: { user: null },
+        error: { ...authError("Modo offline: senha muito curta.", 422), code: "weak_password" },
+      };
     }
 
     const updated: Session = {
@@ -352,8 +424,29 @@ export const mockAuth = {
     return { data: { user: updated.user }, error: null };
   },
 
-  async resetPasswordForEmail(_email: string, _options?: unknown) {
+  /**
+   * Nunca revela se a conta existe: a resposta é a mesma para qualquer e-mail.
+   * A solicitação fica registrada para que os testes confiram a `redirectTo`.
+   */
+  async resetPasswordForEmail(email: string, options?: { redirectTo?: string }) {
+    recoveryRequests.push({
+      email: email.trim().toLowerCase(),
+      redirectTo: options?.redirectTo ?? null,
+    });
     return { data: {}, error: null };
+  },
+
+  /** Fluxo PKCE: um código só vale uma vez. */
+  async exchangeCodeForSession(code: string) {
+    return consumeRecoveryCredential(code);
+  },
+
+  /** Fluxo de token hash (`?token_hash=...&type=recovery`). */
+  async verifyOtp(params: { type: string; token_hash?: string; token?: string }) {
+    if (params.type !== "recovery") {
+      return { data: { user: null, session: null }, error: authError("Modo offline: tipo não suportado.", 400) };
+    }
+    return consumeRecoveryCredential(params.token_hash ?? params.token ?? "");
   },
 
   async signOut() {

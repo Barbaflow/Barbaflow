@@ -43,6 +43,7 @@ const CORE = [
   ["catalogo-publico", "run-catalogo-publico-harness.mjs"],
   ["mensagens-contato", "run-mensagens-contato-harness.mjs"],
   ["cron-endpoints", "run-cron-endpoints-harness.mjs"],
+  ["senha", "run-recuperacao-senha-harness.mjs"],
 ];
 
 /** Suítes que exigem um Postgres real (via docker exec) para provar o que testam. */

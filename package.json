@@ -27,6 +27,7 @@
     "harness:catalogo-publico": "node scripts/run-catalogo-publico-harness.mjs",
     "harness:mensagens-contato": "node scripts/run-mensagens-contato-harness.mjs",
     "harness:cron-endpoints": "node scripts/run-cron-endpoints-harness.mjs",
+    "harness:senha": "node scripts/run-recuperacao-senha-harness.mjs",
     "db:status:remote": "node scripts/db-status-remote.mjs",
     "db:lint:remote": "node scripts/db-lint-remote.mjs",
     "db:dry-run": "node scripts/db-dry-run.mjs",
