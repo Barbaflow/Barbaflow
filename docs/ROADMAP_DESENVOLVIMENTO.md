@@ -10,8 +10,10 @@
 > **G** = várias sessões, provavelmente em etapas.
 >
 > A coluna "risco para o ambiente do cliente" mede o impacto sobre
-> `preview/cliente-vercel` e sobre o banco `qfcngyyzyiwotehubifx`, que o cliente
-> está usando agora.
+> `https://barbaflow-delta.vercel.app` — o deploy de produção da `main`, onde o
+> cliente testa desde **31/07/2026** — e sobre o banco `qfcngyyzyiwotehubifx`,
+> que continua sendo o mesmo compartilhado com o desenvolvimento. Até essa data
+> o ambiente do cliente era a branch `preview/cliente-vercel`, encerrada no C5.
 
 ---
 
@@ -69,12 +71,18 @@
 | **Estimativa** | **P** (execução) — **M** se a máquina precisar ser preparada |
 | **Branch** | `chore/aplica-catalogo-publico-remoto` (para o registro e os tipos regenerados) |
 
-### C5. Encerrar o Preview improvisado
+### ✅ C5. Encerrar o Preview improvisado
+
+**Concluído** em 31/07/2026. Das duas saídas possíveis, foi escolhida a **ida
+direta para produção**, e não a branch nova: `https://barbaflow-delta.vercel.app`
+já roda a `main` com Nitro e é a única URL do projeto que responde sem o SSO da
+Vercel. A branch `chore/encerra-preview-cliente` não chegou a ser criada.
 
 | | |
 |---|---|
 | **Objetivo** | Colocar o cliente para testar código igual ao da `main`, sem a reversão do catálogo. |
 | **Escopo** | Apontar o Preview para uma branch derivada da `main` (com Nitro), apagar `preview/cliente-vercel` local e remota, apagar `docs/PREVIEW_CLIENTE_VERCEL.md`. O procedimento está escrito no rodapé desse arquivo. |
+| **Entregue** | Cliente confirmado testando em `https://barbaflow-delta.vercel.app`. `preview/cliente-vercel` apagada no remoto e no local. `docs/PREVIEW_CLIENTE_VERCEL.md` existia só nessa branch e foi junto — o conteúdo de segurança que ele descrevia já está versionado na `main`, nos cabeçalhos de `20260727120000_public_product_catalog.sql` (o problema) e `20260730120000_public_product_catalog_phase2.sql` (a correção, o rollback e as verificações). Cópias históricas do arquivo continuam alcançáveis por `chore/seed-demo-cliente` e `origin/security/cron-fix-preview`, preservadas de propósito. |
 | **Dependências** | **C4** e **A1** (Nitro na `main`). Combinar com o cliente. |
 | **Migration** | Não |
 | **Risco p/ o cliente** | **Alto** — troca o ambiente debaixo de quem está testando. Só com aviso e janela combinada. |
@@ -191,11 +199,11 @@ bloqueado.
 
 | | |
 |---|---|
-| **Objetivo** | 24 branches locais e 35 remotas, a maioria já mesclada. |
-| **Escopo** | Apagar as mescladas (local e remoto), preservando **`preview/cliente-vercel`**, `chore/vercel-nitro`, `chore/seed-demo-cliente` (tem stash pendente) e `feat/assinaturas-cobranca` (referência da frente pausada). |
+| **Objetivo** | Restam **28 branches locais** (26 delas já mescladas na `main`) e **35 remotas**. Parcialmente feito em 31/07/2026: as 7 branches dos PRs #35–#41 foram apagadas no remoto e as duas órfãs locais (`fix/protege-endpoints-cron-base-antiga`, `security/cron-fix-preview`) removidas. Sobrou o grosso do acervo antigo `feat/*` e `chore/*`. |
+| **Escopo** | Apagar as mescladas (local e remoto), preservando `chore/vercel-nitro`, `chore/seed-demo-cliente` (tem stash pendente), `feat/assinaturas-cobranca` (referência da frente pausada) e **`origin/security/cron-fix-preview`** — desde o encerramento do C5 ela é a única ref que preserva o commit `35ca4ba` do fix de cron. **`preview/cliente-vercel` não existe mais**: foi apagada no C5 e não deve ser recriada. |
 | **Dependências** | Conferir uma a uma antes |
 | **Migration** | Não |
-| **Risco p/ o cliente** | **Alto se feito às cegas** — apagar a branch do Preview derruba o ambiente do cliente. Listar e conferir antes de cada `push --delete`. |
+| **Risco p/ o cliente** | **Baixo desde o C5** — o cliente saiu do Preview e usa a produção da `main`, que não depende de branch nenhuma. Continua valendo listar e conferir antes de cada `push --delete`: o risco agora é orfanizar commit, não derrubar o ambiente de ninguém. |
 | **Testes** | Nenhum |
 | **Estimativa** | **P** |
 | **Branch** | não precisa |
