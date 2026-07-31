@@ -14,7 +14,7 @@
  * migration num banco: é o que dá para garantir sem banco, e é o que impede a
  * migration de regredir silenciosamente.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { mockSupabaseClient } from "@/mocks/client";
 import { resetMockDatabase, getTableRows } from "@/mocks/store";
@@ -412,19 +412,88 @@ function testeMigration() {
   );
   check("a migration executa exatamente 5 comandos", comandos.length === 5, `${comandos.length}: ${comandos.map((c) => c.split(/\s+/).slice(0, 3).join(" ")).join(" | ")}`);
 
-  group("migration: FASE 2 documentada mas não versionada");
+  group("migration: FASE 2 documentada na fase 1");
 
   check("documenta explicitamente a fase 2", /FASE 2/.test(sql));
   check("fase 2 documenta o DROP da policy pública", /DROP POLICY IF EXISTS "Anyone can view products of approved barbershops"/.test(sql));
   check("fase 2 documenta o REVOKE do anon", /REVOKE SELECT ON TABLE public\.products FROM anon/.test(sql));
-  check("fase 2 explica por que não é versionada agora", /db push/.test(sql) && /janela de indisponibilidade/.test(sql));
+  check("fase 2 explica por que foi separada da fase 1", /db push/.test(sql) && /janela de indisponibilidade/.test(sql));
   check("fase 2 lista as verificações pós-aplicação", /Verificações obrigatórias após aplicar a fase 2/.test(sql));
 
-  // Se alguém versionar a fase 2 antes da hora, um único `db push` aplicaria as
-  // duas — reintroduzindo a janela que esta separação existe para evitar.
+  group("migration: FASE 2 versionada");
+
+  // Este guard já foi o oposto: enquanto a fase 2 era só um plano em comentário,
+  // ele exigia que NENHUMA migration a versionasse, porque um `db push` aplicaria
+  // as duas de uma vez e reabriria a janela de indisponibilidade. A fase 2 foi
+  // aplicada no banco e versionada em 30/07/2026, então o risco inverteu: agora o
+  // que quebra o sistema é o arquivo sumir do diretório ou divergir do que a
+  // fase 1 prometeu. É isso que as asserções abaixo travam.
+  const FASE2_ARQUIVO = "20260730120000_public_product_catalog_phase2.sql";
+  const fase2Caminho = path.join(ROOT, "supabase", "migrations", FASE2_ARQUIVO);
+  const fase2Existe = existsSync(fase2Caminho);
+  check("a migration da fase 2 está versionada", fase2Existe, FASE2_ARQUIVO);
+
+  // Sem o arquivo não há o que inspecionar — as asserções seguintes só fariam
+  // ruído sobre a falha acima.
+  if (fase2Existe) {
+    const fase2Sql = readFileSync(fase2Caminho, "utf8");
+    const fase2Codigo = fase2Sql
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n");
+    const fase2Comandos = fase2Codigo
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    check("remove a policy pública antiga", /DROP POLICY IF EXISTS "Anyone can view products of approved barbershops"/.test(fase2Codigo));
+    check("revoga o SELECT de anon na tabela", /REVOKE SELECT ON TABLE public\.products FROM anon/.test(fase2Codigo));
+    check(
+      "executa exatamente 2 comandos",
+      fase2Comandos.length === 2,
+      `${fase2Comandos.length}: ${fase2Comandos.map((c) => c.split(/\s+/).slice(0, 3).join(" ")).join(" | ")}`,
+    );
+    check(
+      "só executa DROP POLICY e REVOKE SELECT",
+      fase2Comandos.every((s) => /^(DROP POLICY|REVOKE SELECT)/i.test(s)),
+      fase2Comandos.filter((s) => !/^(DROP POLICY|REVOKE SELECT)/i.test(s)).join(" | "),
+    );
+    // O ponto da fase 2 é FECHAR acesso. Qualquer GRANT aqui desfaria o efeito.
+    check("não reabre acesso ao anônimo", !/GRANT[^;]*TO anon/i.test(fase2Codigo));
+    check("incide somente sobre public.products", fase2Comandos.every((s) => /public\.products/i.test(s)));
+    check("preserva o rollback documentado", /GRANT SELECT ON TABLE public\.products TO anon/.test(fase2Sql));
+
+    /* ─── paridade: o versionado é o que a fase 1 prometeu ─── */
+
+    // Mesmo padrão da paridade mock ↔ SQL: em vez de repetir o SQL esperado aqui
+    // (que só provaria que este arquivo concorda consigo mesmo), extrai os
+    // comandos do bloco "Conteúdo conceitual" da fase 1 e exige que o arquivo
+    // versionado contenha exatamente aqueles.
+    const normalizar = (s: string) => s.replace(/\s+/g, " ").trim();
+    const blocoConceitual = /Conteúdo conceitual:([\s\S]*?)Verificações obrigatórias/.exec(sql)?.[1] ?? "";
+    const prometidos = blocoConceitual
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n")
+      .split(";")
+      .map(normalizar)
+      .filter(Boolean);
+
+    check("a fase 1 documenta 2 comandos para a fase 2", prometidos.length === 2, `${prometidos.length}: ${prometidos.join(" | ")}`);
+    const versionado = normalizar(fase2Codigo);
+    check(
+      "cada comando prometido pela fase 1 está no arquivo versionado",
+      prometidos.length > 0 && prometidos.every((p) => versionado.includes(p)),
+      prometidos.filter((p) => !versionado.includes(p)).join(" | "),
+    );
+  }
+
+  // Nenhuma OUTRA migration pode carregar o SQL da fase 2: duplicar o DROP/REVOKE
+  // em outro arquivo faria o histórico divergir do banco sem ninguém perceber.
   const migrations = readdirSync(path.join(ROOT, "supabase", "migrations")).filter((f) => f.endsWith(".sql"));
   const comFase2 = migrations.filter((f) => {
-    if (f === "20260727120000_public_product_catalog.sql") return false;
+    if (f === "20260727120000_public_product_catalog.sql" || f === FASE2_ARQUIVO) return false;
     const conteudo = readFileSync(path.join(ROOT, "supabase", "migrations", f), "utf8")
       .replace(/\/\*[\s\S]*?\*\//g, "")
       .split("\n")
@@ -435,7 +504,7 @@ function testeMigration() {
       /DROP POLICY[^;]*"Anyone can view products of approved barbershops"/i.test(conteudo)
     );
   });
-  check("não existe migration da fase 2 no diretório", comFase2.length === 0, comFase2.join(", "));
+  check("o SQL da fase 2 não está duplicado em outra migration", comFase2.length === 0, comFase2.join(", "));
 
   group("migration: não altera o histórico");
 
@@ -445,7 +514,7 @@ function testeMigration() {
     antiga.includes('CREATE POLICY "Anyone can view products of approved barbershops"'),
   );
   check(
-    "policy pública antiga continua sendo a última palavra até a fase 2",
+    "quem remove a policy pública é a fase 2, não a fase 1",
     antiga.includes('CREATE POLICY "Anyone can view products of approved barbershops"') && !/DROP POLICY/i.test(codigo),
   );
 }
