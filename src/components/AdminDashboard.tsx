@@ -260,14 +260,25 @@ export function AdminDashboard() {
       <header className="border-b border-border px-4 py-4 md:px-8">
         {/* Acompanha o `max-w` do `main` abaixo: se só o conteúdo alargasse, a
             barra do topo ficaria mais estreita e as bordas desalinhariam. */}
-        <div className="max-w-5xl 2xl:max-w-[1440px] mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center">
+        {/* `flex-wrap` abaixo de `md` pelo mesmo motivo do BarberDashboard: em
+            ~390px nem os botões só com ícones cabem na viewport. Sem a quebra, o
+            bloco do título é espremido a ~10px e o logo — que é `shrink-0` —
+            vaza da própria caixa por cima dos botões. Com ela, a barra desce
+            para uma segunda linha em vez de sobrepor. */}
+        <div className="max-w-5xl 2xl:max-w-[1440px] mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2">
+          {/* Mesmo tratamento do cabeçalho do BarberDashboard. Aqui o modo de
+              falha era outro: sem `min-w-0` o bloco não encolhe, então em vez de
+              o nome vazar por cima dos botões, quem estourava era a PÁGINA —
+              96px de rolagem horizontal numa viewport de 929. Com `min-w-0` +
+              `truncate` o texto cede primeiro, e o `shrink-0` protege o logo,
+              que com e-mail longo já renderizava 26x36 em vez de 36x36. */}
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-gold flex items-center justify-center">
               <Shield className="w-4 h-4 text-primary-foreground" />
             </div>
-            <div className="hidden sm:block">
-              <h1 className="font-display text-lg text-foreground">Super Admin</h1>
-              <p className="text-xs text-muted-foreground">{user?.email}</p>
+            <div className="hidden sm:block min-w-0">
+              <h1 className="font-display text-lg text-foreground min-w-0 truncate">Super Admin</h1>
+              <p className="text-xs text-muted-foreground min-w-0 truncate">{user?.email}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -277,18 +288,18 @@ export function AdminDashboard() {
               onClick={() => setShowLogs((v) => !v)}
             >
               <History className="w-4 h-4" />
-              <span className="hidden sm:inline">Histórico</span>
+              <span className="hidden xl:inline">Histórico</span>
             </Button>
             <Link to="/admin/mensagens">
               <Button variant="ghost" size="sm">
                 <Inbox className="w-4 h-4" />
-                <span className="hidden sm:inline">Mensagens</span>
+                <span className="hidden xl:inline">Mensagens</span>
               </Button>
             </Link>
             <Link to="/admin/churn">
               <Button variant="ghost" size="sm">
                 <TrendingDown className="w-4 h-4" />
-                <span className="hidden sm:inline">Churn</span>
+                <span className="hidden xl:inline">Churn</span>
               </Button>
             </Link>
             {/* Sem `?barbershop=`: o super_admin cai no próprio perfil e a tela
@@ -297,11 +308,11 @@ export function AdminDashboard() {
             <Link to="/configuracoes" search={{ barbershop: undefined }}>
               <Button variant="ghost" size="sm">
                 <Settings className="w-4 h-4" />
-                <span className="hidden sm:inline">Config</span>
+                <span className="hidden xl:inline">Config</span>
               </Button>
             </Link>
-            <InstallAppButton />
-            <EnableNotificationsButton />
+            <InstallAppButton labelFromXl />
+            <EnableNotificationsButton labelFromXl />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
