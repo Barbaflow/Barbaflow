@@ -10,7 +10,12 @@ import {
 
 const NOTIF_ENABLED_KEY = "barbaflow_notifications_enabled";
 
-export function EnableNotificationsButton() {
+interface EnableNotificationsButtonProps {
+  /** Segura o rótulo até `xl`. Ver a mesma prop em `InstallAppButton`. */
+  labelFromXl?: boolean;
+}
+
+export function EnableNotificationsButton({ labelFromXl = false }: EnableNotificationsButtonProps = {}) {
   const [enabled, setEnabled] = useState(() => localStorage.getItem(NOTIF_ENABLED_KEY) !== "false");
 
   // Auto-request permission on mount if user has notifications enabled but never granted.
@@ -64,7 +69,7 @@ export function EnableNotificationsButton() {
       ) : (
         <BellOff className="w-4 h-4 text-muted-foreground" />
       )}
-      <span className="hidden sm:inline">
+      <span className={labelFromXl ? "hidden xl:inline" : "hidden sm:inline"}>
         {enabled ? "Desativar Notificações" : "Ativar Notificações"}
       </span>
     </Button>
