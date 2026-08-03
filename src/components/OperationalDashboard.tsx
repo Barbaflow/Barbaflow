@@ -554,7 +554,11 @@ function MiniStat({
           <Icon className={`w-4 h-4 ${color}`} />
           <span className="text-xs text-muted-foreground leading-tight">{label}</span>
         </div>
-        <span className={`text-xl font-display font-bold ${tone === "accent" ? "text-primary" : "text-foreground"}`}>
+        {/* `font-body` (DM Sans) e não `font-display` (Playfair Display): a
+            serifada é boa em título, mas atrapalha em número — o "0" e o "R$"
+            ficam com pouco contraste de forma. Só a família muda; tamanho, peso
+            e cor seguem iguais. O rótulo acima continua como estava. */}
+        <span className={`text-xl font-body font-bold ${tone === "accent" ? "text-primary" : "text-foreground"}`}>
           {value}
         </span>
       </CardContent>
@@ -566,7 +570,8 @@ function FatItem({ label, value, accent }: { label: string; value: string; accen
   return (
     <div className="flex flex-col">
       <span className="text-sm text-muted-foreground">{label}</span>
-      <span className={`text-xl font-display font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
+      {/* Mesma troca do MiniStat: número em `font-body`. */}
+      <span className={`text-xl font-body font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }
