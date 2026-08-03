@@ -30,7 +30,18 @@ function isStandalone() {
   );
 }
 
-export function InstallAppButton() {
+interface InstallAppButtonProps {
+  /**
+   * Segura o rótulo até `xl` em vez de `sm`. Serve para barras lotadas — o
+   * cabeçalho do BarberDashboard soma 9 botões e, com todos rotulados, estoura
+   * o container e passa por cima do nome da barbearia. As duas variantes são
+   * strings literais de propósito: o Tailwind só gera a classe que enxerga no
+   * código, então montar `hidden ${bp}:inline` não funcionaria.
+   */
+  labelFromXl?: boolean;
+}
+
+export function InstallAppButton({ labelFromXl = false }: InstallAppButtonProps = {}) {
   const [deferredPrompt, setDeferredPrompt] =
     useState<BeforeInstallPromptEvent | null>(null);
   const [showInstructions, setShowInstructions] = useState(false);
@@ -78,7 +89,7 @@ export function InstallAppButton() {
         className="gap-2"
       >
         <Download className="w-4 h-4" />
-        <span className="hidden sm:inline">Instalar App</span>
+        <span className={labelFromXl ? "hidden xl:inline" : "hidden sm:inline"}>Instalar App</span>
       </Button>
 
       <Dialog open={showInstructions} onOpenChange={setShowInstructions}>

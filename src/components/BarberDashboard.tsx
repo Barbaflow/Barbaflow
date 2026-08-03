@@ -310,17 +310,23 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             e empurravam o "sair" para fora da tela. `flex-wrap` deixa a barra
             descer para uma segunda linha em vez de estourar a página. */}
         <div className="max-w-6xl mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2">
+          {/* `shrink-0` no logo e `min-w-0`+`truncate` no texto: sem eles este
+              bloco absorvia todo o déficit de largura da barra e colapsava para
+              0px, e aí o nome da barbearia era desenhado FORA da própria caixa,
+              por cima dos botões — sobreposição de verdade, medida em ~3.7k px²,
+              não aperto. O logo, pelo mesmo motivo, renderizava 16x36 em vez de
+              36x36: um círculo achatado. */}
           <div className="flex items-center gap-3 min-w-0">
             {barbershop?.logo_url ? (
-              <img src={barbershop.logo_url} alt={name} className="h-9 w-9 rounded-full object-cover" />
+              <img src={barbershop.logo_url} alt={name} className="h-9 w-9 shrink-0 rounded-full object-cover" />
             ) : (
-              <div className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center">
+              <div className="h-9 w-9 shrink-0 rounded-full bg-gradient-gold flex items-center justify-center">
                 <Scissors className="w-4 h-4 text-primary-foreground" />
               </div>
             )}
-            <div className="hidden sm:block">
-              <h1 className="font-display text-lg text-foreground">{name}</h1>
-              <p className="text-xs text-muted-foreground">
+            <div className="hidden sm:block min-w-0">
+              <h1 className="font-display text-lg text-foreground min-w-0 truncate">{name}</h1>
+              <p className="text-xs text-muted-foreground min-w-0 truncate">
                 {isAdmin ? "Administrador" : "Barbeiro"} · {user?.email}
               </p>
             </div>
@@ -336,7 +342,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 >
                   <Button variant="ghost" size="sm">
                     <Globe className="w-4 h-4" />
-                    <span className="hidden md:inline">Ver página pública</span>
+                    <span className="hidden xl:inline">Ver página pública</span>
                   </Button>
                 </a>
                 <Button
@@ -354,7 +360,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                   }}
                 >
                   <Copy className="w-4 h-4" />
-                  <span className="hidden md:inline">Copiar link</span>
+                  <span className="hidden xl:inline">Copiar link</span>
                 </Button>
               </>
             )}
@@ -375,23 +381,23 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             <Link to="/agenda" search={{ barbershop: undefined }}>
               <Button variant="ghost" size="sm">
                 <CalendarCog className="w-4 h-4" />
-                <span className="hidden sm:inline">Meus Horários</span>
+                <span className="hidden xl:inline">Meus Horários</span>
               </Button>
             </Link>
             <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
               <Button variant="ghost" size="sm">
                 <ReceiptText className="w-4 h-4" />
-                <span className="hidden sm:inline">Comandas</span>
+                <span className="hidden xl:inline">Comandas</span>
               </Button>
             </Link>
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
-                <span className="hidden sm:inline">Relatórios</span>
+                <span className="hidden xl:inline">Relatórios</span>
               </Button>
             </Link>
-            <InstallAppButton />
-            <EnableNotificationsButton />
+            <InstallAppButton labelFromXl />
+            <EnableNotificationsButton labelFromXl />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
