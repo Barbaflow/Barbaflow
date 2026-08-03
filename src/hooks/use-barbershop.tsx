@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import { setActiveTenantTZ, DEFAULT_TENANT_TZ } from "@/lib/tz";
@@ -74,16 +74,54 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
   const [resolveToken, setResolveToken] = useState(0);
   const refreshBarbershop = useCallback(() => setResolveToken((n) => n + 1), []);
 
+  // Último usuário para o qual uma resolução foi disparada. `undefined` = nada
+  // observado ainda (distinto de `null`, que é "observado, e não há sessão").
+  const lastUserId = useRef<string | null | undefined>(undefined);
+
   // A resolução acontecia UMA única vez, no mount. Quem entrasse sem barbearia
   // — ou criasse a sua no meio da sessão, pelo onboarding — ficava com o
   // fallback antigo para sempre, e as telas que autorizam por tenant passavam a
   // comparar o usuário com um id que não é o dele. Re-resolvemos quando a
   // sessão muda (login/logout/refresh) e sob demanda via refreshBarbershop().
+  //
+  // O NOME DO EVENTO NÃO BASTA, e é por isso que comparamos o `user.id`:
+  // o GoTrueClient registra um `visibilitychange` próprio quando
+  // `autoRefreshToken` está ligado (GoTrueClient.js, `_handleVisibilityChange`).
+  // Ao voltar para a aba ele chama `_recoverAndRefresh()`, que termina em
+  // `_notifyAllSubscribers('SIGNED_IN', currentSession)` — ou seja, dispara
+  // `SIGNED_IN` na revalidação, com a MESMA sessão e o MESMO usuário de antes.
+  // Reagir a isso incrementava `resolveToken`, o efeito abaixo fazia
+  // `setLoading(true)`, e toda tela que usa esse `loading` como portão de
+  // renderização (dashboard e as demais com dados) desmontava e remontava a
+  // árvore inteira: estado local perdido e todas as consultas refeitas. Para o
+  // usuário isso é indistinguível de a página ter recarregado sozinha ao trocar
+  // de aba.
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === "SIGNED_IN" || event === "SIGNED_OUT" || event === "USER_UPDATED") {
-        setResolveToken((n) => n + 1);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      const id = session?.user?.id ?? null;
+
+      // `INITIAL_SESSION` é emitido para cada assinante logo após a inscrição
+      // (GoTrueClient.js, `_emitInitialSession`), com a sessão que já estava em
+      // storage. Ele só ESTABELECE A LINHA DE BASE e nunca dispara resolução —
+      // o efeito de mount abaixo já resolve por conta própria.
+      //
+      // Sem gravar o id aqui, o ref ficaria `undefined` até o primeiro
+      // `SIGNED_IN`; como `undefined !== id`, a primeira revalidação de aba
+      // passaria pela comparação e remontaria a árvore assim mesmo — que é
+      // exatamente o bug que esta mudança existe para fechar.
+      if (event === "INITIAL_SESSION") {
+        lastUserId.current = id;
+        return;
       }
+
+      if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
+
+      // `USER_UPDATED` mantém o mesmo id de propósito — o que mudou foram os
+      // dados do usuário, não quem ele é. Aqui a re-resolução é o objetivo.
+      if (event !== "USER_UPDATED" && lastUserId.current === id) return;
+
+      lastUserId.current = id;
+      setResolveToken((n) => n + 1);
     });
     return () => subscription.unsubscribe();
   }, []);
