@@ -314,21 +314,21 @@ function ResumoSection({
 
       {/* Faturamento resumido */}
       <Card className="bg-card border-border">
-        <CardContent className="p-4 flex flex-wrap items-center gap-x-8 gap-y-2 justify-between">
+        <CardContent className="p-5 flex flex-wrap items-center gap-x-8 gap-y-2 justify-between">
           <FatItem label="Líquido do mês" value={fmtBRL(fat.netMonth)} accent />
           <FatItem label="Ticket médio (mês)" value={fmtBRL(fat.avgMonth)} />
           <div className="flex flex-col">
-            <span className="text-xs text-muted-foreground">vs. mês anterior</span>
+            <span className="text-sm text-muted-foreground">vs. mês anterior</span>
             {delta === null ? (
-              <span className="text-sm text-muted-foreground/70">sem comparação</span>
+              <span className="text-base text-muted-foreground/70">sem comparação</span>
             ) : (
-              <span className={`text-sm flex items-center gap-1 ${delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
+              <span className={`text-base flex items-center gap-1 ${delta > 0 ? "text-emerald-500" : delta < 0 ? "text-destructive" : "text-muted-foreground"}`}>
                 {delta > 0 ? <TrendingUp className="w-4 h-4" /> : delta < 0 ? <TrendingDown className="w-4 h-4" /> : <Minus className="w-4 h-4" />}
                 {delta === 0 ? "estável" : `${delta > 0 ? "+" : "−"}${fmtBRL(Math.abs(delta))}${deltaPct !== null ? ` (${deltaPct >= 0 ? "+" : ""}${deltaPct}%)` : ""}`}
               </span>
             )}
           </div>
-          <Link to="/relatorios" search={{ barbershop: undefined }} className="text-sm text-primary hover:underline flex items-center gap-1">
+          <Link to="/relatorios" search={{ barbershop: undefined }} className="text-base text-primary hover:underline flex items-center gap-1">
             {isAdmin ? "Ver relatórios completos" : "Ver meu faturamento"}
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -549,12 +549,12 @@ function MiniStat({
     : "text-foreground";
   return (
     <Card className="bg-card border-border">
-      <CardContent className="p-3 flex flex-col gap-1">
+      <CardContent className="p-4 flex flex-col gap-1">
         <div className="flex items-center gap-1.5">
-          <Icon className={`w-3.5 h-3.5 ${color}`} />
-          <span className="text-[11px] text-muted-foreground leading-tight">{label}</span>
+          <Icon className={`w-4 h-4 ${color}`} />
+          <span className="text-xs text-muted-foreground leading-tight">{label}</span>
         </div>
-        <span className={`text-lg font-display font-bold ${tone === "accent" ? "text-primary" : "text-foreground"}`}>
+        <span className={`text-xl font-display font-bold ${tone === "accent" ? "text-primary" : "text-foreground"}`}>
           {value}
         </span>
       </CardContent>
@@ -565,8 +565,8 @@ function MiniStat({
 function FatItem({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
   return (
     <div className="flex flex-col">
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className={`text-lg font-display font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
+      <span className="text-sm text-muted-foreground">{label}</span>
+      <span className={`text-xl font-display font-bold ${accent ? "text-primary" : "text-foreground"}`}>{value}</span>
     </div>
   );
 }
