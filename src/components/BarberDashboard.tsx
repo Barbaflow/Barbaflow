@@ -887,12 +887,12 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
                 className="text-left rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                 aria-label="Escolher data"
               >
-                <h2 className="text-xl md:text-2xl font-display font-bold text-foreground inline-flex items-center gap-2">
+                <h2 className="text-2xl md:text-3xl font-display font-bold text-foreground inline-flex items-center gap-2">
                   {isToday ? "Hoje" : formatDateFull(selectedDate)}
-                  <CalendarIcon className="w-4 h-4 text-muted-foreground" />
+                  <CalendarIcon className="w-5 h-5 text-muted-foreground" />
                 </h2>
                 {isToday && (
-                  <p className="text-sm text-muted-foreground">{formatDateFull(selectedDate)}</p>
+                  <p className="text-base text-muted-foreground">{formatDateFull(selectedDate)}</p>
                 )}
               </button>
             </PopoverTrigger>
@@ -1129,14 +1129,18 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
       {/* Subdomain link for admin */}
       {isAdmin && barbershop?.subdomain && (
         <Card className="bg-card border-primary/20">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <Globe className="w-4 h-4 text-primary" />
+          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-5">
+            {/* `w-full` abaixo de `sm`: o CardContent é `flex-col items-start`
+                nessa faixa, então os filhos se dimensionam pelo conteúdo em vez
+                de esticar — e sem largura definida o `truncate` da URL nunca
+                entra, o bloco fica mais largo que o card e vaza. */}
+            <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <Globe className="w-5 h-5 text-primary" />
               </div>
               <div className="min-w-0">
-                <p className="text-sm font-medium text-foreground">Link de agendamento</p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-base font-medium text-foreground">Link de agendamento</p>
+                <p className="text-sm text-muted-foreground truncate">
                   barbaflow-delta.vercel.app/agendar/{barbershop.subdomain}
                 </p>
               </div>
