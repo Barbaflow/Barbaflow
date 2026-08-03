@@ -309,7 +309,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
         {/* Em ~390px os 8 botões de ação (só ícones) somavam mais que a viewport
             e empurravam o "sair" para fora da tela. `flex-wrap` deixa a barra
             descer para uma segunda linha em vez de estourar a página. */}
-        <div className="max-w-6xl mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2">
+        <div className="max-w-6xl 2xl:max-w-[1440px] mx-auto flex flex-wrap md:flex-nowrap items-center justify-between gap-x-3 gap-y-2">
           {/* `shrink-0` no logo e `min-w-0`+`truncate` no texto: sem eles este
               bloco absorvia todo o déficit de largura da barra e colapsava para
               0px, e aí o nome da barbearia era desenhado FORA da própria caixa,
@@ -342,7 +342,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 >
                   <Button variant="ghost" size="sm">
                     <Globe className="w-4 h-4" />
-                    <span className="hidden xl:inline">Ver página pública</span>
+                    <span className="hidden 2xl:inline">Ver página pública</span>
                   </Button>
                 </a>
                 <Button
@@ -360,7 +360,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                   }}
                 >
                   <Copy className="w-4 h-4" />
-                  <span className="hidden xl:inline">Copiar link</span>
+                  <span className="hidden 2xl:inline">Copiar link</span>
                 </Button>
               </>
             )}
@@ -381,23 +381,23 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
             <Link to="/agenda" search={{ barbershop: undefined }}>
               <Button variant="ghost" size="sm">
                 <CalendarCog className="w-4 h-4" />
-                <span className="hidden xl:inline">Meus Horários</span>
+                <span className="hidden 2xl:inline">Meus Horários</span>
               </Button>
             </Link>
             <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
               <Button variant="ghost" size="sm">
                 <ReceiptText className="w-4 h-4" />
-                <span className="hidden xl:inline">Comandas</span>
+                <span className="hidden 2xl:inline">Comandas</span>
               </Button>
             </Link>
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
-                <span className="hidden xl:inline">Relatórios</span>
+                <span className="hidden 2xl:inline">Relatórios</span>
               </Button>
             </Link>
-            <InstallAppButton labelFromXl />
-            <EnableNotificationsButton labelFromXl />
+            <InstallAppButton labelFrom="2xl" />
+            <EnableNotificationsButton labelFrom="2xl" />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
@@ -409,7 +409,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
       {/* Tab navigation — only for admins */}
       {isAdmin && (
         <nav className="border-b border-border bg-card/50 overflow-x-auto">
-          <div className="max-w-6xl mx-auto flex px-4 md:px-8">
+          <div className="max-w-6xl 2xl:max-w-[1440px] mx-auto flex px-4 md:px-8">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
@@ -441,7 +441,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
         </nav>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-6 md:px-8 md:py-8">
+      <main className="max-w-6xl 2xl:max-w-[1440px] mx-auto px-4 py-6 md:px-8 md:py-8">
         {activeTab === "overview" && <OverviewTab isAdmin={isAdmin} onSelectTab={setActiveTab} />}
         {activeTab === "services" && <ServicesTab isAdmin={isAdmin} />}
         {activeTab === "products" && <ProductsTab />}

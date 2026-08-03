@@ -311,8 +311,8 @@ export function AdminDashboard() {
                 <span className="hidden xl:inline">Config</span>
               </Button>
             </Link>
-            <InstallAppButton labelFromXl />
-            <EnableNotificationsButton labelFromXl />
+            <InstallAppButton labelFrom="xl" />
+            <EnableNotificationsButton labelFrom="xl" />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
               <LogOut className="w-4 h-4" />
