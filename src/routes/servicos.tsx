@@ -16,13 +16,13 @@ export const Route = createFileRoute("/servicos")({
       { name: "description", content: "Confira os serviços disponíveis, preços e duração na sua barbearia." },
       { property: "og:title", content: "Serviços — BarbaFlow" },
       { property: "og:description", content: "Confira os serviços disponíveis, preços e duração." },
-      { property: "og:image", content: "https://barbaflow.pro/og-image.jpg" },
+      { property: "og:image", content: "https://barbaflow-delta.vercel.app/og-image.jpg" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Serviços — BarbaFlow" },
-      { name: "twitter:image", content: "https://barbaflow.pro/og-image.jpg" },
+      { name: "twitter:image", content: "https://barbaflow-delta.vercel.app/og-image.jpg" },
     ],
     links: [
-      { rel: "canonical", href: "https://barbaflow.pro/servicos" },
+      { rel: "canonical", href: "https://barbaflow-delta.vercel.app/servicos" },
     ],
   }),
   // Seleção explícita de tenant pelo super_admin (ação do AdminDashboard).
