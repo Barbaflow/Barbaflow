@@ -14,7 +14,6 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PlanCard } from "@/components/PlanCard";
 import { OperationalDashboard } from "@/components/OperationalDashboard";
 import { NotificationBell } from "@/components/NotificationBell";
-import { InstallAppButton } from "@/components/InstallAppButton";
 import { EnableNotificationsButton } from "@/components/EnableNotificationsButton";
 import { TeamManager } from "@/components/TeamManager";
 import { BarbershopSettings } from "@/components/BarbershopSettings";
@@ -396,7 +395,6 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 <span className="hidden 2xl:inline">Relatórios</span>
               </Button>
             </Link>
-            <InstallAppButton labelFrom="2xl" />
             <EnableNotificationsButton labelFrom="2xl" />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
