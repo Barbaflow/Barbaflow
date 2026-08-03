@@ -11,7 +11,7 @@ export const Route = createFileRoute("/termos")({
       { property: "og:title", content: "Termos de Uso — BarbaFlow" },
       { property: "og:description", content: "Termos e condições de uso da plataforma BarbaFlow." },
     ],
-    links: [{ rel: "canonical", href: "https://barbaflow.pro/termos" }],
+    links: [{ rel: "canonical", href: "https://barbaflow-delta.vercel.app/termos" }],
   }),
   component: TermosPage,
 });

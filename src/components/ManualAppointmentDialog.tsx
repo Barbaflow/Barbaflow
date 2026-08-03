@@ -627,9 +627,14 @@ export function ManualAppointmentDialog({
                 {/* WhatsApp invite for newly-created walk-in clients */}
                 {selectedClient.user_id === lastWalkinId && shopInfo && (() => {
                   const shopName = shopInfo.name;
+                  // Caminho, não subdomínio: o endereço de hoje é um host único
+                  // e a página pública da barbearia mora em /agendar/<subdominio>.
+                  // Trocar só o domínio aqui geraria
+                  // `<subdominio>.barbaflow-delta.vercel.app`, que é outro
+                  // projeto Vercel — inexistente. Seria pior que o estado antigo.
                   const link = shopInfo.subdomain
-                    ? `https://${shopInfo.subdomain}.barbaflow.pro`
-                    : `https://barbaflow.pro`;
+                    ? `https://barbaflow-delta.vercel.app/agendar/${shopInfo.subdomain}`
+                    : `https://barbaflow-delta.vercel.app`;
                   const greeting = selectedClient.full_name?.split(" ")[0] || "Olá";
                   const message =
                     `Olá, ${greeting}! 👋\n\n` +

@@ -110,12 +110,12 @@ export const Route = createFileRoute("/barbearias")({
       { property: "og:title", content: "Barbearias parceiras — BarbaFlow" },
       { property: "og:description", content: "Descubra barbearias parceiras BarbaFlow e agende seu horário online em poucos cliques." },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://barbaflow.pro/barbearias" },
+      { property: "og:url", content: "https://barbaflow-delta.vercel.app/barbearias" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:title", content: "Barbearias parceiras — BarbaFlow" },
       { name: "twitter:description", content: "Descubra barbearias parceiras BarbaFlow." },
     ],
-    links: [{ rel: "canonical", href: "https://barbaflow.pro/barbearias" }],
+    links: [{ rel: "canonical", href: "https://barbaflow-delta.vercel.app/barbearias" }],
     scripts: [
       {
         type: "application/ld+json",
@@ -123,7 +123,7 @@ export const Route = createFileRoute("/barbearias")({
           "@context": "https://schema.org",
           "@type": "ItemList",
           name: "Barbearias parceiras BarbaFlow",
-          url: "https://barbaflow.pro/barbearias",
+          url: "https://barbaflow-delta.vercel.app/barbearias",
         }),
       },
     ],
@@ -476,7 +476,7 @@ function BarbeariaCard({ b }: { b: PublicBarbershop }) {
             {b.name}
           </h2>
           <p className="text-xs text-muted-foreground font-body truncate">
-            {b.subdomain}.barbaflow.pro
+            barbaflow-delta.vercel.app/agendar/{b.subdomain}
           </p>
         </div>
       </div>

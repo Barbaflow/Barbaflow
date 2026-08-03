@@ -11,7 +11,7 @@ export const Route = createFileRoute("/reembolso")({
       { property: "og:title", content: "Política de Reembolso — BarbaFlow" },
       { property: "og:description", content: "Garantia de reembolso de 30 dias do BarbaFlow." },
     ],
-    links: [{ rel: "canonical", href: "https://barbaflow.pro/reembolso" }],
+    links: [{ rel: "canonical", href: "https://barbaflow-delta.vercel.app/reembolso" }],
   }),
   component: ReembolsoPage,
 });

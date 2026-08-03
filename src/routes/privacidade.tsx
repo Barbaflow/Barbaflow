@@ -11,7 +11,7 @@ export const Route = createFileRoute("/privacidade")({
       { property: "og:title", content: "Política de Privacidade — BarbaFlow" },
       { property: "og:description", content: "Como o BarbaFlow coleta, usa e protege seus dados pessoais." },
     ],
-    links: [{ rel: "canonical", href: "https://barbaflow.pro/privacidade" }],
+    links: [{ rel: "canonical", href: "https://barbaflow-delta.vercel.app/privacidade" }],
   }),
   component: PrivacidadePage,
 });

@@ -1133,7 +1133,7 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">Link de agendamento</p>
                 <p className="text-xs text-muted-foreground truncate">
-                  barbaflow.pro/agendar/{barbershop.subdomain}
+                  barbaflow-delta.vercel.app/agendar/{barbershop.subdomain}
                 </p>
               </div>
             </div>
@@ -1142,7 +1142,7 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  const url = `https://barbaflow.pro/agendar/${barbershop.subdomain}`;
+                  const url = `https://barbaflow-delta.vercel.app/agendar/${barbershop.subdomain}`;
                   navigator.clipboard.writeText(url);
                   toast.success("Link copiado!");
                 }}
@@ -1155,7 +1155,7 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
                 size="sm"
                 asChild
               >
-                <a href={`https://barbaflow.pro/agendar/${barbershop.subdomain}`} target="_blank" rel="noopener noreferrer">
+                <a href={`https://barbaflow-delta.vercel.app/agendar/${barbershop.subdomain}`} target="_blank" rel="noopener noreferrer">
                   Abrir
                 </a>
               </Button>
@@ -1884,7 +1884,7 @@ function SettingsTab() {
 
       {/* Booking link */}
       {barbershop?.subdomain && (() => {
-        const bookingUrl = `https://barbaflow.pro/agendar/${barbershop.subdomain}`;
+        const bookingUrl = `https://barbaflow-delta.vercel.app/agendar/${barbershop.subdomain}`;
         const handlePrintQR = () => {
           const printWindow = window.open("", "_blank");
           if (!printWindow) return;

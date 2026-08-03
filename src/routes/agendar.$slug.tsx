@@ -23,7 +23,7 @@ export const Route = createFileRoute("/agendar/$slug")({
       { property: "og:description", content: "Agende seu horário na barbearia de forma rápida e fácil." },
     ],
     links: [
-      { rel: "canonical", href: `https://barbaflow.pro/agendar/${params.slug}` },
+      { rel: "canonical", href: `https://barbaflow-delta.vercel.app/agendar/${params.slug}` },
     ],
   }),
   component: AgendarSlugPage,
