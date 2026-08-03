@@ -186,10 +186,22 @@ CREATE INDEX IF NOT EXISTS contact_submissions_created_at_idx
      4. a leitura não mudou: /admin/mensagens continua listando para o
         super_admin, e continua vazia para qualquer outro papel;
 
-     5. `\d+ public.contact_submissions` mostra as cinco constraints como
-        NOT VALID e o trigger `contact_submissions_rate_limit`.
+     5. `\d+ public.contact_submissions` mostra as cinco constraints e o
+        trigger `contact_submissions_rate_limit`. No momento da aplicação as
+        constraints aparecem como NOT VALID — sobre a validação posterior,
+        ver a nota na seção seguinte.
 
    VALIDAÇÃO RETROATIVA (passo separado, opcional, depois de olhar os dados)
+
+   FEITO EM 03/08/2026 — as cinco constraints estão validadas no projeto
+   remoto. A migration foi aplicada nessa data e a tabela estava vazia (0
+   linhas): não havia nenhuma submissão anterior, real ou não, então o
+   levantamento abaixo não tinha o que encontrar e a decisão de tratar dado
+   histórico nunca chegou a se colocar. Os cinco VALIDATE CONSTRAINT rodaram
+   em seguida, sem erro, e `convalidated` voltou `true` nas cinco.
+
+   O procedimento abaixo fica registrado para quem precisar repeti-lo — em
+   outro ambiente, ou caso alguma constraint volte a NOT VALID.
 
    As constraints valem para toda escrita nova. Para estendê-las ao histórico,
    primeiro ver o que já não passaria:
