@@ -258,7 +258,9 @@ export function AdminDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b border-border px-4 py-4 md:px-8">
-        <div className="max-w-5xl mx-auto flex items-center justify-between">
+        {/* Acompanha o `max-w` do `main` abaixo: se só o conteúdo alargasse, a
+            barra do topo ficaria mais estreita e as bordas desalinhariam. */}
+        <div className="max-w-5xl 2xl:max-w-[1440px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-full bg-gradient-gold flex items-center justify-center">
               <Shield className="w-4 h-4 text-primary-foreground" />
@@ -308,7 +310,17 @@ export function AdminDashboard() {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
+      {/* `max-w` só alarga a partir de `2xl` (1536px). Alargar antes não adianta:
+          abaixo disso quem limita a largura é a viewport, não o `max-w`, e os
+          rótulos continuariam sem caber.
+
+          O valor de 1440px vem de medição, não de arredondamento. Exibir os
+          rótulos custa 326px a mais na fileira, e o caso crítico NÃO é a linha
+          aprovada e sim a pendente, cujo par "Aprovar + Rejeitar" ocupa 191px
+          contra os 96px do "Reverter": ela precisa de 1368px de container. Com
+          1400px sobrariam ~29px, margem fina demais para variação de renderização
+          de fonte entre plataformas; com 1440px sobram ~69px. */}
+      <main className="max-w-5xl 2xl:max-w-[1440px] mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="bg-card border-border">
@@ -444,11 +456,22 @@ export function AdminDashboard() {
                         </div>
 
                         {/* Meta */}
-                        {/* `main` é `max-w-5xl`, então a linha tem 958px fixos em qualquer
-                            monitor: mostrar os rótulos dos botões não cabe em largura nenhuma.
-                            Eles ficam em `sr-only` (leitor de tela continua lendo) com `title`
-                            para o tooltip do mouse. `flex-wrap` sem `flex-shrink-0` deixa a
-                            fileira quebrar em telas estreitas em vez de vazar do card. */}
+                        {/* Exibir os rótulos custa 326px a mais nesta fileira — medido, não
+                            estimado. Não cabe enquanto `main` é `max-w-5xl`; a partir de `2xl`
+                            o container vai a 1440px e passa a caber, então é lá que eles
+                            aparecem, via `sr-only 2xl:not-sr-only`.
+
+                            O nome da barbearia não entra nessa conta: o bloco à esquerda tem
+                            piso de 240px e `truncate`, então nome longo encurta em vez de
+                            empurrar a fileira. Medido com nome de 73 caracteres.
+
+                            NÃO trocar `sr-only` por `hidden`: abaixo de `2xl` o botão ficaria
+                            só com o ícone e sem nome acessível, com o `title` — que leitores
+                            de tela tratam de forma inconsistente — como única pista. Com
+                            `sr-only` o rótulo é sempre anunciado e só deixa de ser desenhado.
+
+                            `flex-wrap` sem `flex-shrink-0` deixa a fileira quebrar em telas
+                            estreitas em vez de vazar do card. */}
                         <div className="flex flex-wrap items-center justify-end gap-2 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Users className="w-3.5 h-3.5" />
@@ -468,37 +491,37 @@ export function AdminDashboard() {
                           <Link to="/clientes" search={{ barbershop: shop.id }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Clientes">
                               <Users className="w-3 h-3" />
-                              <span className="sr-only">Clientes</span>
+                              <span className="sr-only 2xl:not-sr-only">Clientes</span>
                             </Button>
                           </Link>
                           <Link to="/servicos" search={{ barbershop: shop.id }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Serviços">
                               <Scissors className="w-3 h-3" />
-                              <span className="sr-only">Serviços</span>
+                              <span className="sr-only 2xl:not-sr-only">Serviços</span>
                             </Button>
                           </Link>
                           <Link to="/comandas" search={{ barbershop: shop.id, comanda: undefined }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Comandas">
                               <ReceiptText className="w-3 h-3" />
-                              <span className="sr-only">Comandas</span>
+                              <span className="sr-only 2xl:not-sr-only">Comandas</span>
                             </Button>
                           </Link>
                           <Link to="/relatorios" search={{ barbershop: shop.id }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Relatórios">
                               <BarChart3 className="w-3 h-3" />
-                              <span className="sr-only">Relatórios</span>
+                              <span className="sr-only 2xl:not-sr-only">Relatórios</span>
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }} hash="equipe">
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Equipe">
                               <UserCog className="w-3 h-3" />
-                              <span className="sr-only">Equipe</span>
+                              <span className="sr-only 2xl:not-sr-only">Equipe</span>
                             </Button>
                           </Link>
                           <Link to="/configuracoes" search={{ barbershop: shop.id }}>
                             <Button variant="ghost" size="sm" className="h-6 px-2 text-[10px]" title="Configurações">
                               <Settings className="w-3 h-3" />
-                              <span className="sr-only">Configurações</span>
+                              <span className="sr-only 2xl:not-sr-only">Configurações</span>
                             </Button>
                           </Link>
                           <Select
