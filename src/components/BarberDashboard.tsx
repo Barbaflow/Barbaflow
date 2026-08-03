@@ -358,6 +358,26 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 </Button>
               </>
             )}
+            {/* /agenda existe e funciona desde sempre, mas não tinha ponto de
+                entrada nenhum na navegação: até aqui só se chegava nela por
+                deep-link de notificação (`notification-links.ts`) ou digitando a
+                URL. É lá que mora a grade semanal do próprio profissional
+                (`WeeklyScheduleEditor`, que filtra por `barber_id = auth.uid()`),
+                a agenda semanal e os bloqueios.
+
+                Fica no header, e não como aba, porque a nav de abas só renderiza
+                para admin — um barbeiro nunca a alcança, que é justamente o
+                problema. E aparece para os DOIS papéis de propósito: a rota
+                autoriza `admin_barbearia` e `barbeiro` (allow padrão de
+                `useTenantScope`), então o link nunca leva a uma recusa, e o
+                `ScheduleManager` da aba "Agenda Semanal" também não tinha como
+                ser alcançado pelo admin. */}
+            <Link to="/agenda" search={{ barbershop: undefined }}>
+              <Button variant="ghost" size="sm">
+                <CalendarCog className="w-4 h-4" />
+                <span className="hidden sm:inline">Meus Horários</span>
+              </Button>
+            </Link>
             <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
               <Button variant="ghost" size="sm">
                 <ReceiptText className="w-4 h-4" />
