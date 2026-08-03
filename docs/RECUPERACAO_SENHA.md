@@ -39,7 +39,7 @@ Painel do Supabase → **Authentication → URL Configuration**.
 ### Site URL
 
 ```
-https://barbaflow.pro
+https://barbaflow-delta.vercel.app
 ```
 
 É o endereço para onde o Supabase manda o usuário quando o `redirectTo` não é
@@ -54,7 +54,7 @@ Cadastre uma linha por ambiente. Prefira endereços exatos.
 | --- | --- |
 | Desenvolvimento local | `http://localhost:8080/reset-password` |
 | Preview (Vercel) | `https://<SUBSTITUIR-PELA-URL-DO-PREVIEW>/reset-password` |
-| Produção | `https://barbaflow.pro/reset-password` |
+| Produção | `https://barbaflow-delta.vercel.app/reset-password` |
 
 Observações:
 
@@ -81,7 +81,7 @@ aponte para `/reset-password`.
 
 `VITE_PUBLIC_SITE_URL` (ou `PUBLIC_SITE_URL`, no processo de SSR) define a
 origem usada **apenas quando não há navegador**. No navegador, a origem atual
-sempre vence. Sem a variável, o SSR cai em `https://barbaflow.pro`.
+sempre vence. Sem a variável, o SSR cai em `https://barbaflow-delta.vercel.app`.
 
 ## Teste sem caixa de e-mail
 
