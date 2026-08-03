@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff } from "lucide-react";
+import { ROTULO_A_PARTIR_DE, type RotuloBreakpoint } from "@/components/InstallAppButton";
 import { toast } from "sonner";
 import {
   isNotificationSupported,
@@ -11,11 +12,11 @@ import {
 const NOTIF_ENABLED_KEY = "barbaflow_notifications_enabled";
 
 interface EnableNotificationsButtonProps {
-  /** Segura o rótulo até `xl`. Ver a mesma prop em `InstallAppButton`. */
-  labelFromXl?: boolean;
+  /** Padrão `sm`. Ver `ROTULO_A_PARTIR_DE` em `InstallAppButton`. */
+  labelFrom?: RotuloBreakpoint;
 }
 
-export function EnableNotificationsButton({ labelFromXl = false }: EnableNotificationsButtonProps = {}) {
+export function EnableNotificationsButton({ labelFrom = "sm" }: EnableNotificationsButtonProps = {}) {
   const [enabled, setEnabled] = useState(() => localStorage.getItem(NOTIF_ENABLED_KEY) !== "false");
 
   // Auto-request permission on mount if user has notifications enabled but never granted.
@@ -69,7 +70,7 @@ export function EnableNotificationsButton({ labelFromXl = false }: EnableNotific
       ) : (
         <BellOff className="w-4 h-4 text-muted-foreground" />
       )}
-      <span className={labelFromXl ? "hidden xl:inline" : "hidden sm:inline"}>
+      <span className={ROTULO_A_PARTIR_DE[labelFrom]}>
         {enabled ? "Desativar Notificações" : "Ativar Notificações"}
       </span>
     </Button>
