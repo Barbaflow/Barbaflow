@@ -1273,7 +1273,10 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
                               aria-hidden="true"
                             />
                           )}
-                          <span className="text-lg font-display font-bold text-foreground">
+                          {/* Horário também em `font-body`: é número, e na mesma
+                              tela dos cards de estatística. Deixá-lo serifado
+                              criaria dois tratamentos para o mesmo tipo de dado. */}
+                          <span className="text-lg font-body font-bold text-foreground">
                             {apt.start_time.slice(0, 5)}
                           </span>
                           <span className="text-[10px] text-muted-foreground">
