@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Bell, BellOff } from "lucide-react";
-import { ROTULO_A_PARTIR_DE, type RotuloBreakpoint } from "@/components/InstallAppButton";
 import { toast } from "sonner";
 import {
   isNotificationSupported,
@@ -11,8 +10,27 @@ import {
 
 const NOTIF_ENABLED_KEY = "barbaflow_notifications_enabled";
 
+/**
+ * A partir de qual breakpoint o rótulo aparece. Barras lotadas precisam segurar
+ * o rótulo mais tempo para não espremer o que está do outro lado — ver o
+ * cabeçalho do BarberDashboard, que só o mostra em `2xl`.
+ *
+ * O mapa é de strings literais de propósito: o Tailwind só gera a classe que
+ * enxerga escrita no código, então montar `hidden ${bp}:inline` não funcionaria.
+ *
+ * Morava em `InstallAppButton`, que era o outro botão do mesmo grupo. Com aquele
+ * botão removido, veio para cá, seu único consumidor.
+ */
+export const ROTULO_A_PARTIR_DE = {
+  sm: "hidden sm:inline",
+  xl: "hidden xl:inline",
+  "2xl": "hidden 2xl:inline",
+} as const;
+
+export type RotuloBreakpoint = keyof typeof ROTULO_A_PARTIR_DE;
+
 interface EnableNotificationsButtonProps {
-  /** Padrão `sm`. Ver `ROTULO_A_PARTIR_DE` em `InstallAppButton`. */
+  /** Padrão `sm`. Ver `ROTULO_A_PARTIR_DE`. */
   labelFrom?: RotuloBreakpoint;
 }
 

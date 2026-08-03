@@ -59,7 +59,6 @@ type Barbershop = Tables<"barbershops"> & {
 };
 
 import { NotificationBell } from "@/components/NotificationBell";
-import { InstallAppButton } from "@/components/InstallAppButton";
 import { EnableNotificationsButton } from "@/components/EnableNotificationsButton";
 
 type StatusFilter = "all" | "pending" | "approved" | "rejected";
@@ -311,7 +310,6 @@ export function AdminDashboard() {
                 <span className="hidden xl:inline">Config</span>
               </Button>
             </Link>
-            <InstallAppButton labelFrom="xl" />
             <EnableNotificationsButton labelFrom="xl" />
             <NotificationBell perspective="staff" />
             <Button variant="ghost" size="sm" onClick={() => signOut()}>
