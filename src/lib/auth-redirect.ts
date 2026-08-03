@@ -18,8 +18,18 @@
  * Site URL na hora de montar o e-mail, e o link abre o ambiente errado.
  */
 
-/** Domínio canônico da aplicação, usado apenas quando não há origem nem env. */
-export const PRODUCTION_ORIGIN = "https://barbaflow.pro";
+/**
+ * Domínio canônico da aplicação, usado apenas quando não há origem nem env.
+ *
+ * Precisa ser um endereço que exista e que esteja na lista de Redirect URLs do
+ * Supabase Auth: o que não estiver lá é descartado na montagem do e-mail e
+ * trocado pelo Site URL, em silêncio. Trocar este valor exige trocar a allow
+ * list junto.
+ *
+ * Na prática este é o terceiro nível e quase nunca é alcançado — a origem do
+ * navegador vence, e o SSR usa VITE_PUBLIC_SITE_URL / PUBLIC_SITE_URL.
+ */
+export const PRODUCTION_ORIGIN = "https://barbaflow-delta.vercel.app";
 
 /** Caminho da tela que conclui a recuperação de senha. */
 export const RESET_PASSWORD_PATH = "/reset-password";

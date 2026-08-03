@@ -146,8 +146,8 @@ function testRedirect(): void {
   const casos: Array<[string, string]> = [
     ["http://localhost:3000", "http://localhost:3000/reset-password"],
     ["https://barbaflow-git-fix.vercel.app", "https://barbaflow-git-fix.vercel.app/reset-password"],
-    ["https://barbaflow.pro", "https://barbaflow.pro/reset-password"],
-    ["https://barbaflow.pro/", "https://barbaflow.pro/reset-password"],
+    ["https://barbaflow-delta.vercel.app", "https://barbaflow-delta.vercel.app/reset-password"],
+    ["https://barbaflow-delta.vercel.app/", "https://barbaflow-delta.vercel.app/reset-password"],
   ];
   for (const [origem, esperado] of casos) {
     check(
@@ -391,12 +391,79 @@ function testRotaPublica(): void {
   const guardas = arquivos.filter((f) => /reset-password/.test(fontes[f]) && /redirect\s*:/.test(fontes[f]));
   check("nenhum arquivo redireciona a rota de redefinição", guardas.length === 0, guardas.join(", "));
 
-  // O endereço do ambiente nunca fica fixo no código do fluxo
+  // O endereço do ambiente nunca fica fixo ONDE A URL É MONTADA.
+  //
+  // Antes esta checagem tratava cada arquivo como uma string única, então
+  // qualquer menção a `vercel.app` reprovava — inclusive a de `og:image`, que
+  // é inerte: metadata não vira `redirectTo`, ninguém redireciona ninguém para
+  // uma imagem de compartilhamento. O efeito prático era impedir corrigir o
+  // domínio na metadata do reset-password sem afrouxar a garantia inteira.
+  //
+  // Agora a varredura é por linha e descarta as linhas de metadata, mantendo a
+  // proibição exatamente onde ela protege: no código que monta endereço.
+  const METADATA = /og:image|og:url|twitter:image|twitter:url|rel:\s*["']canonical["']/;
   const doFluxo = ["/src/lib/auth-redirect.ts", "/src/lib/password-recovery.ts", "/src/routes/reset-password.tsx", "/src/components/AuthForm.tsx"];
-  const comVercel = doFluxo.filter((f) => /vercel\.app/.test(fontes[f] ?? ""));
-  check("nenhum arquivo do fluxo cita um domínio de Preview", comVercel.length === 0, comVercel.join(", "));
-  const comLocalhost = doFluxo.filter((f) => /localhost/.test(fontes[f] ?? ""));
-  check("nenhum arquivo do fluxo cita localhost", comLocalhost.length === 0, comLocalhost.join(", "));
+
+  /** Linhas que participam da montagem de URL — metadata fora. */
+  const linhasDeMontagem = (arquivo: string): string[] =>
+    (fontes[arquivo] ?? "").split("\n").filter((linha) => !METADATA.test(linha));
+
+  const ondeCita = (padrao: RegExp): string[] =>
+    doFluxo.filter((f) => linhasDeMontagem(f).some((linha) => padrao.test(linha)));
+
+  // Enquanto não houver domínio próprio, produção MORA num `*.vercel.app`, o
+  // que colide de frente com a regra antiga "nenhum vercel.app no fluxo". A
+  // intenção da regra sempre foi barrar domínio EFÊMERO — Preview de branch,
+  // hash de deploy —, não o endereço estável de produção. Então o que se proíbe
+  // agora é qualquer host `vercel.app` que não seja exatamente este:
+  const HOST_PRODUCAO = "barbaflow-delta.vercel.app";
+  const hostsVercel = (texto: string): string[] =>
+    [...texto.matchAll(/[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app/gi)].map((m) => m[0].toLowerCase());
+
+  const comVercelEstranho = doFluxo.filter((f) =>
+    linhasDeMontagem(f).some((linha) => hostsVercel(linha).some((h) => h !== HOST_PRODUCAO)),
+  );
+  check(
+    "nenhuma montagem de URL cita vercel.app fora o host de produção",
+    comVercelEstranho.length === 0,
+    comVercelEstranho.join(", "),
+  );
+  const comLocalhost = ondeCita(/localhost/);
+  check("nenhuma montagem de URL cita localhost", comLocalhost.length === 0, comLocalhost.join(", "));
+
+  // Autoteste da regra acima: liberar o host de produção não pode ter aberto a
+  // porta para os efêmeros, que é o caso que ela existe para pegar.
+  check(
+    "a regra ainda reprova domínio de Preview",
+    hostsVercel("https://barbaflow-git-alguma-branch-org.vercel.app/reset-password").some(
+      (h) => h !== HOST_PRODUCAO,
+    ),
+  );
+  check(
+    "a regra aceita o host de produção",
+    hostsVercel(`https://${HOST_PRODUCAO}/reset-password`).every((h) => h === HOST_PRODUCAO),
+  );
+
+  // As três verificações abaixo existem porque um filtro é o tipo de coisa que
+  // silenciosamente para de filtrar: se `METADATA` deixar de casar, a garantia
+  // acima volta a reprovar metadata inofensiva; se casar demais, ela engole o
+  // código de montagem e passa a aprovar qualquer coisa.
+  const metadataDoFluxo = doFluxo.flatMap((f) =>
+    (fontes[f] ?? "").split("\n").filter((linha) => METADATA.test(linha)),
+  );
+  check(
+    "o filtro de metadata realmente descarta metadata",
+    metadataDoFluxo.length >= 2,
+    `${metadataDoFluxo.length} linha(s) descartada(s)`,
+  );
+  check(
+    "o filtro não engole o código que monta a URL",
+    linhasDeMontagem("/src/lib/auth-redirect.ts").some((l) => /PRODUCTION_ORIGIN/.test(l)),
+  );
+  // E a metadata, mesmo sendo inerte para redirect, não pode citar um domínio
+  // que não existe mais — é o endereço que vaza para prévia de link e buscador.
+  const metadataMorta = metadataDoFluxo.filter((l) => /barbaflow\.pro/.test(l));
+  check("a metadata do fluxo não cita domínio descartado", metadataMorta.length === 0, metadataMorta.join(" | "));
 
   // A montagem da URL passa pelo módulo central, em todas as chamadas
   const chamadas = arquivos.filter((f) => /resetPasswordForEmail\(/.test(fontes[f]) && !f.startsWith("/src/mocks/"));

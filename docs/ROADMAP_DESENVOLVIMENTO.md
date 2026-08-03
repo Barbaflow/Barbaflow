@@ -50,7 +50,7 @@
 | | |
 |---|---|
 | **Objetivo** | Fazer a recuperação de senha funcionar de ponta a ponta — hoje ela falha na `main`. |
-| **Escopo** | PR da branch existente (3 commits, 75 verificações novas) e, **à mão no painel**, Authentication → URL Configuration: Site URL `https://barbaflow.pro`, Redirect URLs para local, Preview e produção. O passo a passo está em `docs/RECUPERACAO_SENHA.md`. |
+| **Escopo** | PR da branch existente (3 commits, 75 verificações novas) e, **à mão no painel**, Authentication → URL Configuration: Site URL `https://barbaflow-delta.vercel.app`, Redirect URLs para local, Preview e produção. O passo a passo está em `docs/RECUPERACAO_SENHA.md`. |
 | **Dependências** | C2 (a branch carrega o mesmo commit de CSS — mesclar C2 antes e rebasear evita duplicata). Acesso ao painel do Supabase. |
 | **Migration** | Não |
 | **Risco p/ o cliente** | **Médio, e é o ponto de atenção**: cadastrar Redirect URLs é aditivo e seguro, mas **remover** ou trocar o Site URL quebra o login do cliente no meio do teste. Só acrescentar. |

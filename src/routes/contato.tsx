@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { Scissors, ArrowLeft, Send, MapPin, Mail, Phone } from "lucide-react";
+import { Scissors, ArrowLeft, Send, MapPin, Phone } from "lucide-react";
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -153,8 +153,12 @@ function ContatoPage() {
           <div className="grid md:grid-cols-5 gap-10">
             {/* Info cards */}
             <div className="md:col-span-2 space-y-6">
+              {/* Sem card de e-mail: o formulário ao lado é o canal, e ele grava
+                  em `contact_submissions`, que a caixa de entrada do super_admin
+                  lê em /admin/mensagens. Um card dizendo "prefira o formulário"
+                  logo ao lado do formulário seria ruído, e um endereço de e-mail
+                  aqui seria um segundo canal que ninguém monitora. */}
               {[
-                { icon: Mail, label: "Email", value: "contato@barbaflow.pro" },
                 { icon: Phone, label: "WhatsApp", value: "+55 (74) 98117-8885" },
                 { icon: MapPin, label: "Localização", value: "Bahia — Brasil" },
               ].map((item) => (
