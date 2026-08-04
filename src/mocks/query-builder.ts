@@ -46,6 +46,53 @@ import {
   validateUserRoleRemoval,
 } from "./rules";
 
+/**
+ * Colunas de `barbearias_publicas`, na ordem da migration 20260804120000.
+ * As 16 primeiras são as originais; as 7 seguintes foram acrescentadas na
+ * fase 1, e `branding_enabled` é derivada (não existe na tabela).
+ */
+const PUBLIC_BARBERSHOP_COLUMNS = [
+  "id",
+  "name",
+  "subdomain",
+  "logo_url",
+  "primary_color",
+  "secondary_color",
+  "rating_avg",
+  "rating_count",
+  "created_at",
+  "cep",
+  "state",
+  "city",
+  "neighborhood",
+  "street",
+  "number",
+  "complement",
+  "status",
+  "reschedule_min_hours",
+  "cancel_min_hours",
+  "noshow_policy_enabled",
+  "noshow_max_count",
+  "noshow_block_days",
+  "timezone",
+] as const;
+
+/**
+ * Projeta uma linha de `barbershops` no recorte público da view.
+ *
+ * `branding_enabled` espelha o `EXISTS (... plans.name IN ('pro','enterprise'))`
+ * do SQL: barbearia sem plano gravado devolve `false`, nunca `null`.
+ */
+function projectPublicBarbershop(row: MockRow): MockRow {
+  const publica: MockRow = {};
+  for (const coluna of PUBLIC_BARBERSHOP_COLUMNS) {
+    publica[coluna] = row[coluna];
+  }
+  const plano = getTableRows("plans").find((p) => p.id === row.plan_id);
+  publica.branding_enabled = plano?.name === "pro" || plano?.name === "enterprise";
+  return publica;
+}
+
 export interface MockPostgrestError {
   message: string;
   details: string;
@@ -529,10 +576,16 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   }
 
   private run(): MockResult<MockRow[] | MockRow | null> {
-    // `barbearias_publicas` é uma VIEW: lê as barbearias aprovadas. Só leitura.
+    // `barbearias_publicas` é uma VIEW: só leitura, e é a superfície pública
+    // de `barbershops`. Espelha a migration 20260804120000 — mesmo filtro e
+    // mesmas 24 colunas. As colunas internas ficam de fora AQUI TAMBÉM, de
+    // propósito: se o mock devolvesse a linha inteira, uma tela poderia passar
+    // no modo offline lendo um campo que o banco real não entrega.
     const all =
       this.table === "barbearias_publicas"
-        ? getTableRows("barbershops").filter((row) => row.status === "approved")
+        ? getTableRows("barbershops")
+            .filter((row) => row.status === "approved" && row.subdomain !== "_system")
+            .map((row) => projectPublicBarbershop(row))
         : getTableRows(this.table);
     const timestamp = new Date().toISOString();
     let affected: MockRow[];

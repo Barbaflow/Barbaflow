@@ -138,10 +138,13 @@ function BarbeariasPage() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      // View `barbearias_publicas` ainda não está nos tipos gerados — cast pontual
+      // View `barbearias_publicas` ainda não está nos tipos gerados — cast pontual.
+      // As políticas (reagendamento/cancelamento/falta) passaram a vir daqui na
+      // migration 20260804120000: antes exigiam uma segunda consulta à tabela
+      // larga `barbershops`, que expunha 36 colunas ao visitante anônimo.
       const { data, error } = await (supabase as any)
         .from("barbearias_publicas")
-        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at, cep, state, city, neighborhood, street, number, complement")
+        .select("id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, rating_count, created_at, cep, state, city, neighborhood, street, number, complement, reschedule_min_hours, cancel_min_hours, noshow_policy_enabled, noshow_max_count, noshow_block_days")
         .order("rating_avg", { ascending: false })
         .order("created_at", { ascending: false });
 
@@ -151,27 +154,9 @@ function BarbeariasPage() {
         (b) => b.subdomain !== "_system",
       );
 
-      // Buscar políticas (não estão na view pública) + últimas reviews
+      // As políticas já vieram na consulta acima. Aqui só as últimas reviews.
       if (list.length > 0) {
         const ids = list.map((b) => b.id);
-
-        const { data: policies } = await supabase
-          .from("barbershops")
-          .select("id, reschedule_min_hours, cancel_min_hours, noshow_policy_enabled, noshow_max_count, noshow_block_days")
-          .in("id", ids);
-
-        const policyMap = new Map<string, any>();
-        (policies || []).forEach((p) => policyMap.set(p.id, p));
-        list.forEach((b) => {
-          const p = policyMap.get(b.id);
-          if (p) {
-            b.reschedule_min_hours = p.reschedule_min_hours;
-            b.cancel_min_hours = p.cancel_min_hours;
-            b.noshow_policy_enabled = p.noshow_policy_enabled;
-            b.noshow_max_count = p.noshow_max_count;
-            b.noshow_block_days = p.noshow_block_days;
-          }
-        });
 
         const { data: reviews } = await supabase
           .from("reviews")

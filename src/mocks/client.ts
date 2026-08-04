@@ -117,6 +117,37 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       .map((row) => ({ user_id: row.user_id })),
 
   /**
+   * Espelha `get_public_barbers_v2` (migration 20260804120000): profissionais
+   * de uma barbearia APROVADA, com `is_owner` calculado no servidor — o
+   * `owner_id` nunca sai da função.
+   *
+   * Diferenças em relação ao `get_public_barbers` acima são as mesmas do SQL:
+   * inclui `admin_barbearia` (o dono que também atende), deduplica quem tem os
+   * dois papéis, exige barbearia aprovada e não-sentinela, recusa id nulo e
+   * devolve o proprietário primeiro.
+   */
+  get_public_barbers_v2: (args) => {
+    const barbershopId = args._barbershop_id;
+    if (!barbershopId) return [];
+
+    const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+    if (!shop || shop.status !== "approved" || shop.subdomain === "_system") return [];
+
+    const vistos = new Map<string, boolean>();
+    for (const row of getTableRows("user_roles")) {
+      if (row.barbershop_id !== barbershopId) continue;
+      if (row.role !== "barbeiro" && row.role !== "admin_barbearia") continue;
+      const userId = String(row.user_id);
+      if (!vistos.has(userId)) vistos.set(userId, userId === shop.owner_id);
+    }
+
+    return Array.from(vistos, ([user_id, is_owner]) => ({ user_id, is_owner })).sort(
+      (a, b) =>
+        Number(b.is_owner) - Number(a.is_owner) || a.user_id.localeCompare(b.user_id),
+    );
+  },
+
+  /**
    * Janelas de atendimento de um profissional numa data — espelha a RPC real
    * (migration 20260722210000). Deriva da grade semanal (menos os bloqueios do
    * dia) e soma as exceções não-livres lançadas na agenda, para o fluxo público

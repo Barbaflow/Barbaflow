@@ -76,7 +76,21 @@ export function TenantThemeApplier() {
   const { barbershop } = useBarbershop();
   const [canApply, setCanApply] = useState(false);
 
+  // `branding_enabled` é derivado por `barbearias_publicas` (migration
+  // 20260804120000) e chega pronto quando o tenant foi resolvido pelo caminho
+  // público. É a via preferida: dispensa a consulta a `plans` e não depende de
+  // `plan_id`, que deixou de ser exposto ao visitante anônimo.
+  const brandingEnabled = (barbershop as unknown as { branding_enabled?: boolean } | null)
+    ?.branding_enabled;
+
   useEffect(() => {
+    if (typeof brandingEnabled === "boolean") {
+      setCanApply(brandingEnabled);
+      return;
+    }
+
+    // Tenant resolvido por papel ou propriedade: a linha veio da tabela, que
+    // não tem o derivado. Aqui a sessão é autenticada e `plans` é legível.
     if (!barbershop?.plan_id) {
       setCanApply(false);
       return;
@@ -89,7 +103,7 @@ export function TenantThemeApplier() {
       .then(({ data }) => {
         setCanApply(data?.name === "pro" || data?.name === "enterprise");
       });
-  }, [barbershop?.plan_id]);
+  }, [barbershop?.plan_id, brandingEnabled]);
 
   if (!canApply) return null;
 

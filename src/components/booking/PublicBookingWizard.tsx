@@ -36,7 +36,6 @@ interface Barbershop {
   logo_url: string | null;
   primary_color: string;
   subdomain: string;
-  owner_id: string | null;
   reschedule_min_hours?: number;
   cancel_min_hours?: number;
 }
@@ -47,6 +46,12 @@ interface BarberWithProfile {
   avatar_url: string | null;
   rating_avg?: number;
   rating_count?: number;
+  /**
+   * Vem calculado pela RPC `get_public_barbers_v2` (migration 20260804120000).
+   * Antes a tela comparava `barbershop.owner_id === barbeiro.user_id`, o que
+   * obrigava a expor o UUID do dono no caminho público.
+   */
+  is_owner: boolean;
 }
 
 type Step = "barbershop" | "barber" | "service" | "datetime";
@@ -96,12 +101,13 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   // Load preselected barbershop by ID (from route param)
   useEffect(() => {
     if (!preselectedBarbershopId) return;
-    supabase
-      .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain, owner_id, reschedule_min_hours, cancel_min_hours")
+    // Vitrine pública (view), não a tabela larga: o caminho é anônimo.
+    (supabase as any)
+      .from("barbearias_publicas")
+      .select("id, name, logo_url, primary_color, subdomain, reschedule_min_hours, cancel_min_hours")
       .eq("id", preselectedBarbershopId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data }: { data: Barbershop | null }) => {
         if (data) setSelectedBarbershop(data);
       });
   }, [preselectedBarbershopId]);
@@ -110,13 +116,16 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   useEffect(() => {
     if (skipBarbershopStep) return;
     setLoadingStep(true);
-    supabase
-      .from("barbershops")
-      .select("id, name, logo_url, primary_color, subdomain, owner_id, reschedule_min_hours, cancel_min_hours")
+    // A view já filtra `approved` e exclui `_system`; os filtros continuam
+    // aqui como defesa em profundidade, não porque a view possa devolver outra
+    // coisa.
+    (supabase as any)
+      .from("barbearias_publicas")
+      .select("id, name, logo_url, primary_color, subdomain, reschedule_min_hours, cancel_min_hours")
       .eq("status", "approved")
       .neq("subdomain", "_system")
       .order("name")
-      .then(({ data }) => {
+      .then(({ data }: { data: Barbershop[] | null }) => {
         if (data) setBarbershops(data);
         setLoadingStep(false);
       });
@@ -126,11 +135,16 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
   useEffect(() => {
     if (!selectedBarbershop) return;
     setLoadingStep(true);
-    // Use SECURITY DEFINER RPC so anonymous visitors can list barbers of approved shops
-    supabase
-      .rpc("get_public_barbers", { _barbershop_id: selectedBarbershop.id })
-      .then(async ({ data: roles }) => {
-        const userIds = Array.from(new Set((roles || []).map((r: { user_id: string }) => r.user_id)));
+    // RPC SECURITY DEFINER: o visitante anônimo lista os profissionais de uma
+    // barbearia aprovada. A v2 (migration 20260804120000) devolve `is_owner`
+    // calculado no servidor, evitando expor `owner_id` no caminho público.
+    (supabase as any)
+      .rpc("get_public_barbers_v2", { _barbershop_id: selectedBarbershop.id })
+      .then(async ({ data: roles }: { data: Array<{ user_id: string; is_owner: boolean }> | null }) => {
+        const ownerFlag = new Map<string, boolean>(
+          (roles || []).map((r) => [r.user_id, Boolean(r.is_owner)]),
+        );
+        const userIds = Array.from(ownerFlag.keys());
         if (userIds.length === 0) {
           setBarbers([]);
           setLoadingStep(false);
@@ -171,6 +185,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             avatar_url: n?.avatar_url ?? null,
             rating_avg: r ? Math.round((r.sum / r.count) * 10) / 10 : 0,
             rating_count: r?.count ?? 0,
+            is_owner: ownerFlag.get(id) ?? false,
           };
         });
         setBarbers(barberList);
@@ -552,12 +567,14 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
               {barbers
                 .slice()
                 .sort((a, b) => {
-                  const aOwner = selectedBarbershop?.owner_id === a.user_id ? 0 : 1;
-                  const bOwner = selectedBarbershop?.owner_id === b.user_id ? 0 : 1;
+                  // A RPC já devolve o proprietário primeiro; a ordenação fica
+                  // como garantia local, agora sobre o booleano do servidor.
+                  const aOwner = a.is_owner ? 0 : 1;
+                  const bOwner = b.is_owner ? 0 : 1;
                   return aOwner - bOwner;
                 })
                 .map((b) => {
-                  const isOwner = selectedBarbershop?.owner_id === b.user_id;
+                  const isOwner = b.is_owner;
                   const displayName = b.full_name || `Barbeiro ${b.user_id.slice(0, 6)}`;
                   return (
                     <Card

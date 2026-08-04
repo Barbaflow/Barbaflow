@@ -26,12 +26,14 @@ const getManifest = createServerFn({ method: "GET" }).handler(async () => {
 
     if (supabaseUrl && supabaseKey) {
       const supabase = createClient(supabaseUrl, supabaseKey);
-      const { data } = await supabase
-        .from("barbershops")
+      // Vitrine pública (view), não a tabela larga: este SSR usa a chave
+      // publicável, ou seja, roda como visitante anônimo.
+      const { data } = await (supabase as any)
+        .from("barbearias_publicas")
         .select("name, primary_color, secondary_color")
         .eq("subdomain", subdomain)
         .eq("status", "approved")
-        .single();
+        .maybeSingle();
 
       if (data) {
         name = data.name;

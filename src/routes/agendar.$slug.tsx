@@ -9,9 +9,35 @@ import { TenantThemeColors } from "@/components/TenantThemeProvider";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import type { Tables } from "@/integrations/supabase/types";
 
-type Barbershop = Tables<"barbershops">;
+/**
+ * Recorte público da barbearia, servido pela view `barbearias_publicas`
+ * (migration 20260804120000). Antes esta tela fazia `select("*")` na tabela
+ * `barbershops`, que devolve 36 colunas ao visitante anônimo — inclusive
+ * owner_id, plan_id, appointments_this_month e os campos de recibo.
+ *
+ * `branding_enabled` chega pronto da view e substitui a consulta que esta tela
+ * fazia a `plans` para decidir a mesma coisa.
+ */
+interface PublicBarbershop {
+  id: string;
+  name: string;
+  subdomain: string;
+  logo_url: string | null;
+  primary_color: string;
+  secondary_color: string;
+  reschedule_min_hours: number;
+  cancel_min_hours: number;
+  noshow_policy_enabled: boolean;
+  noshow_max_count: number;
+  noshow_block_days: number;
+  branding_enabled: boolean;
+}
+
+const PUBLIC_BARBERSHOP_COLUMNS =
+  "id, name, subdomain, logo_url, primary_color, secondary_color, " +
+  "reschedule_min_hours, cancel_min_hours, noshow_policy_enabled, " +
+  "noshow_max_count, noshow_block_days, branding_enabled";
 
 export const Route = createFileRoute("/agendar/$slug")({
   head: ({ params }) => ({
@@ -32,8 +58,7 @@ function AgendarSlugPage() {
   const { slug } = Route.useParams();
   const { user, loading } = useAuth();
   // navigate removed: admin/barber are not redirected away from their own public booking page
-  const [barbershop, setBarbershop] = useState<Barbershop | null>(null);
-  const [planName, setPlanName] = useState<string | null>(null);
+  const [barbershop, setBarbershop] = useState<PublicBarbershop | null>(null);
   const [loadingShop, setLoadingShop] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [isStaff, setIsStaff] = useState(false); // admin/barber/super_admin viewing their own page
@@ -41,23 +66,17 @@ function AgendarSlugPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
-        .from("barbershops")
-        .select("*")
+      // A view já garante `approved` e exclui a sentinela; o filtro de status
+      // permanece como defesa em profundidade.
+      const { data } = await (supabase as any)
+        .from("barbearias_publicas")
+        .select(PUBLIC_BARBERSHOP_COLUMNS)
         .eq("subdomain", slug)
         .eq("status", "approved")
         .maybeSingle();
 
       if (data) {
-        setBarbershop(data);
-        if (data.plan_id) {
-          const { data: plan } = await supabase
-            .from("plans")
-            .select("name")
-            .eq("id", data.plan_id)
-            .maybeSingle();
-          setPlanName(plan?.name ?? null);
-        }
+        setBarbershop(data as PublicBarbershop);
       } else {
         setNotFound(true);
       }
@@ -65,7 +84,7 @@ function AgendarSlugPage() {
     })();
   }, [slug]);
 
-  const canApplyBranding = planName === "pro" || planName === "enterprise";
+  const canApplyBranding = barbershop?.branding_enabled === true;
 
   // Detect staff (admin/barber/super_admin) for preview banner.
   // Auto-assign 'cliente' role for path-based access if user has no role yet in this barbershop.

@@ -6,6 +6,33 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Barbershop = Tables<"barbershops">;
 
+/**
+ * Colunas da view pública `barbearias_publicas` (migration 20260804120000).
+ *
+ * A resolução por subdomínio é o ÚNICO caminho deste provider alcançável por
+ * visitante anônimo, e por isso ele passou a ler a view em vez de
+ * `select("*")` na tabela larga — que devolve 36 colunas, incluindo owner_id,
+ * plan_id, appointments_this_month e os campos de recibo.
+ *
+ * Os demais caminhos (papel, propriedade e o fallback por id) continuam lendo
+ * `barbershops`: são caminhos de sessão autenticada, e as telas internas
+ * dependem de colunas privadas que a view não expõe de propósito.
+ */
+const PUBLIC_BARBERSHOP_COLUMNS =
+  "id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, " +
+  "rating_count, created_at, cep, state, city, neighborhood, street, number, " +
+  "complement, status, reschedule_min_hours, cancel_min_hours, " +
+  "noshow_policy_enabled, noshow_max_count, noshow_block_days, timezone, " +
+  "branding_enabled";
+
+/**
+ * A view não está nos tipos gerados (`types.ts` cobre só as tabelas), então a
+ * forma é declarada aqui: as colunas públicas de `barbershops` mais o derivado
+ * `branding_enabled`, que não existe na tabela.
+ */
+type PublicBarbershopRow = Partial<Barbershop> &
+  Pick<Barbershop, "id"> & { branding_enabled?: boolean };
+
 /** Situação da resolução do tenant. Use isto para autorizar, não `isDefault`. */
 export type TenantStatus = "loading" | "resolved" | "none";
 
@@ -133,21 +160,49 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
     const subdomain = extractSubdomain();
 
     if (subdomain) {
-      supabase
-        .from("barbershops")
-        .select("*")
+      // Identidade pública do tenant pela view: é o que funciona para o
+      // visitante anônimo, e o que continuará funcionando depois da fase 2,
+      // quando `barbershops` deixar de ser legível por `anon`.
+      (supabase as any)
+        .from("barbearias_publicas")
+        .select(PUBLIC_BARBERSHOP_COLUMNS)
         .eq("subdomain", subdomain)
         .eq("status", "approved")
-        .single()
-        .then(({ data, error }) => {
+        .maybeSingle()
+        .then(async ({ data, error }: { data: PublicBarbershopRow | null; error: unknown }) => {
           if (cancelled) return;
-          if (data && !error) {
-            setBarbershop(data);
-            setIsDefault(false);
-            setLoading(false);
-          } else {
+          if (!data || error) {
             resolveFromUserRoles(() => cancelled);
+            return;
           }
+
+          // Com sessão, completamos com a linha inteira. Sem isto, um membro da
+          // equipe que acessa pelo subdomínio da própria barbearia perderia as
+          // colunas privadas que as telas internas leem do contexto — em
+          // especial `plan_id` e `appointments_this_month`, usados por usePlan.
+          const { data: { user } } = await supabase.auth.getUser();
+          if (cancelled) return;
+
+          if (user) {
+            const { data: full } = await supabase
+              .from("barbershops")
+              .select("*")
+              .eq("id", data.id)
+              .maybeSingle();
+            if (cancelled) return;
+            if (full) {
+              // `branding_enabled` só existe na view; preservamos o derivado
+              // por cima da linha completa para o TenantThemeApplier.
+              setBarbershop({ ...full, branding_enabled: data.branding_enabled } as Barbershop);
+              setIsDefault(false);
+              setLoading(false);
+              return;
+            }
+          }
+
+          setBarbershop(data as Barbershop);
+          setIsDefault(false);
+          setLoading(false);
         });
     } else {
       resolveFromUserRoles(() => cancelled);
