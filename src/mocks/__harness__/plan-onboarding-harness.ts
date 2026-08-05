@@ -12,6 +12,8 @@
  * histórico da mudança, usuário sem permissão, isolamento entre tenants e
  * ausência de checkout falso.
  */
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { mockSupabaseClient } from "@/mocks/client";
 import { getTableRows, resetMockDatabase } from "@/mocks/store";
 import { clearMockSession } from "@/mocks/auth";
@@ -20,6 +22,7 @@ import {
   MOCK_ADMIN_D_EMAIL,
   MOCK_ADMIN_EMAIL,
   MOCK_ADMIN_B_EMAIL,
+  MOCK_BARBERSHOP_B_ID,
   MOCK_BARBERSHOP_C_ID,
   MOCK_BARBERSHOP_D_ID,
   MOCK_BARBERSHOP_E_ID,
@@ -484,6 +487,195 @@ async function testPermissionsAndIsolation(): Promise<void> {
   );
 }
 
+/**
+ * Um papel de equipe por pessoa, por barbearia (migration 20260805160000).
+ *
+ * A regra nasceu da remoção do botão "Me adicionar como barbeiro": acumular
+ * `barbeiro` + `admin_barbearia` não servia para nada (as RPCs de listagem já
+ * incluem admin), gastava uma vaga a mais do plano — que conta LINHAS, não
+ * pessoas — e era erro garantido no free, cujo limite é 1.
+ */
+async function testPapelUnicoDeEquipe(): Promise<void> {
+  group("papel único de equipe");
+  resetMockDatabase();
+  clearMockSession();
+
+  await login(MOCK_ADMIN_EMAIL);
+
+  /* ---- o caso que o botão removido fazia ---- */
+  const autoBarbeiro = await mockSupabaseClient.from("user_roles").insert({
+    user_id: MOCK_USER_IDS.admin,
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    role: "barbeiro",
+  });
+  check(
+    "admin NÃO consegue se auto-adicionar como barbeiro",
+    autoBarbeiro.error !== null,
+    autoBarbeiro.error?.message ?? "sem erro",
+  );
+  check(
+    "e a mensagem explica que admin já aparece para agendamento",
+    (autoBarbeiro.error?.message ?? "").includes("já aparecem na lista de profissionais"),
+    autoBarbeiro.error?.message ?? "",
+  );
+
+  /* ---- e o inverso, para a regra não ser contornável pela ordem ---- */
+  const anaViraAdmin = await mockSupabaseClient.from("user_roles").insert({
+    user_id: MOCK_USER_IDS.barberAna,
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    role: "admin_barbearia",
+  });
+  check(
+    "barbeiro NÃO recebe admin_barbearia como papel adicional",
+    anaViraAdmin.error !== null,
+    anaViraAdmin.error?.message ?? "sem erro",
+  );
+
+  /* ---- o que continua permitido ---- */
+  const comoCliente = await mockSupabaseClient.from("user_roles").insert({
+    user_id: MOCK_USER_IDS.admin,
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    role: "cliente",
+  });
+  check(
+    "o papel cliente continua podendo coexistir",
+    comoCliente.error === null,
+    comoCliente.error?.message ?? "",
+  );
+
+  // Quem gerencia a equipe da barbearia B é o admin DELA — por isso o login
+  // muda aqui. A regra é por (pessoa, barbearia): ser admin da A não impede
+  // ser barbeiro da B.
+  await login(MOCK_ADMIN_B_EMAIL);
+  const outraBarbearia = await mockSupabaseClient.from("user_roles").insert({
+    user_id: MOCK_USER_IDS.admin,
+    barbershop_id: MOCK_BARBERSHOP_B_ID,
+    role: "barbeiro",
+  });
+  check(
+    "a mesma pessoa pode ser staff de OUTRA barbearia",
+    outraBarbearia.error === null,
+    outraBarbearia.error?.message ?? "",
+  );
+  await login(MOCK_ADMIN_EMAIL);
+
+  // Trocar o papel da própria linha é legítimo: a linha em edição não pode
+  // bloquear a si mesma.
+  const linhaDaAna = getTableRows("user_roles").find(
+    (r) =>
+      r.user_id === MOCK_USER_IDS.barberAna &&
+      r.barbershop_id === MOCK_BARBERSHOP_ID &&
+      r.role === "barbeiro",
+  );
+  const promocao = await mockSupabaseClient
+    .from("user_roles")
+    .update({ role: "admin_barbearia" })
+    .eq("id", String(linhaDaAna?.id));
+  check(
+    "promover barbeiro a admin (UPDATE da linha) continua funcionando",
+    promocao.error === null,
+    promocao.error?.message ?? "",
+  );
+
+  /* ---- convite falha cedo, não no clique de quem recebeu ---- */
+  resetMockDatabase();
+  clearMockSession();
+  await login(MOCK_ADMIN_EMAIL);
+
+  const convite = await mockSupabaseClient.from("team_invitations").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    email: MOCK_ADMIN_EMAIL,
+    role: "barbeiro",
+    invited_by: MOCK_USER_IDS.admin,
+  });
+  check(
+    "convidar como barbeiro quem já é admin da MESMA barbearia é recusado",
+    convite.error !== null,
+    convite.error?.message ?? "sem erro",
+  );
+  check(
+    "com mensagem legível, não erro genérico de banco",
+    (convite.error?.message ?? "").includes("já é administradora desta barbearia"),
+    convite.error?.message ?? "",
+  );
+  check(
+    "e o convite NÃO foi gravado",
+    getTableRows("team_invitations").every(
+      (i) => !(i.barbershop_id === MOCK_BARBERSHOP_ID && i.email === MOCK_ADMIN_EMAIL && i.role === "barbeiro"),
+    ),
+  );
+
+  const conviteValido = await mockSupabaseClient.from("team_invitations").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    email: "pessoa.nova@exemplo.teste",
+    role: "barbeiro",
+    invited_by: MOCK_USER_IDS.admin,
+  });
+  check(
+    "convite para quem não é da equipe continua funcionando",
+    conviteValido.error === null,
+    conviteValido.error?.message ?? "",
+  );
+}
+
+/** O código e a migration que sustentam a regra acima. */
+function testPapelUnicoNoCodigo(): void {
+  group("papel único: código e migration");
+
+  const team = readFileSync(
+    path.join(process.cwd(), "src", "components", "TeamManager.tsx"),
+    "utf8",
+  );
+  const codigo = team
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//"))
+    .join("\n");
+
+  check("TeamManager não tem mais handleAddSelfAsBarber", !codigo.includes("handleAddSelfAsBarber"));
+  check("nem o texto do card removido", !codigo.includes("Também atende como barbeiro"));
+  check("nem insere papel barbeiro direto", !/role:\s*"barbeiro"\s*as const/.test(codigo));
+  check(
+    "e o convite mostra a mensagem do banco em check_violation",
+    /error\.code === "23514"/.test(codigo) && /toast\.error\(error\.message\)/.test(codigo),
+  );
+
+  const sql = readFileSync(
+    path.join(process.cwd(), "supabase", "migrations", "20260805160000_single_staff_role_per_barbershop.sql"),
+    "utf8",
+  );
+  const exec = sql
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  check("cria o índice parcial", /CREATE UNIQUE INDEX IF NOT EXISTS user_roles_one_staff_role_per_barbershop/.test(exec));
+  check(
+    "o índice cobre só os dois papéis de equipe",
+    /WHERE role IN \('barbeiro'::public\.app_role, 'admin_barbearia'::public\.app_role\)/.test(exec),
+  );
+  check("cria o trigger em user_roles", /CREATE TRIGGER trg_enforce_single_staff_role/.test(exec));
+  check("cria o trigger em team_invitations", /CREATE TRIGGER trg_enforce_invite_single_staff_role/.test(exec));
+  check("os dois são BEFORE INSERT OR UPDATE", (exec.match(/BEFORE INSERT OR UPDATE/g) ?? []).length === 2);
+  check(
+    "usa check_violation, que accept_team_invitation já trata",
+    (exec.match(/ERRCODE = 'check_violation'/g) ?? []).length === 2,
+  );
+  check("as funções são SECURITY DEFINER com search_path fixo", (exec.match(/SET search_path TO 'public'/g) ?? []).length === 2);
+  check(
+    "o trigger ignora a própria linha no UPDATE",
+    /TG_OP = 'INSERT' OR ur\.id <> NEW\.id/.test(exec),
+    "sem isso, trocar o papel da linha bloquearia a si mesma",
+  );
+  check("não remove papel de ninguém", !/DELETE FROM/i.test(exec));
+  check("documenta o rollback", /ROLLBACK/.test(sql));
+  check(
+    "registra que zero contas violavam a regra na escrita",
+    /Zero contas acumulavam/.test(sql),
+  );
+}
+
 async function testSubscriptionsAndPaddle(): Promise<void> {
   group("assinaturas e Paddle");
   resetMockDatabase();
@@ -595,6 +787,8 @@ export async function runHarness(): Promise<HarnessOutcome> {
     ["limites", testLimits],
     ["mudanca-plano", testAdminPlanChange],
     ["permissoes", testPermissionsAndIsolation],
+    ["papel-unico", testPapelUnicoDeEquipe],
+    ["papel-unico-codigo", async () => testPapelUnicoNoCodigo()],
     ["assinaturas", testSubscriptionsAndPaddle],
     ["restaurar", testRestore],
   ];

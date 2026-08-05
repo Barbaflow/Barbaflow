@@ -15,7 +15,7 @@ seção aponta o erro concreto que a originou.
 ```bash
 npx tsc --noEmit          # exit 0 obrigatório
 npm run build             # exit 0 obrigatório
-npm run harness:core      # 15 suítes, hoje 1286 verificações, 0 SKIPPED
+npm run harness:core      # 15 suítes, hoje 1313 verificações, 0 SKIPPED
 ```
 
 Os três rodam **sem banco, sem rede e sem Docker**. Não há CI: se você não
