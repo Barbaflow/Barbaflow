@@ -574,7 +574,13 @@ function KpiCard({
           <Icon className={`w-4 h-4 ${accent ? "text-primary" : "text-muted-foreground"}`} />
           <span className="text-xs text-muted-foreground">{label}</span>
         </div>
-        <span className={`text-xl font-display font-bold ${accent ? "text-primary" : "text-foreground"}`}>
+        {/* `font-body` (DM Sans) e não `font-display` (Playfair Display): a
+            serifada é boa em título, mas atrapalha em número — o "0" e o "R$"
+            ficam com pouco contraste de forma. Mesma troca de MiniStat/FatItem
+            em OperationalDashboard (PRs #51/#52); este KpiCard é local desta
+            tela e por isso ficou de fora na época. Só a família muda; tamanho,
+            peso e cor seguem iguais, e o rótulo acima continua como estava. */}
+        <span className={`text-xl font-body font-bold ${accent ? "text-primary" : "text-foreground"}`}>
           {value}
         </span>
         <DeltaBadge delta={delta} money={money} invertGood={invertGood} />
