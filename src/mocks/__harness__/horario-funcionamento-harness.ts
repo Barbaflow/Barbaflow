@@ -31,6 +31,7 @@ import {
   MOCK_ADMIN_EMAIL,
   MOCK_BARBERSHOP_ID,
   MOCK_BARBERSHOP_B_ID,
+  MOCK_BARBERSHOP_E_ID,
   MOCK_SUPER_ADMIN_EMAIL,
   MOCK_USER_IDS,
 } from "@/mocks/fixtures";
@@ -678,6 +679,135 @@ function testeMigration() {
   check("explica por que turno inativo escapa", /preso entre dois triggers/.test(sql));
 }
 
+/* ══════════ 8b. exposição pública ══════════ */
+
+async function testePublico() {
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  await mockSupabaseClient.auth.signOut();
+
+  const publico = async (id: unknown) =>
+    (mockSupabaseClient as any).rpc("get_public_business_hours", { _barbershop_id: id });
+
+  group("expediente público: sem envelope, nada a mostrar");
+
+  const vazio = await publico(MOCK_BARBERSHOP_ID);
+  check("responde sem sessão", !vazio.error, JSON.stringify(vazio.error));
+  check(
+    "barbearia sem nenhum dia configurado devolve vazio",
+    (vazio.data ?? []).length === 0,
+    "é o comportamento de hoje: a página não passa a mostrar o que nunca teve",
+  );
+
+  group("expediente público: com envelope, devolve o que foi configurado");
+
+  await definirExpediente({ open_time: "09:00", close_time: "18:00" });
+  await login(MOCK_ADMIN_EMAIL);
+  await (mockSupabaseClient as any).from("business_hours").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    day_of_week: 0,
+    is_closed: true,
+  });
+  await mockSupabaseClient.auth.signOut();
+
+  const comDias = await publico(MOCK_BARBERSHOP_ID);
+  const linhas2 = (comDias.data ?? []) as Array<Record<string, unknown>>;
+  check("anônimo lê o expediente", linhas2.length === 2, `${linhas2.length}`);
+  check("ordenado por dia", Number(linhas2[0]?.day_of_week) === 0 && Number(linhas2[1]?.day_of_week) === SEGUNDA);
+
+  const domingo = linhas2.find((l) => Number(l.day_of_week) === 0);
+  const segunda = linhas2.find((l) => Number(l.day_of_week) === SEGUNDA);
+  check("dia fechado vem com is_closed", domingo?.is_closed === true);
+  check("e sem horário", domingo?.open_time === null && domingo?.close_time === null, JSON.stringify(domingo));
+  check("dia aberto traz a faixa", String(segunda?.open_time).startsWith("09:00") && String(segunda?.close_time).startsWith("18:00"), JSON.stringify(segunda));
+
+  check(
+    "só devolve os quatro campos, nada de id ou barbershop_id",
+    linhas2.every((l) => Object.keys(l).sort().join(",") === "close_time,day_of_week,is_closed,open_time"),
+    Object.keys(linhas2[0] ?? {}).join(", "),
+  );
+  check(
+    "os dias NÃO configurados simplesmente não vêm",
+    linhas2.length === 2,
+    "ausência é 'sem restrição', e a tela não pode transformá-la em 'Fechado'",
+  );
+
+  group("expediente público: fronteira igual à das outras RPCs");
+
+  check("id nulo devolve vazio", ((await publico(null)).data ?? []).length === 0);
+  check("id inexistente devolve vazio", ((await publico("00000000-0000-4000-8000-000000000000")).data ?? []).length === 0);
+  check("barbearia PENDENTE devolve vazio", ((await publico(MOCK_BARBERSHOP_E_ID)).data ?? []).length === 0);
+
+  const base = getTableRows("barbershops");
+  const rejeitada = { ...base[0], id: "e0e0e0e0-0000-4000-8000-000000000001", subdomain: "rejeitada-bh", status: "rejected" };
+  const sentinela = { ...base[0], id: "e0e0e0e0-0000-4000-8000-000000000002", subdomain: "_system", status: "approved" };
+  setTableRows("barbershops", [...base, rejeitada, sentinela]);
+  setTableRows("business_hours", [
+    ...getTableRows("business_hours"),
+    { id: "bh-rej", barbershop_id: rejeitada.id, day_of_week: 1, open_time: "09:00", close_time: "18:00", is_closed: false },
+    { id: "bh-sent", barbershop_id: sentinela.id, day_of_week: 1, open_time: "09:00", close_time: "18:00", is_closed: false },
+  ]);
+
+  check(
+    "REJEITADA devolve vazio mesmo COM expediente cadastrado",
+    ((await publico(rejeitada.id)).data ?? []).length === 0,
+    "o vazio é do filtro, não da falta de dado",
+  );
+  check(
+    "sentinela _system devolve vazio mesmo COM expediente cadastrado",
+    ((await publico(sentinela.id)).data ?? []).length === 0,
+  );
+  setTableRows("barbershops", base);
+}
+
+/* ══════════ 8c. a tela pública ══════════ */
+
+function testeTelaPublica() {
+  const comp = lerArquivo("src/components/BusinessHoursPublic.tsx");
+  const semComent = semComentarios(comp);
+  const pagina = lerArquivo("src/routes/agendar.$slug.tsx");
+
+  group("tela pública: onde e como aparece");
+
+  check("a página de agendamento renderiza a seção", /<BusinessHoursPublic barbershopId=\{barbershop\.id\} \/>/.test(pagina));
+  check(
+    "antes do assistente, não depois",
+    pagina.indexOf("<BusinessHoursPublic") < pagina.indexOf("<PublicBookingWizard"),
+    "o expediente é contexto para escolher, não apêndice como avaliações",
+  );
+  check("lê pela RPC, nunca pela tabela", semComent.includes("get_public_business_hours"));
+  check(
+    "não consulta business_hours direto",
+    !/from\(\s*["']business_hours["']\s*\)/.test(semComent),
+    "anon não tem grant na tabela, e não deve ter",
+  );
+
+  group("tela pública: os três estados");
+
+  check("sem dias configurados não renderiza nada", /dias\.length === 0\) return null/.test(semComent));
+  check("dia ausente some da lista", /if \(!info\) return null/.test(semComent));
+  check("dia fechado mostra 'Fechado'", comp.includes("Fechado"));
+  check("dia aberto mostra a faixa", /hhmm\(info\.open_time\)/.test(semComent));
+  check(
+    "falha de consulta também não renderiza",
+    /if \(error\)[\s\S]{0,200}setDias\(\[\]\)/.test(semComent),
+    "horário errado numa página de agendamento é pior do que horário nenhum",
+  );
+  check("e a falha é registrada", /logTechnicalError\([^)]*BusinessHoursPublic/.test(semComent));
+
+  group("tela pública: layout (§3)");
+
+  check("grade responsiva por breakpoint literal", /grid-cols-2 sm:grid-cols-3/.test(semComent));
+  check("nada com largura fixa em px", !/w-\[\d+px\]/.test(semComent));
+  check("texto longo trunca em vez de estourar", /truncate/.test(semComent) && /min-w-0/.test(semComent));
+  check(
+    "sem classe de breakpoint montada por interpolação",
+    !/\$\{[^}]*\}:(grid|flex|hidden|inline)/.test(semComent),
+    "Tailwind não gera classe interpolada (§3.6)",
+  );
+}
+
 /* ══════════ 9b. a migration da RPC ══════════ */
 
 function testeMigrationRpc() {
@@ -740,6 +870,54 @@ function testeMigrationRpc() {
   );
 }
 
+/* ══════════ 9c. a migration da RPC pública ══════════ */
+
+function testeMigrationPublica() {
+  const sql = readFileSync(
+    path.join(ROOT, "supabase", "migrations", "20260805190000_public_business_hours.sql"),
+    "utf8",
+  );
+  const codigo = sql
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration pública: a RPC");
+
+  check("cria get_public_business_hours", /CREATE OR REPLACE FUNCTION public\.get_public_business_hours\(_barbershop_id uuid\)/.test(codigo));
+  check("é SECURITY DEFINER", /SECURITY DEFINER/.test(codigo));
+  check("é STABLE", /\bSTABLE\b/.test(codigo));
+  check("search_path fixo", /SET search_path TO 'public'/.test(codigo));
+  check("filtra por barbershop_is_public", /public\.barbershop_is_public\(_barbershop_id\)/.test(codigo));
+  check("recusa id nulo", /_barbershop_id IS NOT NULL/.test(codigo));
+  check("ordena por dia", /ORDER BY bh\.day_of_week/.test(codigo));
+
+  group("migration pública: o que sai e o que não sai");
+
+  const retorno = /RETURNS TABLE \(([\s\S]*?)\)/.exec(codigo)?.[1] ?? "";
+  check("devolve os quatro campos", /day_of_week smallint/.test(retorno) && /open_time\s+time/.test(retorno) && /close_time\s+time/.test(retorno) && /is_closed\s+boolean/.test(retorno));
+  for (const coluna of ["id", "barbershop_id", "created_at", "updated_at"]) {
+    check(`não devolve ${coluna}`, !new RegExp(`\\b${coluna}\\b`).test(retorno));
+  }
+
+  group("migration pública: grants");
+
+  check("revoga de PUBLIC", /REVOKE ALL ON FUNCTION public\.get_public_business_hours\(uuid\) FROM PUBLIC/.test(codigo));
+  check("concede EXECUTE a anon e authenticated", /GRANT EXECUTE ON FUNCTION public\.get_public_business_hours\(uuid\) TO anon, authenticated/.test(codigo));
+  check(
+    "NÃO concede acesso à tabela",
+    !/GRANT[^;]*ON TABLE[^;]*business_hours/i.test(codigo),
+    "a tabela segue sem grant para anon — é o ponto da RPC existir",
+  );
+  check("aditiva: nada de DROP nem ALTER", !/\bDROP\b|ALTER TABLE/i.test(codigo));
+  check("documenta rollback", /ROLLBACK/.test(sql));
+  check(
+    "registra por que não é grant nem coluna na vitrine",
+    /jsonb_agg/.test(sql) && /24 colunas/.test(sql),
+  );
+}
+
 /* ══════════ 7. paridade mock ↔ SQL ══════════ */
 
 function testeParidade() {
@@ -772,8 +950,11 @@ export async function runHarness() {
   await testeRpcAplicar();
   await testeGradeAlheia();
   testeTela();
+  await testePublico();
+  testeTelaPublica();
   testeMigration();
   testeMigrationRpc();
+  testeMigrationPublica();
   testeParidade();
 
   resetMockDatabase();

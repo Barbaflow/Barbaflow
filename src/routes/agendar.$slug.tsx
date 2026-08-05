@@ -3,6 +3,7 @@ import { PublicBookingWizard } from "@/components/booking/PublicBookingWizard";
 import { PoliciesBanner } from "@/components/booking/PoliciesBanner";
 import { ProductsShowcase } from "@/components/ProductsShowcase";
 import { ReviewsShowcase } from "@/components/ReviewsShowcase";
+import { BusinessHoursPublic } from "@/components/BusinessHoursPublic";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Eye, LayoutDashboard, Scissors } from "lucide-react";
 import { TenantThemeColors } from "@/components/TenantThemeProvider";
@@ -229,6 +230,12 @@ function AgendarSlugPage() {
             noshowBlockDays={barbershop.noshow_block_days}
           />
         )}
+
+        {/* Antes do assistente, de propósito: o expediente é contexto para
+            escolher profissional e horário, não apêndice como avaliações e
+            produtos. O componente não renderiza nada quando a barbearia não
+            tem nenhum dia configurado — que é o caso de todas hoje. */}
+        {barbershop?.id && <BusinessHoursPublic barbershopId={barbershop.id} />}
 
         <PublicBookingWizard preselectedBarbershopId={barbershop?.id} />
 

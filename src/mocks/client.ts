@@ -206,6 +206,33 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
    * funcionaria para super_admin. A ORDEM importa e é a mesma do SQL: desativa
    * ANTES de gravar, porque o trigger de conflito só conta turno ativo.
    */
+  /**
+   * Espelha `get_public_business_hours` (migration 20260805190000): expediente
+   * de uma barbearia aprovada e não-sentinela, para a página pública.
+   *
+   * Uma linha por dia CONFIGURADO — nunca sete fixas. Dia ausente do resultado
+   * significa "sem restrição cadastrada", NÃO "fechado"; a tela depende dessa
+   * diferença para não afirmar que a barbearia fecha num dia que o dono apenas
+   * não configurou.
+   */
+  get_public_business_hours: (args) => {
+    const barbershopId = args._barbershop_id;
+    if (!barbershopId) return [];
+
+    const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+    if (!shop || shop.status !== "approved" || shop.subdomain === "_system") return [];
+
+    return getTableRows("business_hours")
+      .filter((row) => row.barbershop_id === barbershopId)
+      .map((row) => ({
+        day_of_week: Number(row.day_of_week),
+        open_time: row.is_closed ? null : (row.open_time ?? null),
+        close_time: row.is_closed ? null : (row.close_time ?? null),
+        is_closed: Boolean(row.is_closed),
+      }))
+      .sort((a, b) => a.day_of_week - b.day_of_week);
+  },
+
   apply_business_hours: (args) => {
     const actor = getMockActor();
     if (!actor) throw new MockRpcError("Não autenticado.", "insufficient_privilege");
