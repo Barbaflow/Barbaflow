@@ -15,7 +15,9 @@ import {
   effectiveInvitationStatus,
   recalcTicketTotals,
   ticketDiscountValue,
+  validateBusinessHours,
 } from "./rules";
+import { getMockActor } from "./session";
 import {
   byBarberReport,
   paymentMethodsReport,
@@ -192,6 +194,88 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       rating_avg: Math.round((soma / total) * 10) / 10,
       rating_count: total,
     })).sort((a, b) => a.barber_id.localeCompare(b.barber_id));
+  },
+
+  /**
+   * Espelha `apply_business_hours` (migration 20260805180000): salva o
+   * expediente de um dia e, com `_deactivate_conflicts`, desativa na mesma
+   * operação os turnos ativos que ficariam fora.
+   *
+   * Existe porque a policy de UPDATE de `weekly_schedule` não inclui
+   * `admin_barbearia` — sem a função, o botão de resolver conflito só
+   * funcionaria para super_admin. A ORDEM importa e é a mesma do SQL: desativa
+   * ANTES de gravar, porque o trigger de conflito só conta turno ativo.
+   */
+  apply_business_hours: (args) => {
+    const actor = getMockActor();
+    if (!actor) throw new MockRpcError("Não autenticado.", "insufficient_privilege");
+
+    const barbershopId = String(args._barbershop_id ?? "");
+    const dia = Number(args._day_of_week);
+    const fechado = Boolean(args._is_closed);
+
+    const ehAdmin = getTableRows("user_roles").some(
+      (r) =>
+        r.user_id === actor.id &&
+        r.barbershop_id === barbershopId &&
+        r.role === "admin_barbearia",
+    );
+    const ehSuper = getTableRows("user_roles").some(
+      (r) => r.user_id === actor.id && r.role === "super_admin",
+    );
+    if (!ehAdmin && !ehSuper) {
+      throw new MockRpcError(
+        "Apenas a administração desta barbearia pode definir o horário de funcionamento.",
+        "insufficient_privilege",
+      );
+    }
+    if (!Number.isInteger(dia) || dia < 0 || dia > 6) {
+      throw new MockRpcError("Dia da semana inválido.", "23514");
+    }
+
+    const abre = args._open_time ? String(args._open_time).slice(0, 5) : null;
+    const fecha = args._close_time ? String(args._close_time).slice(0, 5) : null;
+
+    let desativados = 0;
+    if (args._deactivate_conflicts) {
+      const turnos = getTableRows("weekly_schedule").map((t) => {
+        const foraDoDia =
+          t.barbershop_id !== barbershopId || Number(t.day_of_week) !== dia || t.is_active === false;
+        if (foraDoDia) return t;
+        const inicio = String(t.start_time).slice(0, 5);
+        const fim = String(t.end_time).slice(0, 5);
+        const conflita = fechado || (abre !== null && inicio < abre) || (fecha !== null && fim > fecha);
+        if (!conflita) return t;
+        desativados++;
+        return { ...t, is_active: false, updated_at: new Date().toISOString() };
+      });
+      setTableRows("weekly_schedule", turnos);
+    }
+
+    // Upsert com os MESMOS triggers: se ainda houver conflito, a validação
+    // recusa daqui, como no SQL.
+    const existente = getTableRows("business_hours").find(
+      (b) => b.barbershop_id === barbershopId && Number(b.day_of_week) === dia,
+    );
+    const linha = {
+      id: existente?.id ?? `bh-${barbershopId}-${dia}`,
+      barbershop_id: barbershopId,
+      day_of_week: dia,
+      open_time: fechado ? null : abre,
+      close_time: fechado ? null : fecha,
+      is_closed: fechado,
+      created_at: existente?.created_at ?? new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    const problema = validateBusinessHours(linha, existente);
+    if (problema) throw new MockRpcError(String(problema), "23514");
+
+    setTableRows("business_hours", [
+      ...getTableRows("business_hours").filter((b) => b.id !== linha.id),
+      linha,
+    ]);
+
+    return { ok: true, deactivated: desativados };
   },
 
   /**

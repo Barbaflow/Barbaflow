@@ -105,6 +105,13 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     if (error) {
       if (error.code === "23505") {
         toast.error("Este horário já existe para este dia.");
+      } else if (error.code === "23514") {
+        // `check_violation` aqui é o trigger do expediente da barbearia
+        // (migration 20260805170000). A mensagem dele já diz o horário de
+        // funcionamento, o turno tentado e o que fazer — é escrita para ser
+        // lida por quem usa. "Erro ao adicionar horário" esconderia justamente
+        // a única informação que resolve o problema.
+        toast.error(error.message);
       } else {
         toast.error("Erro ao adicionar horário.");
       }
@@ -125,6 +132,13 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
       .eq("id", id);
 
     if (error) {
+      if (error.code === "23514") {
+        // Reativar um turno que ficou fora do expediente cai aqui. Desativar
+        // nunca cai: o trigger ignora turno inativo, de propósito, para que o
+        // admin possa resolver conflito ao apertar o horário.
+        toast.error(error.message);
+        return;
+      }
       logTechnicalError("WeeklyScheduleEditor", "atualizar horário", error);
       toast.error("Não foi possível atualizar o horário. Tente novamente.");
       return;
