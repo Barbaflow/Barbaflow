@@ -19,9 +19,11 @@
  *      `barbershops` está numa lista conhecida e justificada. Foi essa
  *      varredura que achou os dois pontos anônimos que a revisão por
  *      componente de rota tinha deixado passar, os dois em hook;
- *   5. comportamento — a fase 2 SIMULADA: com o `SELECT` do `anon` revogado no
- *      mock, o acesso direto passa a dar 42501 e a vitrine, a RPC e os dois
- *      caminhos de resolução do tenant continuam de pé;
+ *   5. comportamento — a fase 2 APLICADA: o mock carrega o mapa real de
+ *      privilégios (`src/mocks/grants.ts`), então o acesso direto do anônimo já
+ *      dá 42501 por padrão, e o que se simula pelo `GRANT` é o estado ANTERIOR
+ *      — que é também o rollback documentado. Vitrine, RPC e os dois caminhos
+ *      de resolução do tenant continuam de pé;
  *   6. SQL — análise estática das migrations das duas fases.
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -41,7 +43,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { mockSupabaseClient } from "@/mocks/client";
 import { resetMockDatabase, getTableRows, setTableRows } from "@/mocks/store";
-import { grantAnonSelect, resetAnonGrants, revokeAnonSelect } from "@/mocks/grants";
+import { grantAnonSelect, resetAnonGrants } from "@/mocks/grants";
 import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import {
   MOCK_ADMIN_EMAIL,
@@ -848,19 +850,30 @@ async function testeFase2Simulada() {
   resetMockDatabase();
   await mockSupabaseClient.auth.signOut();
 
-  group("fase 2 simulada: antes do REVOKE, o anônimo lê a tabela larga");
+  // O REVOKE deixou de ser hipótese: foi aplicado no remoto em 05/08/2026, e
+  // `src/mocks/grants.ts` passou a carregar o mapa real de privilégios. Por
+  // isso o que se simula aqui agora é o ESTADO ANTERIOR — pelo `GRANT` do
+  // rollback documentado no rodapé da migration. A ordem inverteu; o que cada
+  // asserção prova, não.
+  group("fase 2: o estado ANTERIOR, reconstruído pelo GRANT do rollback");
 
+  grantAnonSelect("barbershops");
   const antes = await (mockSupabaseClient as any).from("barbershops").select("*");
-  check("hoje o anônimo consegue ler barbershops", (antes.data ?? []).length > 0);
+  check("com o GRANT de volta, o anônimo leria a tabela larga", (antes.data ?? []).length > 0);
   check(
-    "e recebe as colunas internas",
+    "e receberia as colunas internas",
     Boolean(antes.data?.[0] && "owner_id" in antes.data[0] && "plan_id" in antes.data[0]),
-    "é exatamente esta exposição que a fase 2 fecha",
+    "é exatamente esta exposição que a fase 2 fechou",
+  );
+  check(
+    "ou seja: o rollback documentado devolve mesmo o acesso",
+    (antes.data ?? []).length > 0,
+    "GRANT SELECT ON TABLE public.barbershops TO anon",
   );
 
-  revokeAnonSelect("barbershops");
+  resetAnonGrants();
 
-  group("fase 2 simulada: com o REVOKE, o acesso direto é NEGADO");
+  group("fase 2 aplicada: o acesso direto é NEGADO");
 
   const negado = await (mockSupabaseClient as any).from("barbershops").select("*");
   check("SELECT direto devolve erro", Boolean(negado.error), JSON.stringify(negado.error));
@@ -884,7 +897,7 @@ async function testeFase2Simulada() {
     "motivo de o fallback sem sessão ter passado a ler a vitrine",
   );
 
-  group("fase 2 simulada: o que DEVE continuar funcionando");
+  group("fase 2 aplicada: o que DEVE continuar funcionando");
 
   const rows = await vitrine();
   check("a vitrine continua respondendo sem sessão", rows.length > 0);
@@ -926,7 +939,7 @@ async function testeFase2Simulada() {
   check("get_public_barbers_v2 continua respondendo (SECURITY DEFINER)", lista.length > 0);
   check("e continua sem expor owner_id", lista.every((r) => !("owner_id" in r)));
 
-  group("fase 2 simulada: a fronteira da view segue de pé sem a RLS");
+  group("fase 2 aplicada: a fronteira da view segue de pé sem a RLS");
 
   // Com `security_invoker = false` o WHERE da view é a barreira inteira. Se ele
   // falhasse, o REVOKE teria trocado uma exposição por outra.
@@ -948,7 +961,7 @@ async function testeFase2Simulada() {
 
   setTableRows("barbershops", base);
 
-  group("fase 2 simulada: o REVOKE atinge só o anônimo");
+  group("fase 2 aplicada: o REVOKE atinge só o anônimo");
 
   const login = await mockSupabaseClient.auth.signInWithPassword({
     email: MOCK_ADMIN_EMAIL,
@@ -969,18 +982,9 @@ async function testeFase2Simulada() {
 
   await mockSupabaseClient.auth.signOut();
 
-  group("fase 2 simulada: rollback devolve o acesso");
-
-  // `GRANT SELECT ON TABLE public.barbershops TO anon` — o rollback documentado
-  // no rodapé da migration. Se ele não devolvesse o acesso, o plano de reversão
-  // seria só uma frase.
-  grantAnonSelect("barbershops");
-  const depoisDoRollback = await (mockSupabaseClient as any).from("barbershops").select("*");
-  check(
-    "o GRANT de volta restaura a leitura anônima",
-    !depoisDoRollback.error && (depoisDoRollback.data ?? []).length > 0,
-    JSON.stringify(depoisDoRollback.error),
-  );
+  // O rollback (`GRANT SELECT ON TABLE public.barbershops TO anon`) já foi
+  // exercitado no primeiro grupo desta seção, que reconstrói o estado anterior
+  // justamente por ele. Repetir aqui só duplicaria a asserção.
 
   resetAnonGrants();
   resetMockDatabase();

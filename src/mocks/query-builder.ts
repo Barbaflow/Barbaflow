@@ -587,12 +587,22 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
     // tabela como o dono (security_invoker = false). É exatamente por isso que
     // ela sobrevive ao REVOKE — e o mock precisa reproduzir essa diferença, não
     // apagá-la.
-    if (this.operation === "select" && !getMockActor() && anonSelectRevoked(this.table)) {
-      return fail<MockRow[]>(
-        [],
-        error(`permission denied for table ${this.table}`, "42501"),
-        401,
-      );
+    if (this.operation === "select" && !getMockActor()) {
+      // A tabela do `from(...)`, e TAMBÉM cada tabela alcançada por embed: no
+      // PostgREST o privilégio é exigido de toda relação do plano, não só da
+      // primeira. Foi por não checar o embed que o mock deixou passar a
+      // consulta de notas por profissional de `PublicBookingWizard`, que pedia
+      // `reviews` com `appointments!inner(barber_id)` — impossível para `anon`,
+      // que nunca teve SELECT em `appointments`, e ainda assim verde offline.
+      const alcancadas = [this.table, ...this.embeds.map((e) => e.table)];
+      const negada = alcancadas.find((t) => anonSelectRevoked(t));
+      if (negada) {
+        return fail<MockRow[]>(
+          [],
+          error(`permission denied for table ${negada}`, "42501"),
+          401,
+        );
+      }
     }
 
     // `barbearias_publicas` é uma VIEW: só leitura, e é a superfície pública

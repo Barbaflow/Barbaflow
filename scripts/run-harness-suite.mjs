@@ -42,6 +42,7 @@ const CORE = [
   ["remote-scripts", "run-remote-scripts-harness.mjs"],
   ["catalogo-publico", "run-catalogo-publico-harness.mjs"],
   ["superficie-barbershops", "run-superficie-barbershops-harness.mjs"],
+  ["avaliacoes-publicas", "run-avaliacoes-publicas-harness.mjs"],
   ["mensagens-contato", "run-mensagens-contato-harness.mjs"],
   ["cron-endpoints", "run-cron-endpoints-harness.mjs"],
   ["senha", "run-recuperacao-senha-harness.mjs"],

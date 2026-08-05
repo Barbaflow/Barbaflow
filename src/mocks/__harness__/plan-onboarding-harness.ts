@@ -566,12 +566,16 @@ async function testRestore(): Promise<void> {
   resetMockDatabase();
   clearMockSession();
 
-  const c = firstRow(
-    await mockSupabaseClient.from("barbershops").select("plan_id").eq("id", MOCK_BARBERSHOP_C_ID).single(),
-  );
+  // Leitura direta do store, e não pelo cliente: o que se afirma aqui é que
+  // `resetMockDatabase()` devolveu os dados ao seed — não que alguém consiga
+  // consultá-los. Depois de `clearMockSession()` o ator é anônimo, e `anon` não
+  // lê `barbershops` nem `plan_change_logs` no banco real (o mock passou a
+  // refletir isso em src/mocks/grants.ts). Consultar pelo cliente aqui testaria
+  // privilégio por acidente, no meio de uma asserção sobre restauração.
+  const c = getTableRows("barbershops").find((row) => row.id === MOCK_BARBERSHOP_C_ID);
   check("após restaurar: barbearia C volta ao plano free", c?.plan_id === MOCK_PLAN_IDS.free, String(c?.plan_id));
 
-  const logs = rowsOf(await mockSupabaseClient.from("plan_change_logs").select("*")).length;
+  const logs = getTableRows("plan_change_logs").length;
   check("após restaurar: histórico de plano volta ao seed (3)", logs === 3, `logs=${logs}`);
 }
 

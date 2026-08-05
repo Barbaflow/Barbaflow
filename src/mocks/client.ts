@@ -148,6 +148,53 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
   },
 
   /**
+   * Espelha `get_public_barber_ratings` (migration 20260805140000): nota média
+   * e contagem POR PROFISSIONAL de uma barbearia aprovada e não-sentinela.
+   *
+   * Existe porque `reviews` não tem `barber_id` — o vínculo passa por
+   * `appointments`, que o `anon` não lê e que a RLS restringe ao próprio
+   * cliente. Calcular isso no navegador dava 42501 para o visitante e uma média
+   * errada (só as avaliações dele) para o cliente logado.
+   *
+   * Como a função real, é SECURITY DEFINER: agrega lendo tudo, mas devolve
+   * apenas o agregado — nem `comment`, nem `client_id`, nem coluna de
+   * `appointments`.
+   */
+  get_public_barber_ratings: (args) => {
+    const barbershopId = args._barbershop_id;
+    if (!barbershopId) return [];
+
+    const shop = getTableRows("barbershops").find((row) => row.id === barbershopId);
+    if (!shop || shop.status !== "approved" || shop.subdomain === "_system") return [];
+
+    const agendamentos = new Map(getTableRows("appointments").map((a) => [a.id, a]));
+    const acumulado = new Map<string, { soma: number; total: number }>();
+
+    for (const review of getTableRows("reviews")) {
+      if (review.barbershop_id !== barbershopId) continue;
+      // `appointment_id` é nulo quando o agendamento foi apagado
+      // (ON DELETE SET NULL): não há como saber a quem a avaliação se referia.
+      const agendamento = review.appointment_id ? agendamentos.get(review.appointment_id) : undefined;
+      const barberId = agendamento?.barber_id;
+      if (!barberId) continue;
+      // Mesma defesa do SQL: avaliação e agendamento têm de ser do mesmo tenant.
+      if (agendamento?.barbershop_id !== review.barbershop_id) continue;
+
+      const atual = acumulado.get(String(barberId)) ?? { soma: 0, total: 0 };
+      atual.soma += Number(review.rating) || 0;
+      atual.total += 1;
+      acumulado.set(String(barberId), atual);
+    }
+
+    return Array.from(acumulado, ([barber_id, { soma, total }]) => ({
+      barber_id,
+      // `round(avg, 1)` do SQL.
+      rating_avg: Math.round((soma / total) * 10) / 10,
+      rating_count: total,
+    })).sort((a, b) => a.barber_id.localeCompare(b.barber_id));
+  },
+
+  /**
    * Janelas de atendimento de um profissional numa data — espelha a RPC real
    * (migration 20260722210000). Deriva da grade semanal (menos os bloqueios do
    * dia) e soma as exceções não-livres lançadas na agenda, para o fluxo público

@@ -26,6 +26,7 @@
     "harness:remote-scripts": "node scripts/run-remote-scripts-harness.mjs",
     "harness:catalogo-publico": "node scripts/run-catalogo-publico-harness.mjs",
     "harness:superficie-barbershops": "node scripts/run-superficie-barbershops-harness.mjs",
+    "harness:avaliacoes-publicas": "node scripts/run-avaliacoes-publicas-harness.mjs",
     "harness:mensagens-contato": "node scripts/run-mensagens-contato-harness.mjs",
     "harness:cron-endpoints": "node scripts/run-cron-endpoints-harness.mjs",
     "harness:senha": "node scripts/run-recuperacao-senha-harness.mjs",
