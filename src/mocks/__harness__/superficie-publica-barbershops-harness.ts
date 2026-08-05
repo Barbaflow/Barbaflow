@@ -319,14 +319,46 @@ async function testeBarbeiros() {
   );
   check("o proprietário vem primeiro", lista[0]?.is_owner === true);
 
-  group("get_public_barbers_v2: sem duplicatas");
+  group("get_public_barbers_v2: quem entra na lista");
 
-  // O admin da barbearia A tem DOIS papéis (admin_barbearia + barbeiro): o SQL
-  // usa DISTINCT, e o mock precisa deduplicar igual.
   const ids = lista.map((r) => String(r.user_id));
-  check("não repete quem tem dois papéis", new Set(ids).size === ids.length, ids.join(", "));
-  check("inclui o admin que também atende", ids.includes(MOCK_USER_IDS.admin));
+  check("não repete ninguém", new Set(ids).size === ids.length, ids.join(", "));
+  check(
+    "inclui o admin, que atende sem ter o papel `barbeiro`",
+    ids.includes(MOCK_USER_IDS.admin),
+    "a RPC filtra role IN ('barbeiro','admin_barbearia') — é por isso que o botão de auto-adicionar era desnecessário",
+  );
   check("inclui os barbeiros comuns", ids.includes(MOCK_USER_IDS.barberAna));
+
+  group("get_public_barbers_v2: DISTINCT contra linha legada");
+
+  // Desde 20260805160000 ninguém ACUMULA os dois papéis — o índice parcial
+  // impede. Mas o DISTINCT do SQL continua sendo a defesa para linha legada
+  // (a migration não apaga nada), e é isso que se exercita aqui: o cenário é
+  // construído de propósito, em vez de vir semeado, porque semeá-lo faria as
+  // fixtures modelarem um estado que o banco real recusa.
+  const papeisAntes = getTableRows("user_roles");
+  setTableRows("user_roles", [
+    ...papeisAntes,
+    {
+      id: "legado-dois-papeis",
+      user_id: MOCK_USER_IDS.admin,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      role: "barbeiro",
+      created_at: new Date().toISOString(),
+    },
+  ]);
+
+  const comLegado = await barbeiros(MOCK_BARBERSHOP_ID);
+  const idsLegado = comLegado.map((r) => String(r.user_id));
+  check(
+    "quem tem dois papéis aparece uma vez só",
+    idsLegado.filter((id) => id === MOCK_USER_IDS.admin).length === 1,
+    idsLegado.join(", "),
+  );
+  check("e a lista não cresce", idsLegado.length === ids.length, `${idsLegado.length} vs ${ids.length}`);
+
+  setTableRows("user_roles", papeisAntes);
 
   group("get_public_barbers_v2: recusas");
 

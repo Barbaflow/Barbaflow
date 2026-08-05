@@ -7,6 +7,7 @@
  */
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { getMockActor } from "./session";
+import { MOCK_ACCOUNTS } from "./auth";
 import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
 
 /**
@@ -961,6 +962,33 @@ export function validateUserRole(row: MockRow, existing?: MockRow): string | nul
   );
   if (duplicated) return "Equipe: este usuário já tem esse papel nesta barbearia.";
 
+  /* ---- um único papel de equipe por pessoa/barbearia ---- */
+  // Espelha o trigger `enforce_single_staff_role` e o índice parcial
+  // `user_roles_one_staff_role_per_barbershop` (migration 20260805160000).
+  // `barbeiro` e `admin_barbearia` se excluem; `cliente` fica fora da regra, de
+  // propósito, porque um admin pode agendar como qualquer pessoa.
+  const OUTRO_PAPEL_DE_EQUIPE: Record<string, string> = {
+    barbeiro: "admin_barbearia",
+    admin_barbearia: "barbeiro",
+  };
+  const outro = OUTRO_PAPEL_DE_EQUIPE[role];
+  if (outro) {
+    // `item.id !== …` para que TROCAR o papel da própria linha continue
+    // válido: a linha em edição não pode bloquear a si mesma.
+    const jaTemOOutro = getTableRows("user_roles").some(
+      (item) =>
+        item.id !== (existing?.id ?? row.id) &&
+        item.user_id === userId &&
+        item.barbershop_id === barbershopId &&
+        item.role === outro,
+    );
+    if (jaTemOOutro) {
+      return outro === "admin_barbearia"
+        ? "Equipe: esta pessoa já é administradora desta barbearia. Cada pessoa tem um único papel por barbearia — administradores já aparecem na lista de profissionais para agendamento."
+        : "Equipe: esta pessoa já é barbeira desta barbearia. Cada pessoa tem um único papel por barbearia.";
+    }
+  }
+
   /* ---- rebaixar o último admin ---- */
   if (existing && existing.role === "admin_barbearia" && role !== "admin_barbearia") {
     const admins = adminRoleRowsOf(String(existing.barbershop_id));
@@ -1041,6 +1069,35 @@ export function validateTeamInvitation(row: MockRow, existing?: MockRow): string
     /* ---- limite de profissionais do plano (mesma regra da UI) ---- */
     if (!barbershopUnderBarberLimit(barbershopId)) {
       return "Convite: limite de profissionais do plano atingido. Faça upgrade para adicionar mais.";
+    }
+
+    /* ---- papel de equipe duplicado, barrado já no convite ---- */
+    // Espelha `enforce_invite_single_staff_role` (migration 20260805160000):
+    // falhar aqui é melhor do que falhar no clique de quem recebeu, com o
+    // convite já gasto do ponto de vista de quem enviou. Como no SQL, só
+    // alcança quem JÁ tem conta — para o resto, a regra de `user_roles` fecha
+    // no aceite.
+    const outroPapel = role === "barbeiro" ? "admin_barbearia" : role === "admin_barbearia" ? "barbeiro" : null;
+    if (outroPapel) {
+      // O e-mail vive nas contas fictícias, não em `profiles` — a tabela do
+      // mock não tem essa coluna, assim como a real: no banco o vínculo é por
+      // `auth.users`, que é outro schema.
+      const convidado = MOCK_ACCOUNTS.find(
+        (conta) => conta.email.toLowerCase() === email.toLowerCase(),
+      );
+      const jaEhOOutro =
+        convidado &&
+        getTableRows("user_roles").some(
+          (item) =>
+            item.user_id === convidado.id &&
+            item.barbershop_id === barbershopId &&
+            item.role === outroPapel,
+        );
+      if (jaEhOOutro) {
+        return outroPapel === "admin_barbearia"
+          ? "Convite: esta pessoa já é administradora desta barbearia. Cada pessoa tem um único papel por barbearia — administradores já aparecem na lista de profissionais para agendamento."
+          : "Convite: esta pessoa já é barbeira desta barbearia. Cada pessoa tem um único papel por barbearia.";
+      }
     }
   }
 

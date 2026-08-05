@@ -22,7 +22,6 @@ import {
   Shield,
   Copy,
   AlertCircle,
-  Scissors,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
@@ -70,35 +69,6 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<string>("barbeiro");
   const [sending, setSending] = useState(false);
-  const [addingSelf, setAddingSelf] = useState(false);
-
-  const adminIsAlsoBarber = members.some(
-    (m) => m.user_id === user?.id && m.role === "barbeiro"
-  );
-  // "Me adicionar como barbeiro" só faz sentido para quem É admin DESTA
-  // barbearia. Um super_admin operando outro tenant não deve entrar na equipe
-  // alheia por engano.
-  const isAdminOfThisBarbershop = members.some(
-    (m) => m.user_id === user?.id && m.role === "admin_barbearia"
-  );
-
-  const handleAddSelfAsBarber = async () => {
-    if (!user) return;
-    setAddingSelf(true);
-    const { error } = await supabase.from("user_roles").insert({
-      user_id: user.id,
-      barbershop_id: barbershopId,
-      role: "barbeiro" as const,
-    });
-    if (error) {
-      logTechnicalError("TeamManager", "auto-adicionar como barbeiro", error);
-      toast.error("Não foi possível adicionar você como profissional. Tente novamente.");
-    } else {
-      toast.success("Você foi adicionado como barbeiro!");
-      fetchTeam();
-    }
-    setAddingSelf(false);
-  };
 
   const teamCount = members.length;
   // O limite só é aplicado com o plano REALMENTE lido. Enquanto carrega — ou se
@@ -204,6 +174,13 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
     if (error) {
       if (error.code === "23505") {
         toast.error("Já existe um convite pendente para este email.");
+      } else if (error.code === "23514") {
+        // `check_violation` vem dos triggers de regra de negócio deste domínio
+        // (papel de equipe duplicado, limite do plano), e a mensagem deles é
+        // escrita para ser lida pelo usuário — não é detalhe técnico. Mostrar
+        // "tente novamente" aqui esconderia a única informação útil: QUAL regra
+        // barrou e o que fazer.
+        toast.error(error.message);
       } else {
         // O limite de profissionais é enforçado no banco (trigger). A causa
         // exata fica no console; a tela mostra o texto da operação.
@@ -291,31 +268,13 @@ export function TeamManager({ barbershopId }: { barbershopId: string }) {
 
   return (
     <div className="space-y-6">
-      {/* Admin self-add as barber */}
-      {isAdminOfThisBarbershop && !adminIsAlsoBarber && (
-        <Card className="bg-card border-primary/30">
-          <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 py-4">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center">
-                <Scissors className="w-4 h-4 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-foreground">Também atende como barbeiro?</p>
-                <p className="text-xs text-muted-foreground">Adicione-se como barbeiro para receber agendamentos.</p>
-              </div>
-            </div>
-            <Button
-              onClick={handleAddSelfAsBarber}
-              disabled={addingSelf}
-              size="sm"
-              className="bg-primary text-primary-foreground hover:bg-primary/90"
-            >
-              <Scissors className="w-4 h-4" />
-              {addingSelf ? "Adicionando..." : "Me adicionar como barbeiro"}
-            </Button>
-          </CardContent>
-        </Card>
-      )}
+      {/* O card "Também atende como barbeiro?" foi removido em 20260805160000.
+          Ele inseria o papel `barbeiro` para quem já era `admin_barbearia`, e
+          isso (a) não era preciso — as RPCs de listagem de profissionais já
+          incluem `admin_barbearia`, então o admin sempre apareceu para
+          agendamento —, (b) gastava uma vaga a mais do plano, que conta linhas
+          e não pessoas, e (c) era erro garantido no plano free, cujo limite é
+          1. Agora a regra é do banco, não da tela. */}
 
       {/* Invite form */}
       <Card className="bg-card border-border">
