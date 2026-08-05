@@ -30,6 +30,8 @@ import {
   type MockRuleViolation,
   validateAppointment,
   validateBarberOwnedRow,
+  validateBusinessHours,
+  validateWeeklySchedule,
   validateBarbershop,
   validateClientBlock,
   validateClientNote,
@@ -167,7 +169,9 @@ function validateWrite(
     case "services":
       return validateService(row);
     case "weekly_schedule":
-      return validateBarberOwnedRow(row, "Grade semanal");
+      return validateWeeklySchedule(row, existing);
+    case "business_hours":
+      return validateBusinessHours(row, existing);
     case "availability":
       return validateBarberOwnedRow(row, "Disponibilidade");
     case "tickets":
@@ -266,6 +270,12 @@ const ALWAYS_REVALIDATED_ON_UPDATE = new Set([
   "user_roles",
   "team_invitations",
   "reviews",
+  // Expediente e grade semanal: a mudança que importa aqui é `is_active`, que
+  // não está em SCHEDULING_COLUMNS. Sem revalidar sempre, REATIVAR um turno
+  // fora do expediente passaria batido — e reativar é exatamente o caminho de
+  // volta do turno que o admin desativou para poder apertar o horário.
+  "weekly_schedule",
+  "business_hours",
 ]);
 
 /** Colunas cuja alteração exige revalidar grade, bloqueio e conflito. */
