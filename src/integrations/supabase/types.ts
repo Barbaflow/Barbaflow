@@ -7,6 +7,11 @@ export type Json =
   | Json[]
 
 export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.5"
+  }
   graphql_public: {
     Tables: {
       [_ in never]: never
@@ -333,6 +338,54 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      business_hours: {
+        Row: {
+          barbershop_id: string
+          close_time: string | null
+          created_at: string
+          day_of_week: number
+          id: string
+          is_closed: boolean
+          open_time: string | null
+          updated_at: string
+        }
+        Insert: {
+          barbershop_id: string
+          close_time?: string | null
+          created_at?: string
+          day_of_week: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string | null
+          updated_at?: string
+        }
+        Update: {
+          barbershop_id?: string
+          close_time?: string | null
+          created_at?: string
+          day_of_week?: number
+          id?: string
+          is_closed?: boolean
+          open_time?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "business_hours_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbearias_publicas"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "business_hours_barbershop_id_fkey"
+            columns: ["barbershop_id"]
+            isOneToOne: false
+            referencedRelation: "barbershops"
             referencedColumns: ["id"]
           },
         ]
@@ -1201,6 +1254,8 @@ export type Database = {
     Views: {
       barbearias_publicas: {
         Row: {
+          branding_enabled: boolean | null
+          cancel_min_hours: number | null
           cep: string | null
           city: string | null
           complement: string | null
@@ -1209,16 +1264,24 @@ export type Database = {
           logo_url: string | null
           name: string | null
           neighborhood: string | null
+          noshow_block_days: number | null
+          noshow_max_count: number | null
+          noshow_policy_enabled: boolean | null
           number: string | null
           primary_color: string | null
           rating_avg: number | null
           rating_count: number | null
+          reschedule_min_hours: number | null
           secondary_color: string | null
           state: string | null
+          status: Database["public"]["Enums"]["approval_status"] | null
           street: string | null
           subdomain: string | null
+          timezone: string | null
         }
         Insert: {
+          branding_enabled?: never
+          cancel_min_hours?: number | null
           cep?: string | null
           city?: string | null
           complement?: string | null
@@ -1227,16 +1290,24 @@ export type Database = {
           logo_url?: string | null
           name?: string | null
           neighborhood?: string | null
+          noshow_block_days?: number | null
+          noshow_max_count?: number | null
+          noshow_policy_enabled?: boolean | null
           number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
+          reschedule_min_hours?: number | null
           secondary_color?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["approval_status"] | null
           street?: string | null
           subdomain?: string | null
+          timezone?: string | null
         }
         Update: {
+          branding_enabled?: never
+          cancel_min_hours?: number | null
           cep?: string | null
           city?: string | null
           complement?: string | null
@@ -1245,20 +1316,30 @@ export type Database = {
           logo_url?: string | null
           name?: string | null
           neighborhood?: string | null
+          noshow_block_days?: number | null
+          noshow_max_count?: number | null
+          noshow_policy_enabled?: boolean | null
           number?: string | null
           primary_color?: string | null
           rating_avg?: number | null
           rating_count?: number | null
+          reschedule_min_hours?: number | null
           secondary_color?: string | null
           state?: string | null
+          status?: Database["public"]["Enums"]["approval_status"] | null
           street?: string | null
           subdomain?: string | null
+          timezone?: string | null
         }
         Relationships: []
       }
     }
     Functions: {
       accept_team_invitation: { Args: { _token: string }; Returns: Json }
+      barbershop_is_public: {
+        Args: { _barbershop_id: string }
+        Returns: boolean
+      }
       barbershop_is_system_sentinel: {
         Args: { _barbershop_id: string }
         Returns: boolean
@@ -1348,9 +1429,24 @@ export type Database = {
           status: string
         }[]
       }
+      get_public_barber_ratings: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          barber_id: string
+          rating_avg: number
+          rating_count: number
+        }[]
+      }
       get_public_barbers: {
         Args: { _barbershop_id: string }
         Returns: {
+          user_id: string
+        }[]
+      }
+      get_public_barbers_v2: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          is_owner: boolean
           user_id: string
         }[]
       }
@@ -1359,6 +1455,18 @@ export type Database = {
         Returns: {
           end_time: string
           start_time: string
+        }[]
+      }
+      get_public_products: {
+        Args: { _barbershop_id: string }
+        Returns: {
+          barbershop_id: string
+          description: string
+          id: string
+          image_url: string
+          in_stock: boolean
+          name: string
+          price: number
         }[]
       }
       get_public_profile_summaries: {
@@ -1504,6 +1612,7 @@ export type Database = {
         Args: { _barbershop_id: string }
         Returns: boolean
       }
+      weekday_pt: { Args: { _dow: number }; Returns: string }
     }
     Enums: {
       app_role: "cliente" | "barbeiro" | "admin_barbearia" | "super_admin"
@@ -1651,4 +1760,3 @@ export const Constants = {
     },
   },
 } as const
-

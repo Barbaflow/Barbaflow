@@ -551,6 +551,27 @@ function authorizeBusinessHours(row: MockRow, existing?: MockRow): string | null
 }
 
 /**
+ * Grade semanal: cada pessoa gerencia a SUA, e só o super_admin alcança a de
+ * terceiros. Espelha as policies de 20260415174831 — repare que
+ * `admin_barbearia` NÃO está nelas: o admin VÊ a grade do tenant, mas não a
+ * altera.
+ *
+ * O mock não modelava isso, e a diferença importa: é justamente por causa dela
+ * que resolver conflito de expediente precisou de RPC (20260805180000). Sem
+ * esta regra aqui, o harness "provaria" um fluxo que o banco recusaria.
+ */
+function authorizeWeeklySchedule(row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+  if (actorIsSuperAdmin()) return null;
+
+  const dono = asString(row.barber_id) ?? asString(existing?.barber_id);
+  if (dono === actor.id) return null;
+
+  return "Cada profissional gerencia apenas a própria agenda.";
+}
+
+/**
  * Ponto único de autorização. Devolve a mensagem de recusa, ou `null`
  * quando a operação é permitida.
  */
@@ -585,6 +606,8 @@ export function authorizeWrite(
       return authorizeContactSubmission(operation);
     case "business_hours":
       return authorizeBusinessHours(row, existing);
+    case "weekly_schedule":
+      return authorizeWeeklySchedule(row, existing);
     default:
       return null;
   }

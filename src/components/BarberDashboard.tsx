@@ -20,6 +20,7 @@ import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
+import { BusinessHoursEditor } from "@/components/BusinessHoursEditor";
 import { ServicesManager } from "@/components/ServicesManager";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
 import { RescheduleDialog, type RescheduleTarget } from "@/components/RescheduleDialog";
@@ -444,7 +445,7 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
         {activeTab === "services" && <ServicesTab isAdmin={isAdmin} />}
         {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
-        {activeTab === "schedule" && <ScheduleTab />}
+        {activeTab === "schedule" && <ScheduleTab isAdmin={isAdmin} />}
         {activeTab === "settings" && <SettingsTab />}
       </main>
     </div>
@@ -1858,21 +1859,63 @@ function TeamTab() {
 
 // ─── Schedule Tab ────────────────────────────────────────
 
-function ScheduleTab() {
+/**
+ * Aba "Horários" — DUAS coisas diferentes, que até 20260805180000 apareciam
+ * como uma só.
+ *
+ * O título antigo era "Horários de Funcionamento" sobre `WeeklyScheduleEditor`
+ * e `ScheduleBlocks`, que filtram por `barber_id = auth.uid()`: falava da
+ * CASA e mostrava dado da PESSOA. Um admin que configurasse ali achando que
+ * definia o expediente da barbearia estava, na verdade, mexendo só na própria
+ * grade — e nada limitava os outros profissionais.
+ *
+ * Agora são duas seções nomeadas pelo que de fato são. O expediente da
+ * barbearia é editável por quem administra; para o barbeiro ele aparece em
+ * leitura, porque é o limite contra o qual a grade dele é validada — sem ver
+ * esse limite, a mensagem de recusa do banco vira mistério.
+ */
+function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
   const { resolvedBarbershopId, tenantStatus } = useBarbershop();
 
   return (
     <div className="space-y-8">
       <div>
-        <h2 className="text-xl font-display font-bold text-foreground">Horários de Funcionamento</h2>
-        <p className="text-sm text-muted-foreground">Configure a agenda semanal e bloqueios de datas.</p>
+        <h2 className="text-xl font-display font-bold text-foreground">Horários</h2>
+        <p className="text-sm text-muted-foreground">
+          O expediente da barbearia e a sua agenda pessoal.
+        </p>
       </div>
+
       {tenantStatus === "loading" ? (
         <Skeleton className="h-60 rounded-xl" />
       ) : resolvedBarbershopId ? (
-        <div className="space-y-6">
-          <WeeklyScheduleEditor barbershopId={resolvedBarbershopId} />
-          <ScheduleBlocks barbershopId={resolvedBarbershopId} />
+        <div className="space-y-8">
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-display text-lg font-semibold text-foreground">
+                Funcionamento da barbearia
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {isAdmin
+                  ? "Define o limite dentro do qual a agenda de cada profissional precisa caber."
+                  : "Limite definido pela administração. Sua agenda precisa caber nele."}
+              </p>
+            </div>
+            <BusinessHoursEditor barbershopId={resolvedBarbershopId} canEdit={isAdmin} />
+          </section>
+
+          <section className="space-y-3">
+            <div>
+              <h3 className="font-display text-lg font-semibold text-foreground">Minha agenda</h3>
+              <p className="text-sm text-muted-foreground">
+                Seus turnos da semana e os dias em que você não atende. Vale só para você.
+              </p>
+            </div>
+            <div className="space-y-6">
+              <WeeklyScheduleEditor barbershopId={resolvedBarbershopId} />
+              <ScheduleBlocks barbershopId={resolvedBarbershopId} />
+            </div>
+          </section>
         </div>
       ) : (
         <SemBarbearia recurso="os horários" />
