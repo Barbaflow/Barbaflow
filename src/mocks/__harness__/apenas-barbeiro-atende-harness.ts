@@ -1,0 +1,504 @@
+/**
+ * Harness da regra "só `barbeiro` atende" (migration 20260805200000).
+ *
+ * É decisão de produto, não correção de defeito: `admin_barbearia` administra e
+ * deixa de ser tratado como profissional atendível. Até aqui as duas RPCs de
+ * listagem filtravam `role IN ('barbeiro','admin_barbearia')` e o admin
+ * aparecia na página pública de agendamento e na criação de comanda como se
+ * fosse mais um da equipe.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * AS QUATRO SUPERFÍCIES, E POR QUE SÃO QUATRO
+ *
+ *   1. QUEM APARECE — `get_public_barbers` e `get_public_barbers_v2`. Duas
+ *      funções porque a v1 ainda serve a tela interna de comanda; se só a v2
+ *      mudasse, o admin sumiria da página pública e continuaria selecionável na
+ *      comanda, que é o pior dos dois mundos;
+ *   2. QUEM CADASTRA GRADE — a policy de INSERT em `weekly_schedule`. Sem ela o
+ *      admin seguiria cadastrando uma agenda que ninguém pode escolher;
+ *   3. QUEM OCUPA VAGA — `role_counts_toward_barber_limit`. A mudança é
+ *      PERMISSIVA por construção (a contagem só pode cair) e, no plano free
+ *      cujo limite é 1, era a diferença entre poder e não poder ter um barbeiro
+ *      de verdade: o dono ocupava sozinho a única vaga;
+ *   4. QUEM VÊ "MINHA AGENDA" — a aba Horários. A condição tem de ser "o papel é
+ *      `barbeiro`", não "não é admin": num papel futuro (recepção, gerência) o
+ *      negativo abriria a seção para quem não atende.
+ *
+ * O QUE NÃO MUDA, E É O PONTO: "atendível" e "staff" são coisas diferentes. As
+ * policies e funções que citam `admin_barbearia` para AUTORIZAR respondem "pode
+ * operar?", não "atende?". Nenhuma é tocada — o admin continua abrindo comanda,
+ * vendo cliente e relatório. E nada é apagado: histórico depende das linhas que
+ * já existem.
+ */
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { mockSupabaseClient } from "@/mocks/client";
+import { resetMockDatabase, getTableRows, setTableRows } from "@/mocks/store";
+import {
+  MOCK_ADMIN_EMAIL,
+  MOCK_BARBERSHOP_ID,
+  MOCK_ADMIN_C_EMAIL,
+  MOCK_BARBERSHOP_C_ID,
+  MOCK_USER_IDS,
+} from "@/mocks/fixtures";
+
+const ROOT = process.cwd();
+const MIGRATION = path.join(
+  ROOT,
+  "supabase",
+  "migrations",
+  "20260805200000_only_barbeiro_attends.sql",
+);
+
+function lerArquivo(rel: string): string {
+  return readFileSync(path.join(ROOT, rel), "utf8");
+}
+
+/**
+ * Fonte sem comentário. As asserções de "o código FAZ x" precisam olhar código:
+ * esta frente explica em prosa, em vários arquivos, o filtro que deixou de
+ * existir — e a prosa casaria com o regex.
+ */
+function semComentarios(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("//") && !l.trimStart().startsWith("*"))
+    .join("\n");
+}
+
+/** Segunda-feira: dia sem turno semeado na barbearia A depois da limpeza. */
+const SEGUNDA = 1;
+
+let passou = 0;
+let falhou = 0;
+const linhas: string[] = [];
+
+function group(titulo: string) {
+  linhas.push(`\n▸ ${titulo}`);
+}
+
+function check(nome: string, ok: boolean, detalhe = "") {
+  if (ok) {
+    passou++;
+    linhas.push(`  ✓ ${nome}`);
+  } else {
+    falhou++;
+    linhas.push(`  ✗ ${nome}${detalhe ? ` — ${detalhe}` : ""}`);
+  }
+}
+
+async function login(email: string) {
+  const res = await mockSupabaseClient.auth.signInWithPassword({
+    email,
+    password: "qualquer-senha",
+  });
+  if (res.error || !res.data.session) throw new Error(`Falha no login fictício: ${email}`);
+}
+
+/* ══════════ 1. quem aparece como profissional ══════════ */
+
+async function testeQuemAparece() {
+  resetMockDatabase();
+
+  group("get_public_barbers_v2: o admin some, os barbeiros ficam");
+
+  const v2 = ((await mockSupabaseClient.rpc("get_public_barbers_v2", {
+    _barbershop_id: MOCK_BARBERSHOP_ID,
+  })) as { data: { user_id: string; is_owner: boolean }[] | null }).data ?? [];
+  const idsV2 = v2.map((r) => String(r.user_id));
+
+  check("a lista não vem vazia", idsV2.length > 0, `${idsV2.length}`);
+  check("o admin_barbearia não está na lista", !idsV2.includes(MOCK_USER_IDS.admin), idsV2.join(", "));
+  check("a barbeira Ana está", idsV2.includes(MOCK_USER_IDS.barberAna));
+  check("o barbeiro Bruno está", idsV2.includes(MOCK_USER_IDS.barberBruno));
+
+  group("get_public_barbers (v1, usada pela comanda): mesma resposta");
+
+  const v1 = ((await mockSupabaseClient.rpc("get_public_barbers", {
+    _barbershop_id: MOCK_BARBERSHOP_ID,
+  })) as { data: { user_id: string }[] | null }).data ?? [];
+  const idsV1 = v1.map((r) => String(r.user_id));
+
+  check("o admin_barbearia também some da v1", !idsV1.includes(MOCK_USER_IDS.admin), idsV1.join(", "));
+  check(
+    "as duas RPCs concordam em quem atende",
+    [...idsV1].sort().join(",") === [...idsV2].sort().join(","),
+    `v1=[${idsV1.join(", ")}] v2=[${idsV2.join(", ")}]`,
+  );
+
+  group("barbearia só com admin: lista vazia, não lista com o admin");
+
+  // O caso `wwwpaulobabershopcom`: 1 admin, 0 barbeiros. A consequência é
+  // conhecida e aceita — a página pública passa a dizer que não há profissional
+  // disponível. O que NÃO pode acontecer é o admin voltar por um fallback.
+  const papeisAntes = getTableRows("user_roles");
+  setTableRows(
+    "user_roles",
+    papeisAntes.filter(
+      (r) => !(r.barbershop_id === MOCK_BARBERSHOP_ID && r.role === "barbeiro"),
+    ),
+  );
+
+  const soAdminV2 = ((await mockSupabaseClient.rpc("get_public_barbers_v2", {
+    _barbershop_id: MOCK_BARBERSHOP_ID,
+  })) as { data: unknown[] | null }).data ?? [];
+  const soAdminV1 = ((await mockSupabaseClient.rpc("get_public_barbers", {
+    _barbershop_id: MOCK_BARBERSHOP_ID,
+  })) as { data: unknown[] | null }).data ?? [];
+
+  check("v2 devolve lista vazia", soAdminV2.length === 0, `${soAdminV2.length}`);
+  check("v1 devolve lista vazia", soAdminV1.length === 0, `${soAdminV1.length}`);
+
+  setTableRows("user_roles", papeisAntes);
+}
+
+/* ══════════ 2. quem cadastra grade semanal ══════════ */
+
+async function testeGradeSemanal() {
+  resetMockDatabase();
+
+  group("weekly_schedule: só quem atende cadastra turno");
+
+  // Segunda limpa nas duas pontas, para o teste não esbarrar na UNIQUE por
+  // (barbeiro, barbearia, dia, hora de início) nem em envelope de expediente.
+  setTableRows("business_hours", []);
+  setTableRows(
+    "weekly_schedule",
+    getTableRows("weekly_schedule").filter(
+      (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === SEGUNDA),
+    ),
+  );
+
+  await login(MOCK_ADMIN_EMAIL);
+  const doAdmin = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.admin,
+    day_of_week: SEGUNDA,
+    start_time: "09:00",
+    end_time: "18:00",
+    is_active: true,
+  });
+  check(
+    "admin_barbearia é recusado ao cadastrar a PRÓPRIA grade",
+    doAdmin.error !== null,
+    doAdmin.error?.message ?? "sem erro",
+  );
+  check(
+    "e a recusa fala de quem atende, sem detalhe técnico",
+    /atende/i.test(doAdmin.error?.message ?? "") &&
+      !/SQLSTATE|policy|constraint|42501|null/i.test(doAdmin.error?.message ?? ""),
+    doAdmin.error?.message ?? "",
+  );
+  check(
+    "e nada foi gravado",
+    getTableRows("weekly_schedule").every(
+      (t) => !(t.barber_id === MOCK_USER_IDS.admin && Number(t.day_of_week) === SEGUNDA),
+    ),
+  );
+
+  await login("ana@barbearia.teste");
+  const daAna = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberAna,
+    day_of_week: SEGUNDA,
+    start_time: "09:00",
+    end_time: "18:00",
+    is_active: true,
+  });
+  check("barbeiro continua cadastrando a própria grade", daAna.error === null, daAna.error?.message ?? "");
+
+  group("weekly_schedule: a regra antiga (grade alheia) segue de pé");
+
+  const alheia = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberBruno,
+    day_of_week: SEGUNDA,
+    start_time: "10:00",
+    end_time: "17:00",
+    is_active: true,
+  });
+  check(
+    "barbeiro não cadastra grade de outro barbeiro",
+    alheia.error !== null,
+    alheia.error?.message ?? "sem erro",
+  );
+
+  group("weekly_schedule: o que já existia NÃO é apagado");
+
+  // A migration troca só a policy de INSERT. Linha antiga do admin continua lá
+  // — histórico de relatório depende dela — e continua DESATIVÁVEL por ele. É
+  // literalmente o caminho de limpeza previsto (`is_active = false`, não
+  // delete), e se o mock recusasse aqui estaria mais restrito que o banco.
+  resetMockDatabase();
+  setTableRows("business_hours", []);
+  setTableRows("weekly_schedule", [
+    ...getTableRows("weekly_schedule"),
+    {
+      id: "grade-legada-do-admin",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      barber_id: MOCK_USER_IDS.admin,
+      day_of_week: SEGUNDA,
+      start_time: "09:00",
+      end_time: "18:00",
+      is_active: true,
+      created_at: new Date().toISOString(),
+    },
+  ]);
+
+  await login(MOCK_ADMIN_EMAIL);
+  const desativar = await (mockSupabaseClient as any)
+    .from("weekly_schedule")
+    .update({ is_active: false })
+    .eq("id", "grade-legada-do-admin");
+  check(
+    "o admin ainda desativa a própria grade antiga",
+    desativar.error === null,
+    desativar.error?.message ?? "",
+  );
+
+  const legada = getTableRows("weekly_schedule").find((t) => t.id === "grade-legada-do-admin");
+  check("a linha continua existindo — desativada, não apagada", legada !== undefined);
+  check("e ficou inativa", legada?.is_active === false, String(legada?.is_active));
+}
+
+/* ══════════ 3. limite de profissionais do plano ══════════ */
+
+async function testeLimiteDoPlano() {
+  resetMockDatabase();
+
+  group("limite do plano: só quem atende ocupa vaga");
+
+  // Barbearia C é free, limite 1, com adminCarlos + barberCaco. Tirando o
+  // barbeiro sobra só o admin: pela contagem antiga isso era 1 de 1 (cheio),
+  // pela nova é 0 de 1 (cabe alguém). É o discriminador exato da mudança.
+  await login(MOCK_ADMIN_C_EMAIL);
+
+  const papeisAntes = getTableRows("user_roles");
+  setTableRows(
+    "user_roles",
+    papeisAntes.filter((r) => r.user_id !== MOCK_USER_IDS.barberCaco),
+  );
+
+  const soComAdmin = await mockSupabaseClient.rpc("check_barber_limit", {
+    _barbershop_id: MOCK_BARBERSHOP_C_ID,
+  });
+  check(
+    "free com só o admin ainda cabe um barbeiro — o admin não ocupa a vaga",
+    soComAdmin.data === true,
+    String(soComAdmin.data),
+  );
+
+  setTableRows("user_roles", papeisAntes);
+
+  const cheia = await mockSupabaseClient.rpc("check_barber_limit", {
+    _barbershop_id: MOCK_BARBERSHOP_C_ID,
+  });
+  check(
+    "e com o barbeiro de volta o limite volta a valer",
+    cheia.data === false,
+    String(cheia.data),
+  );
+
+  // A mudança é permissiva por construção: `barbeiro` é subconjunto de
+  // `barbeiro` + `admin_barbearia`, então a contagem só pode cair. Foi conferida
+  // no remoto antes de escrever a migration (nenhuma barbearia passa a violar).
+  const equipe = getTableRows("user_roles").filter(
+    (r) => r.barbershop_id === MOCK_BARBERSHOP_ID && r.role !== "cliente",
+  );
+  const antes = equipe.filter((r) => r.role === "barbeiro" || r.role === "admin_barbearia").length;
+  const depois = equipe.filter((r) => r.role === "barbeiro").length;
+  check(
+    "a contagem só pode cair, nunca subir",
+    depois <= antes,
+    `antes=${antes} depois=${depois}`,
+  );
+}
+
+/* ══════════ 4. as telas ══════════ */
+
+function testeTelas() {
+  group("RescheduleDialog: só barbeiro na lista de reagendamento");
+
+  const reschedule = semComentarios(lerArquivo("src/components/RescheduleDialog.tsx"));
+  check(
+    'filtra .eq("role", "barbeiro")',
+    /\.eq\(\s*["']role["']\s*,\s*["']barbeiro["']\s*\)/.test(reschedule),
+  );
+  check(
+    "e não sobrou nenhum .in com admin_barbearia",
+    !/\.in\([^)]*admin_barbearia/.test(reschedule),
+  );
+
+  group("BarberDashboard: seleção de profissional e aba Horários");
+
+  const dashboard = semComentarios(lerArquivo("src/components/BarberDashboard.tsx"));
+  check(
+    "a consulta de equipe filtra só `barbeiro`",
+    /\.eq\(\s*["']role["']\s*,\s*["']barbeiro["']\s*\)/.test(dashboard),
+  );
+  check(
+    "e não sobrou nenhum .in com admin_barbearia",
+    !/\.in\([^)]*admin_barbearia/.test(dashboard),
+  );
+
+  // A condição precisa ser POSITIVA. Com "não é admin", um papel futuro
+  // (recepção, gerência) cairia no ramo de quem atende sem ninguém perceber.
+  check(
+    "a aba Horários usa `isBarber` do useTenantScope",
+    /useTenantScope\(\)/.test(dashboard) && /isBarber/.test(dashboard),
+  );
+  check(
+    "e a condição é positiva — `isBarber`, não a negação de admin",
+    /\{\s*isBarber\s*\?/.test(dashboard),
+    "condição negativa deixaria papel futuro cair no ramo de quem atende",
+  );
+  check(
+    "quem não atende vê explicação, não uma seção vazia",
+    /A agenda pessoal aparece para quem atende/.test(lerArquivo("src/components/BarberDashboard.tsx")),
+  );
+}
+
+/* ══════════ 5. a migration ══════════ */
+
+function testeMigration() {
+  group("migration 20260805200000: conteúdo");
+
+  const sql = readFileSync(MIGRATION, "utf8");
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  check(
+    "recria get_public_barbers",
+    /CREATE OR REPLACE FUNCTION public\.get_public_barbers\(/.test(corpo),
+  );
+  check(
+    "recria get_public_barbers_v2",
+    /CREATE OR REPLACE FUNCTION public\.get_public_barbers_v2\(/.test(corpo),
+  );
+  check(
+    "recria role_counts_toward_barber_limit",
+    /CREATE OR REPLACE FUNCTION public\.role_counts_toward_barber_limit\(/.test(corpo),
+  );
+  check(
+    "troca a policy de INSERT de weekly_schedule",
+    /DROP POLICY IF EXISTS "Barbers can create own schedule"/.test(corpo) &&
+      /CREATE POLICY "Barbers can create own schedule"/.test(corpo),
+  );
+
+  // O `COMMENT ON` cita `admin_barbearia` em prosa, de propósito — procurar a
+  // palavra solta acusaria isso. O que não pode sobrar é a COMPARAÇÃO de papel:
+  // nem o `IN (...)` antigo, nem uma igualdade direta.
+  check(
+    "nenhuma comparação de papel aceita `admin_barbearia`",
+    !/\bIN\s*\([^)]*admin_barbearia/i.test(corpo) && !/=\s*'admin_barbearia'/.test(corpo),
+    (corpo.match(/.*admin_barbearia.*/) ?? [""])[0].trim(),
+  );
+  // Quatro pontos: as duas RPCs de listagem, a função de limite e a policy.
+  const pontos =
+    (corpo.match(/=\s*'barbeiro'/g) ?? []).length +
+    (corpo.match(/,\s*'barbeiro'::public\.app_role/g) ?? []).length;
+  check("os quatro pontos comparam com `barbeiro`", pontos === 4, String(pontos));
+
+  // O ponto que separa esta migration de uma migração de dados: ela não apaga,
+  // não desativa e não migra nada. Relatório agrupa por `barber_id` e não
+  // deriva de `user_roles` — quem já atendeu continua aparecendo.
+  check(
+    "não apaga nem migra dado nenhum",
+    !/\bDELETE\s+FROM\b/i.test(corpo) &&
+      !/\bUPDATE\s+public\./i.test(corpo) &&
+      !/\bTRUNCATE\b/i.test(corpo),
+  );
+  check(
+    "não mexe em tabela de histórico",
+    !/\bALTER TABLE\b/i.test(corpo),
+  );
+
+  check(
+    "as três funções mantêm search_path fixo",
+    (corpo.match(/SET search_path TO 'public'/g) ?? []).length === 3,
+    String((corpo.match(/SET search_path TO 'public'/g) ?? []).length),
+  );
+  check(
+    "as duas RPCs públicas seguem SECURITY DEFINER",
+    (corpo.match(/SECURITY DEFINER/g) ?? []).length === 2,
+    String((corpo.match(/SECURITY DEFINER/g) ?? []).length),
+  );
+  check(
+    "a policy nova exige o papel `barbeiro` de quem insere",
+    /has_role_in_barbershop\(\s*auth\.uid\(\)\s*,\s*barbershop_id\s*,\s*'barbeiro'/.test(corpo),
+  );
+  check(
+    "e continua exigindo que a grade seja a PRÓPRIA",
+    /barber_id\s*=\s*auth\.uid\(\)/.test(corpo),
+  );
+
+  group("migration 20260805200000: cabeçalho");
+
+  check("registra o rollback", /ROLLBACK/.test(sql));
+  check("registra as verificações de depois de aplicar", /VERIFICAÇÕES APÓS APLICAR/.test(sql));
+  check(
+    "documenta a barbearia que fica sem profissional atendível",
+    /CONSEQUÊNCIA CONHECIDA E ACEITA/.test(sql),
+  );
+  check(
+    "documenta a checagem de que o limite ficou permissivo",
+    /PERMISSIVA/.test(sql),
+  );
+}
+
+/* ══════════ 6. paridade mock × SQL ══════════ */
+
+function testeParidade() {
+  group("paridade: o mock filtra o mesmo que o SQL");
+
+  const mock = lerArquivo("src/mocks/client.ts");
+  check(
+    "get_public_barbers_v2 do mock descarta quem não é `barbeiro`",
+    /row\.role !== "barbeiro"/.test(mock),
+  );
+
+  const regras = lerArquivo("src/mocks/rules.ts");
+  check(
+    "BARBER_LIMIT_ROLES tem só `barbeiro`",
+    /BARBER_LIMIT_ROLES\s*=\s*new Set\(\[\s*"barbeiro"\s*\]\)/.test(regras),
+  );
+  // A regra nova NÃO desce para `ATTENDING_ROLES`. Estreitá-lo deixaria o mock
+  // mais restrito que o banco: nenhuma migration criou trava sobre linha que já
+  // existe, e `open_ticket` aceita o admin como `_barber_id` até hoje.
+  check(
+    "ATTENDING_ROLES continua com os dois papéis, de propósito",
+    /ATTENDING_ROLES\s*=\s*new Set\(\[\s*"barbeiro",\s*"admin_barbearia"\s*\]\)/.test(regras),
+  );
+  check(
+    "a restrição do INSERT usa `barbeiroRoleIn`, o espelho da policy",
+    /criando && !barbeiroRoleIn\(actor\.id, barbershopId\)/.test(semComentarios(regras)),
+  );
+  check(
+    "e a recusa é a mensagem de quem atende",
+    /apenas quem atende clientes cadastra turnos/.test(regras),
+  );
+}
+
+/* ────────────────────────────── runner ────────────────────────────── */
+
+export async function runHarness() {
+  resetMockDatabase();
+
+  await testeQuemAparece();
+  await testeGradeSemanal();
+  await testeLimiteDoPlano();
+  testeTelas();
+  testeMigration();
+  testeParidade();
+
+  resetMockDatabase();
+  const veredito = falhou === 0 ? "OK" : "FALHOU";
+  return {
+    passed: passou,
+    failed: falhou,
+    report: `${linhas.join("\n")}\n\n${veredito} — ${passou} passaram, ${falhou} falharam.\n`,
+  };
+}

@@ -198,7 +198,11 @@ async function testeTurnoContraEnvelope() {
 
   group("turno fora do expediente");
 
-  const cedo = await cadastrarTurno({ start_time: "08:00", end_time: "12:00", barber_id: MOCK_USER_IDS.admin });
+  // Terceiro turno da Ana, em horários que não colidem com o das 09:00 acima
+  // (a UNIQUE é por barbeiro + dia + `start_time`). Antes estes turnos eram do
+  // admin; desde 20260805200000 ele não cadastra grade nenhuma, então usá-lo
+  // aqui testaria a recusa errada — a de papel, não a de expediente.
+  const cedo = await cadastrarTurno({ start_time: "08:00", end_time: "12:00" });
   check("abrir antes do expediente é recusado", cedo.error !== null, cedo.error?.message ?? "sem erro");
   check(
     "a mensagem diz o expediente e o turno",
@@ -214,10 +218,10 @@ async function testeTurnoContraEnvelope() {
     cedo.error?.message ?? "",
   );
 
-  const tarde = await cadastrarTurno({ start_time: "14:00", end_time: "20:00", barber_id: MOCK_USER_IDS.admin });
+  const tarde = await cadastrarTurno({ start_time: "14:00", end_time: "20:00" });
   check("fechar depois do expediente é recusado", tarde.error !== null, tarde.error?.message ?? "sem erro");
 
-  const engloba = await cadastrarTurno({ start_time: "07:00", end_time: "23:00", barber_id: MOCK_USER_IDS.admin });
+  const engloba = await cadastrarTurno({ start_time: "07:00", end_time: "23:00" });
   check("turno que engloba o expediente é recusado", engloba.error !== null, engloba.error?.message ?? "sem erro");
 
   group("turno inativo não é validado (é a saída do admin)");
@@ -226,7 +230,6 @@ async function testeTurnoContraEnvelope() {
     start_time: "06:00",
     end_time: "23:00",
     is_active: false,
-    barber_id: MOCK_USER_IDS.admin,
   });
   check(
     "turno fora do expediente é aceito quando inativo",
@@ -238,7 +241,7 @@ async function testeTurnoContraEnvelope() {
     .from("weekly_schedule")
     .update({ is_active: true })
     .eq("barbershop_id", MOCK_BARBERSHOP_ID)
-    .eq("barber_id", MOCK_USER_IDS.admin)
+    .eq("barber_id", MOCK_USER_IDS.barberAna)
     .eq("start_time", "06:00");
   check(
     "mas REATIVAR o mesmo turno é recusado",

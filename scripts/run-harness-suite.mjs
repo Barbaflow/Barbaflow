@@ -44,6 +44,7 @@ const CORE = [
   ["superficie-barbershops", "run-superficie-barbershops-harness.mjs"],
   ["avaliacoes-publicas", "run-avaliacoes-publicas-harness.mjs"],
   ["horario-funcionamento", "run-horario-funcionamento-harness.mjs"],
+  ["apenas-barbeiro-atende", "run-apenas-barbeiro-atende-harness.mjs"],
   ["mensagens-contato", "run-mensagens-contato-harness.mjs"],
   ["cron-endpoints", "run-cron-endpoints-harness.mjs"],
   ["senha", "run-recuperacao-senha-harness.mjs"],

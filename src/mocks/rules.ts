@@ -20,8 +20,34 @@ import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
  */
 export type MockRuleViolation = string | { message: string; code: string };
 
-/** Papéis que podem atender clientes. */
+/**
+ * Papéis que podem figurar como PROFISSIONAL de uma linha (agendamento,
+ * bloqueio, grade, serviço, comanda).
+ *
+ * Continua incluindo `admin_barbearia` DE PROPÓSITO, mesmo depois de
+ * 20260805200000. A regra "só barbeiro atende" mudou quem é OFERECIDO — as duas
+ * RPCs de listagem, a policy de INSERT da grade e a contagem do plano. Ela não
+ * criou nenhuma trava nova sobre linha que já existe, e não podia: o histórico
+ * depende dessas linhas, e `open_ticket` (20260722260000) aceita o admin como
+ * `_barber_id` explicitamente até hoje.
+ *
+ * Estreitar este conjunto deixaria o mock MAIS restrito que o banco — o admin
+ * não conseguiria nem desativar a própria grade antiga, que é exatamente o
+ * caminho de limpeza previsto. Onde a regra nova vale, ela é aplicada no ponto
+ * certo: `barbeiroRoleIn` abaixo, `BARBER_LIMIT_ROLES` e o filtro das RPCs.
+ */
 const ATTENDING_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+
+/** Espelha `has_role_in_barbershop(uid, shop, 'barbeiro')` da policy nova. */
+function barbeiroRoleIn(userId: string, barbershopId: string | null): boolean {
+  if (!barbershopId) return false;
+  return getTableRows("user_roles").some(
+    (role) =>
+      role.user_id === userId &&
+      role.barbershop_id === barbershopId &&
+      String(role.role) === "barbeiro",
+  );
+}
 
 /** Status que ainda ocupam a agenda. */
 const ACTIVE_STATUSES = new Set(["scheduled", "completed", "no_show"]);
@@ -566,9 +592,19 @@ function authorizeWeeklySchedule(row: MockRow, existing?: MockRow): string | nul
   if (actorIsSuperAdmin()) return null;
 
   const dono = asString(row.barber_id) ?? asString(existing?.barber_id);
-  if (dono === actor.id) return null;
+  if (dono !== actor.id) return "Cada profissional gerencia apenas a própria agenda.";
 
-  return "Cada profissional gerencia apenas a própria agenda.";
+  // A policy de INSERT passou a exigir o papel `barbeiro` (migration
+  // 20260805200000): quem não atende não cadastra grade, porque ela não teria
+  // efeito nenhum — ele não aparece como profissional para ser escolhido.
+  // As linhas que um admin já tinha continuam existindo e editáveis por ele.
+  const barbershopId = tenantOf(row, existing);
+  const criando = !existing;
+  if (criando && !barbeiroRoleIn(actor.id, barbershopId)) {
+    return "Grade semanal: apenas quem atende clientes cadastra turnos.";
+  }
+
+  return null;
 }
 
 /**
@@ -755,7 +791,13 @@ function authorizeTicketItem(row: MockRow, existing?: MockRow): string | null {
 /* ================================================================== */
 
 /** Papéis que consomem uma "vaga de profissional" (contam no barber_limit). */
-const BARBER_LIMIT_ROLES = new Set(["barbeiro", "admin_barbearia"]);
+/**
+ * Papéis que consomem vaga do plano — espelha
+ * `role_counts_toward_barber_limit`. Desde 20260805200000 é só `barbeiro`: o
+ * admin não atende, então não ocupa vaga de PROFISSIONAL. A mudança é
+ * permissiva (a contagem só pode cair).
+ */
+const BARBER_LIMIT_ROLES = new Set(["barbeiro"]);
 
 /** Plano vinculado à barbearia, ou `null` se ela não tiver plano. */
 function planOfBarbershop(barbershopId: string): MockRow | null {
@@ -780,8 +822,8 @@ function planResolutionFailure(barbershopId: string): "no_barbershop" | "no_plan
 
 /**
  * Número de profissionais ativos/vinculados de uma barbearia — as linhas de
- * `user_roles` com papel de barbeiro ou admin. É a mesma contagem que a RPC
- * `check_barber_limit` faz no banco real.
+ * `user_roles` que consomem vaga — desde 20260805200000, só `barbeiro`. É a
+ * mesma contagem que a RPC `check_barber_limit` faz no banco real.
  */
 export function countActiveBarbers(barbershopId: string): number {
   return getTableRows("user_roles").filter(

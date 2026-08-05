@@ -310,34 +310,86 @@ async function testeBarbeiros() {
     lista.every((r) => typeof r.is_owner === "boolean"),
   );
 
-  const dono = lista.filter((r) => r.is_owner === true);
-  check("exatamente um proprietário", dono.length === 1, `${dono.length}`);
+  // O dono da barbearia A administra e não atende. Desde 20260805200000 ele não
+  // entra na lista, logo NINGUÉM aqui é proprietário — e isso não é lacuna do
+  // teste: é o arranjo comum (quem administra não corta cabelo). O selo de
+  // proprietário só faz sentido quando o dono também tem o papel `barbeiro`, e
+  // esse caso é exercitado logo abaixo, montado de propósito.
   check(
-    "o proprietário é o owner_id da barbearia",
-    dono[0]?.user_id === MOCK_USER_IDS.admin,
-    String(dono[0]?.user_id),
+    "dono que só administra não aparece — nenhum is_owner na lista",
+    lista.every((r) => r.is_owner === false),
+    lista.map((r) => `${r.user_id}:${r.is_owner}`).join(", "),
   );
-  check("o proprietário vem primeiro", lista[0]?.is_owner === true);
 
   group("get_public_barbers_v2: quem entra na lista");
 
   const ids = lista.map((r) => String(r.user_id));
   check("não repete ninguém", new Set(ids).size === ids.length, ids.join(", "));
   check(
-    "inclui o admin, que atende sem ter o papel `barbeiro`",
-    ids.includes(MOCK_USER_IDS.admin),
-    "a RPC filtra role IN ('barbeiro','admin_barbearia') — é por isso que o botão de auto-adicionar era desnecessário",
+    "o admin_barbearia fica FORA — administra, não atende",
+    !ids.includes(MOCK_USER_IDS.admin),
+    ids.join(", "),
   );
   check("inclui os barbeiros comuns", ids.includes(MOCK_USER_IDS.barberAna));
+  check("inclui todos os barbeiros, não só um", ids.includes(MOCK_USER_IDS.barberBruno));
+
+  group("get_public_barbers_v2: is_owner quando o dono também atende");
+
+  // Dono COM o papel `barbeiro`: é o único arranjo em que o selo aparece.
+  const barbeariasAntes = getTableRows("barbershops");
+  setTableRows(
+    "barbershops",
+    barbeariasAntes.map((b: Record<string, unknown>) =>
+      b.id === MOCK_BARBERSHOP_ID ? { ...b, owner_id: MOCK_USER_IDS.barberBruno } : b,
+    ),
+  );
+
+  const comDonoBarbeiro = await barbeiros(MOCK_BARBERSHOP_ID);
+  const dono = comDonoBarbeiro.filter((r) => r.is_owner === true);
+  check("exatamente um proprietário", dono.length === 1, `${dono.length}`);
+  check(
+    "o proprietário é o owner_id da barbearia",
+    dono[0]?.user_id === MOCK_USER_IDS.barberBruno,
+    String(dono[0]?.user_id),
+  );
+  // Bruno tem uuid MAIOR que o da Ana: sem o `is_owner DESC` do ORDER BY ele
+  // viria depois. O teste só prova a ordenação por causa disso.
+  check("o proprietário vem primeiro", comDonoBarbeiro[0]?.is_owner === true);
+
+  setTableRows("barbershops", barbeariasAntes);
 
   group("get_public_barbers_v2: DISTINCT contra linha legada");
 
-  // Desde 20260805160000 ninguém ACUMULA os dois papéis — o índice parcial
-  // impede. Mas o DISTINCT do SQL continua sendo a defesa para linha legada
-  // (a migration não apaga nada), e é isso que se exercita aqui: o cenário é
-  // construído de propósito, em vez de vir semeado, porque semeá-lo faria as
-  // fixtures modelarem um estado que o banco real recusa.
+  // Desde 20260805160000 ninguém ACUMULA papel de equipe na mesma barbearia — o
+  // índice parcial impede. Mas o DISTINCT do SQL continua sendo a defesa para
+  // linha legada (nenhuma das migrations apaga nada), e é isso que se exercita
+  // aqui: o cenário é construído de propósito, em vez de vir semeado, porque
+  // semeá-lo faria as fixtures modelarem um estado que o banco real recusa.
   const papeisAntes = getTableRows("user_roles");
+  setTableRows("user_roles", [
+    ...papeisAntes,
+    {
+      id: "legado-barbeiro-duplicado",
+      user_id: MOCK_USER_IDS.barberAna,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      role: "barbeiro",
+      created_at: new Date().toISOString(),
+    },
+  ]);
+
+  const comLegado = await barbeiros(MOCK_BARBERSHOP_ID);
+  const idsLegado = comLegado.map((r) => String(r.user_id));
+  check(
+    "linha `barbeiro` duplicada não duplica a pessoa",
+    idsLegado.filter((id) => id === MOCK_USER_IDS.barberAna).length === 1,
+    idsLegado.join(", "),
+  );
+  check("e a lista não cresce", idsLegado.length === ids.length, `${idsLegado.length} vs ${ids.length}`);
+
+  // O filtro é por PAPEL, não por pessoa: um acumulador legado que ainda tenha a
+  // linha `barbeiro` continua atendível, e é assim que tem de ser — quem carrega
+  // o papel de quem atende aparece. O conserto de um caso desses é remover a
+  // linha de papel, não abrir exceção na RPC.
   setTableRows("user_roles", [
     ...papeisAntes,
     {
@@ -349,14 +401,17 @@ async function testeBarbeiros() {
     },
   ]);
 
-  const comLegado = await barbeiros(MOCK_BARBERSHOP_ID);
-  const idsLegado = comLegado.map((r) => String(r.user_id));
+  const comAcumulador = (await barbeiros(MOCK_BARBERSHOP_ID)).map((r) => String(r.user_id));
   check(
-    "quem tem dois papéis aparece uma vez só",
-    idsLegado.filter((id) => id === MOCK_USER_IDS.admin).length === 1,
-    idsLegado.join(", "),
+    "acumulador legado com papel `barbeiro` entra pela linha de barbeiro",
+    comAcumulador.includes(MOCK_USER_IDS.admin) && comAcumulador.length === ids.length + 1,
+    comAcumulador.join(", "),
   );
-  check("e a lista não cresce", idsLegado.length === ids.length, `${idsLegado.length} vs ${ids.length}`);
+  check(
+    "e entra uma vez só, apesar dos dois papéis",
+    comAcumulador.filter((id) => id === MOCK_USER_IDS.admin).length === 1,
+    comAcumulador.join(", "),
+  );
 
   setTableRows("user_roles", papeisAntes);
 
