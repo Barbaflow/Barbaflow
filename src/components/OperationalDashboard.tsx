@@ -18,10 +18,6 @@ import {
   AlertTriangle,
   ArrowRight,
   Clock,
-  Users,
-  BarChart3,
-  Scissors,
-  Plus,
 } from "lucide-react";
 import { fmtBRL } from "@/lib/comandas";
 import { fetchProfileSummaries, type ProfileSummaryMap } from "@/lib/profile-summaries";
@@ -275,9 +271,6 @@ export function OperationalDashboard({ barbershopId, isAdmin, userId, timezone, 
 
       {/* 5 — Estoque baixo */}
       <EstoqueSection state={estoque} onRetry={loadEstoque} onOpenProducts={onOpenProducts} isAdmin={isAdmin} />
-
-      {/* 6 — Ações rápidas */}
-      <QuickActions isAdmin={isAdmin} onOpenProducts={onOpenProducts} />
     </div>
   );
 }
@@ -495,34 +488,6 @@ function EstoqueSection({
             })}
           </div>
         )}
-      </CardContent>
-    </Card>
-  );
-}
-
-function QuickActions({ isAdmin, onOpenProducts }: { isAdmin: boolean; onOpenProducts: () => void }) {
-  return (
-    <Card className="bg-card border-border">
-      <CardContent className="p-4 flex flex-wrap gap-2">
-        <a href="#agenda-do-dia">
-          <Button variant="outline" size="sm"><CalendarDays className="w-4 h-4" /> Agenda</Button>
-        </a>
-        <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
-          <Button variant="outline" size="sm"><Plus className="w-4 h-4" /> Nova comanda</Button>
-        </Link>
-        {isAdmin && (
-          <Link to="/clientes" search={{ barbershop: undefined }}>
-            <Button variant="outline" size="sm"><Users className="w-4 h-4" /> Clientes</Button>
-          </Link>
-        )}
-        {isAdmin && (
-          <Button variant="outline" size="sm" onClick={onOpenProducts}>
-            <Scissors className="w-4 h-4" /> Produtos
-          </Button>
-        )}
-        <Link to="/relatorios" search={{ barbershop: undefined }}>
-          <Button variant="outline" size="sm"><BarChart3 className="w-4 h-4" /> Relatórios</Button>
-        </Link>
       </CardContent>
     </Card>
   );
