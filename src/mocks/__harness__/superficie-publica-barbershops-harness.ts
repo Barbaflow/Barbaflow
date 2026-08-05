@@ -7,7 +7,7 @@
  * bastava trocar o endpoint para receber `owner_id`, `plan_id`,
  * `appointments_this_month` e os campos de recibo.
  *
- * Prova a separação em quatro frentes:
+ * Prova a separação em seis frentes:
  *
  *   1. comportamento — a view do mock devolve as 24 colunas e NENHUMA das
  *      internas; `branding_enabled` reflete o plano;
@@ -15,7 +15,14 @@
  *      `owner_id`, e recusa barbearia não aprovada, sentinela e id nulo;
  *   3. código — nenhuma tela do caminho anônimo consulta a tabela larga, e as
  *      telas internas continuam consultando;
- *   4. SQL — análise estática da migration.
+ *   4. código — varredura da árvore INTEIRA de `src`: todo arquivo que consulta
+ *      `barbershops` está numa lista conhecida e justificada. Foi essa
+ *      varredura que achou os dois pontos anônimos que a revisão por
+ *      componente de rota tinha deixado passar, os dois em hook;
+ *   5. comportamento — a fase 2 SIMULADA: com o `SELECT` do `anon` revogado no
+ *      mock, o acesso direto passa a dar 42501 e a vitrine, a RPC e os dois
+ *      caminhos de resolução do tenant continuam de pé;
+ *   6. SQL — análise estática das migrations das duas fases.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * POR QUE O TESTE DE `pending`/`rejected`/`_system` É OBRIGATÓRIO AQUI
@@ -30,11 +37,14 @@
  * policy. Agora não é. Por isso o filtro de status e o da sentinela deixaram de
  * ser detalhe de apresentação e viraram invariante de segurança testada.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { mockSupabaseClient } from "@/mocks/client";
 import { resetMockDatabase, getTableRows, setTableRows } from "@/mocks/store";
+import { grantAnonSelect, resetAnonGrants, revokeAnonSelect } from "@/mocks/grants";
+import { DEFAULT_BARBERSHOP_ID } from "@/lib/constants";
 import {
+  MOCK_ADMIN_EMAIL,
   MOCK_BARBERSHOP_ID,
   MOCK_BARBERSHOP_C_ID,
   MOCK_BARBERSHOP_D_ID,
@@ -49,6 +59,24 @@ const MIGRATION = path.join(
   "migrations",
   "20260804120000_public_barbershop_surface_phase1.sql",
 );
+const FASE2_ARQUIVO = "20260805130000_public_barbershop_surface_phase2.sql";
+const FASE2_CAMINHO = path.join(ROOT, "supabase", "migrations", FASE2_ARQUIVO);
+
+/**
+ * Remove de um `.sql` os blocos `/* … *\/` e as linhas `--`.
+ *
+ * As migrations desta frente citam de propósito, em comentário, comandos que
+ * NÃO executam (o rodapé da fase 1 traz o REVOKE inteiro, a fase 2a traz o
+ * rollback das policies). Toda asserção sobre o que o SQL FAZ olha só o código
+ * executável; as asserções sobre o que ele DOCUMENTA olham o arquivo cru.
+ */
+function semLinhasDeComentario(sql: string): string {
+  return sql
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+}
 
 /** As 24 colunas que a view PODE devolver. */
 const COLUNAS_PUBLICAS = [
@@ -395,13 +423,7 @@ function testeFrontendInterno() {
 
 function testeMigration() {
   const sql = readFileSync(MIGRATION, "utf8");
-  // O bloco da FASE 2 cita, de propósito, comandos que esta migration NÃO
-  // executa. As asserções sobre o que o SQL FAZ olham só o código executável.
-  const codigo = sql
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .split("\n")
-    .filter((l) => !l.trimStart().startsWith("--"))
-    .join("\n");
+  const codigo = semLinhasDeComentario(sql);
 
   group("migration: vitrine ampliada");
 
@@ -496,7 +518,7 @@ function testeMigration() {
     `${comandos.length}: ${comandos.map((c) => c.split(/\s+/).slice(0, 3).join(" ")).join(" | ")}`,
   );
 
-  group("migration: FASE 2 documentada e NÃO versionada");
+  group("migration: FASE 2 documentada no rodapé da fase 1");
 
   check("documenta explicitamente a fase 2", /FASE 2/.test(sql));
   check("fase 2 documenta o REVOKE do anon", /REVOKE SELECT ON TABLE public\.barbershops FROM anon/.test(sql));
@@ -505,24 +527,171 @@ function testeMigration() {
   check("fase 2 exige testar pending pela view", /pending/.test(sql) && /única barreira/.test(sql));
   check("fase 2 documenta o rollback", /GRANT SELECT ON TABLE public\.barbershops TO anon/.test(sql));
 
-  // Enquanto a fase 1 não estiver publicada e observada, NENHUMA migration pode
-  // conter o REVOKE — um único `db push` aplicaria as duas juntas e derrubaria
-  // o frontend ainda em produção. Este guard é o mesmo do catálogo público, e
-  // deve ser INVERTIDO quando a fase 2 for legitimamente versionada.
-  const dir = path.join(ROOT, "supabase", "migrations");
-  const comFase2 = readdirSync(dir).filter((arquivo) => {
-    if (!arquivo.endsWith(".sql")) return false;
-    const conteudo = readFileSync(path.join(dir, arquivo), "utf8")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
+  group("migration: FASE 2a — a dependência de policy que o rodapé não previu");
+
+  // Expressão de policy roda com os privilégios de quem consulta — o próprio
+  // 20260721140000 registra isso, e foi por isso que `anon` recebeu EXECUTE em
+  // `has_role`. A mesma regra vale para TABELA: enquanto as policies públicas
+  // de services/availability/reviews trouxerem `SELECT … FROM barbershops` no
+  // corpo, o REVOKE derruba a leitura das TRÊS com 42501.
+  const FASE2A_ARQUIVO = "20260805120000_public_barbershop_surface_phase2a_policy_deps.sql";
+  const fase2aCaminho = path.join(ROOT, "supabase", "migrations", FASE2A_ARQUIVO);
+  const fase2aExiste = existsSync(fase2aCaminho);
+  check("a preparação das policies está versionada", fase2aExiste, FASE2A_ARQUIVO);
+
+  if (fase2aExiste) {
+    const fase2aSql = readFileSync(fase2aCaminho, "utf8");
+    const fase2aCodigo = semLinhasDeComentario(fase2aSql);
+
+    check(
+      "cria barbershop_is_public",
+      /CREATE OR REPLACE FUNCTION public\.barbershop_is_public\(_barbershop_id uuid\)/.test(fase2aCodigo),
+    );
+    check("a função é SECURITY DEFINER", /SECURITY DEFINER/.test(fase2aCodigo));
+    check("fixa search_path", /SET search_path TO 'public'/.test(fase2aCodigo));
+    check("é STABLE (não escreve)", /\bSTABLE\b/.test(fase2aCodigo));
+    check("exige barbearia aprovada", /b\.status\s*=\s*'approved'::approval_status/.test(fase2aCodigo));
+    check(
+      "exclui a sentinela — a RLS deixa de fazer isso dentro da função",
+      /b\.subdomain\s*<>\s*'_system'::text/.test(fase2aCodigo),
+      "sem este predicado a fase 2a AMPLIA o acesso em vez de preparar o fechamento",
+    );
+    check(
+      "concede EXECUTE a anon (a policy é avaliada como o visitante)",
+      /GRANT EXECUTE ON FUNCTION public\.barbershop_is_public\(uuid\) TO anon, authenticated/.test(fase2aCodigo),
+    );
+    check(
+      "revoga EXECUTE de PUBLIC",
+      /REVOKE ALL ON FUNCTION public\.barbershop_is_public\(uuid\) FROM PUBLIC/.test(fase2aCodigo),
+    );
+
+    for (const [tabela, policy] of [
+      ["services", "Anyone can view services of approved barbershops"],
+      ["availability", "Anyone can view availability of approved barbershops"],
+      ["reviews", "Anyone can view reviews of approved barbershops"],
+    ] as const) {
+      check(
+        `${tabela}: a policy pública passa a chamar barbershop_is_public`,
+        new RegExp(
+          `ALTER POLICY "${policy}"\\s*\\n\\s*ON public\\.${tabela}\\s*\\n\\s*USING \\([\\s\\S]{0,320}?barbershop_is_public\\(barbershop_id\\)`,
+        ).test(fase2aCodigo),
+      );
+    }
+
+    check(
+      "usa ALTER POLICY, não DROP + CREATE",
+      !/DROP POLICY/i.test(fase2aCodigo),
+      "DROP + CREATE abre um intervalo sem via pública de leitura",
+    );
+    check(
+      "nenhuma policy da fase 2a mantém subconsulta em barbershops",
+      !/FROM public\.barbershops/i.test(fase2aCodigo.replace(/CREATE OR REPLACE FUNCTION[\s\S]*?\$\$;/, "")),
+    );
+    check("é aditiva: não revoga acesso de tabela", !/REVOKE SELECT/i.test(fase2aCodigo));
+    check("documenta o rollback das três policies", /ROLLBACK/.test(fase2aSql));
+    check(
+      "avisa que a ordem é 2a antes do REVOKE",
+      /20260805120000 PRIMEIRO/.test(readFileSync(FASE2_CAMINHO, "utf8")),
+    );
+  }
+
+  group("migration: FASE 2 versionada");
+
+  // Este guard já foi o oposto: enquanto a fase 2 era só um plano em comentário,
+  // ele exigia que NENHUMA migration a versionasse, porque um `db push` teria
+  // aplicado as duas de uma vez e derrubado o frontend ainda publicado. A fase 1
+  // está em produção e o frontend novo também, então o risco inverteu — o que
+  // quebra agora é o arquivo divergir do que a fase 1 prometeu, ou ir sozinho.
+  const fase2Existe = existsSync(FASE2_CAMINHO);
+  check("a migration da fase 2 está versionada", fase2Existe, FASE2_ARQUIVO);
+
+  if (fase2Existe) {
+    const fase2Sql = readFileSync(FASE2_CAMINHO, "utf8");
+    const fase2Codigo = semLinhasDeComentario(fase2Sql);
+    const fase2Comandos = fase2Codigo.split(";").map((s) => s.trim()).filter(Boolean);
+
+    check(
+      "revoga o SELECT de anon na tabela",
+      /REVOKE SELECT ON TABLE public\.barbershops FROM anon/.test(fase2Codigo),
+    );
+    check(
+      "executa exatamente 1 comando",
+      fase2Comandos.length === 1,
+      `${fase2Comandos.length}: ${fase2Comandos.map((c) => c.split(/\s+/).slice(0, 3).join(" ")).join(" | ")}`,
+    );
+    check(
+      "só executa REVOKE SELECT",
+      fase2Comandos.every((s) => /^REVOKE SELECT/i.test(s)),
+      fase2Comandos.filter((s) => !/^REVOKE SELECT/i.test(s)).join(" | "),
+    );
+    // O ponto da fase 2 é FECHAR acesso. Qualquer GRANT aqui desfaria o efeito.
+    check("não reabre acesso ao anônimo", !/GRANT[^;]*TO anon/i.test(fase2Codigo));
+    check(
+      "NÃO remove a policy — ela é a via de leitura de authenticated",
+      !/DROP POLICY/i.test(fase2Codigo),
+    );
+    check("incide somente sobre public.barbershops", fase2Comandos.every((s) => /public\.barbershops/i.test(s)));
+    check("preserva o rollback documentado", /GRANT SELECT ON TABLE public\.barbershops TO anon/.test(fase2Sql));
+    check(
+      "registra por que a espera foi dispensada",
+      /não tem tráfego real/.test(fase2Sql),
+      "a decisão de pular a soaking precisa ficar no arquivo, não só no PR",
+    );
+    check(
+      "documenta a consequência aceita no Realtime",
+      /postgres_changes/.test(fase2Sql),
+    );
+
+    /* ─── paridade: o versionado é o que a fase 1 prometeu ─── */
+
+    // Em vez de repetir aqui o SQL esperado (que só provaria que este arquivo
+    // concorda consigo mesmo), extrai o comando do bloco "Conteúdo conceitual"
+    // da fase 1 e exige que o arquivo versionado o contenha.
+    const normalizar = (s: string) => s.replace(/\s+/g, " ").trim();
+    const blocoConceitual = /Conteúdo conceitual:([\s\S]*?)NOTA:/.exec(sql)?.[1] ?? "";
+    const prometidos = blocoConceitual
       .split("\n")
       .filter((l) => !l.trimStart().startsWith("--"))
-      .join("\n");
-    return /REVOKE[^;]*SELECT[^;]*public\.barbershops[^;]*anon/i.test(conteudo);
+      .join("\n")
+      .split(";")
+      .map(normalizar)
+      .filter(Boolean);
+
+    check("a fase 1 documenta 1 comando para a fase 2", prometidos.length === 1, `${prometidos.length}: ${prometidos.join(" | ")}`);
+    const versionado = normalizar(fase2Codigo);
+    check(
+      "o comando prometido pela fase 1 está no arquivo versionado",
+      prometidos.length > 0 && prometidos.every((p) => versionado.includes(p)),
+      prometidos.filter((p) => !versionado.includes(p)).join(" | "),
+    );
+  }
+
+  // Duplicar o REVOKE em outro arquivo faria o histórico divergir do banco sem
+  // ninguém perceber.
+  const dir = path.join(ROOT, "supabase", "migrations");
+  const duplicatas = readdirSync(dir).filter((arquivo) => {
+    if (!arquivo.endsWith(".sql") || arquivo === FASE2_ARQUIVO) return false;
+    return /REVOKE[^;]*SELECT[^;]*public\.barbershops[^;]*anon/i.test(
+      semLinhasDeComentario(readFileSync(path.join(dir, arquivo), "utf8")),
+    );
+  });
+  check("o REVOKE não está duplicado em outra migration", duplicatas.length === 0, duplicatas.join(", "));
+
+  // Depois da fase 2a, uma policy nova que volte a consultar `barbershops` no
+  // corpo reintroduz o defeito — e desta vez com o REVOKE já aplicado, ou seja,
+  // quebrando a leitura pública na hora. O guard vale para o futuro, não só
+  // para o que existe hoje.
+  const posFase2a = readdirSync(dir).filter((arquivo) => {
+    if (!arquivo.endsWith(".sql") || arquivo <= FASE2A_ARQUIVO) return false;
+    const conteudo = semLinhasDeComentario(readFileSync(path.join(dir, arquivo), "utf8"));
+    return (
+      /(CREATE|ALTER) POLICY/i.test(conteudo) && /FROM\s+(public\.)?barbershops\b/i.test(conteudo)
+    );
   });
   check(
-    "nenhuma migration versiona o REVOKE da fase 2 ainda",
-    comFase2.length === 0,
-    comFase2.join(", "),
+    "nenhuma migration posterior reintroduz subconsulta em barbershops dentro de policy",
+    posFase2a.length === 0,
+    `${posFase2a.join(", ")} — use barbershop_is_public()`,
   );
 
   group("migration: não altera o histórico");
@@ -541,7 +710,283 @@ function testeMigration() {
   );
 }
 
-/* ══════════════ 8. paridade mock ↔ SQL ══════════════ */
+/* ══════════════ 8. varredura global: quem lê a tabela larga ══════════════ */
+
+/**
+ * Arquivos de aplicação (fora de `src/mocks`) que consultam `barbershops`.
+ *
+ * A primeira varredura desta frente olhou os componentes de rota óbvios e
+ * concluiu que eram cinco os pontos anônimos. Faltavam DOIS, os dois em hook —
+ * o fallback por `DEFAULT_BARBERSHOP_ID` de `use-barbershop` (que roda em toda
+ * visita ao domínio principal, depois do bloco `if (user)`) e o SELECT de
+ * `use-plan`, alcançável por `/upgrade`, que não declara guarda. Ambos foram
+ * corrigidos; esta lista existe para que o próximo não dependa de alguém
+ * lembrar de olhar.
+ *
+ * A lista NÃO afirma que cada arquivo é seguro — ela congela o conjunto
+ * conhecido. Arquivo novo aqui derruba o harness e obriga a decidir, na hora,
+ * se aquele caminho é autenticado.
+ */
+const LEITORES_CONHECIDOS: Record<string, string> = {
+  // Papel, propriedade e o fallback COM sessão. O caminho por subdomínio e o
+  // fallback SEM sessão leem a vitrine — ver as asserções logo abaixo.
+  "src/hooks/use-barbershop.tsx": "papel/propriedade/fallback autenticado",
+  // Super_admin operando outra barbearia. Guardado por sessão desde esta fase.
+  "src/hooks/use-plan.tsx": "tenant explícito do super_admin, com sessão",
+  // /meus-agendamentos — cliente logado. `authenticated` segue pela policy.
+  "src/components/AppointmentHistory.tsx": "histórico do cliente logado",
+  "src/components/AdminDashboard.tsx": "moderação do super_admin (todos os status)",
+  "src/components/BarberReports.tsx": "relatórios, tela de staff",
+  "src/components/BarbershopSettings.tsx": "configurações, tela de admin",
+  "src/components/CloseTicketDialog.tsx": "comandas, tela de staff",
+  "src/components/ManualAppointmentDialog.tsx": "agenda, tela de staff",
+  "src/components/OnboardingWizard.tsx": "onboarding, exige sessão",
+  "src/routes/agenda.tsx": "rota com guarda de staff",
+  "src/routes/comandas.tsx": "rota com guarda de staff",
+  "src/routes/configuracoes.tsx": "rota com guarda de admin",
+  "src/routes/dashboard.tsx": "rota com guarda",
+  "src/routes/onboarding.tsx": "rota com guarda",
+  "src/routes/servicos.tsx": "rota com guarda de staff",
+  // Embed `barbershop:barbershops(name)` a partir de appointments; só é chamado
+  // por AppointmentHistory, no cancelamento feito pelo cliente logado.
+  "src/lib/notifications.ts": "dados de notificação, a partir de tela autenticada",
+  // Rota de servidor: roda com service_role, que o REVOKE do anon não alcança.
+  "src/routes/hooks/reset-monthly-appointments.ts": "cron, service_role",
+};
+
+/** Todos os `.ts`/`.tsx` de `src`, menos o próprio mock e os harnesses. */
+function fontesDaAplicacao(dir: string, acc: string[] = []): string[] {
+  for (const entrada of readdirSync(dir, { withFileTypes: true })) {
+    const completo = path.join(dir, entrada.name);
+    if (entrada.isDirectory()) {
+      if (entrada.name === "mocks" || entrada.name === "node_modules") continue;
+      fontesDaAplicacao(completo, acc);
+    } else if (/\.tsx?$/.test(entrada.name)) {
+      acc.push(path.relative(ROOT, completo).split(path.sep).join("/"));
+    }
+  }
+  return acc;
+}
+
+function testeVarreduraGlobal() {
+  group("varredura global: nenhum leitor novo da tabela larga");
+
+  const fontes = fontesDaAplicacao(path.join(ROOT, "src"));
+  check("a varredura enxerga a árvore inteira de src", fontes.length > 100, `${fontes.length}`);
+
+  // `from("barbershops")` e o embed `barbershops(...)` — as duas formas de
+  // exigir SELECT na tabela. `select("*")` sozinho não basta como pista: o que
+  // importa é a TABELA consultada, não o formato da projeção.
+  const leitores = fontes.filter((rel) => {
+    const codigo = semComentarios(readFileSync(path.join(ROOT, rel), "utf8"));
+    return (
+      /from\(\s*["'`]barbershops["'`]\s*\)/.test(codigo) ||
+      /:\s*barbershops\s*\(/.test(codigo)
+    );
+  });
+
+  const novos = leitores.filter((rel) => !(rel in LEITORES_CONHECIDOS));
+  check(
+    "nenhum arquivo fora da lista conhecida consulta barbershops",
+    novos.length === 0,
+    `novo(s): ${novos.join(", ")} — se o caminho for anônimo, migre para barbearias_publicas antes da fase 2`,
+  );
+
+  const sumiram = Object.keys(LEITORES_CONHECIDOS).filter((rel) => !leitores.includes(rel));
+  check(
+    "a lista não guarda entrada morta",
+    sumiram.length === 0,
+    `já não lê a tabela: ${sumiram.join(", ")}`,
+  );
+
+  group("varredura global: os dois pontos anônimos que faltavam");
+
+  const hook = semComentarios(lerArquivo("src/hooks/use-barbershop.tsx"));
+  check(
+    "use-barbershop resolve o subdomínio pela vitrine",
+    /from\(\s*["']barbearias_publicas["']\s*\)[\s\S]{0,200}eq\(\s*["']subdomain["']/.test(hook),
+  );
+  check(
+    "use-barbershop lê a vitrine no fallback sem sessão",
+    /:\s*await[\s\S]{0,80}from\(\s*["']barbearias_publicas["']\s*\)[\s\S]{0,260}DEFAULT_BARBERSHOP_ID/.test(hook),
+    "sem isto, toda visita anônima ao domínio principal ainda toca a tabela larga",
+  );
+  check(
+    "o fallback pela tabela é o ramo COM sessão",
+    /const fallback = user\s*\n?\s*\?\s*await/.test(hook),
+  );
+
+  const plano = semComentarios(lerArquivo("src/hooks/use-plan.tsx"));
+  check(
+    "use-plan exige sessão antes de consultar barbershops",
+    /getSession\(\)[\s\S]{0,200}if \(!session\)[\s\S]{0,220}from\(\s*["']barbershops["']\s*\)/.test(plano),
+    "/upgrade não tem guarda: sem a checagem, o visitante anônimo cai neste SELECT",
+  );
+  check(
+    "sem sessão o plano vira no-tenant, não erro",
+    /if \(!session\) \{[\s\S]{0,160}status: "no-tenant"/.test(plano),
+  );
+}
+
+/* ══════════════ 9. fase 2 simulada: o REVOKE, sem banco ══════════════ */
+
+/**
+ * O teste negativo desta frente, no mesmo espírito do que o PR #41 fez para a
+ * autorização do cron: não basta mostrar que o caminho novo funciona — é
+ * preciso mostrar que ele funciona QUANDO O ANTIGO É NEGADO, e que o antigo é
+ * mesmo negado.
+ *
+ * Sem isto, "a vitrine responde" e "a vitrine responde porque o anon ainda tem
+ * SELECT na tabela por baixo" são indistinguíveis. E é justamente essa a
+ * diferença que o `security_invoker = false` da fase 1 existe para produzir.
+ *
+ * Vale o limite honesto: aqui se simula o GRANT, não se aplica. Isto não
+ * substitui as verificações contra o banco listadas no rodapé da migration —
+ * é o que dá para provar sem banco, e o que impede a fase 2 de regredir.
+ */
+async function testeFase2Simulada() {
+  resetMockDatabase();
+  await mockSupabaseClient.auth.signOut();
+
+  group("fase 2 simulada: antes do REVOKE, o anônimo lê a tabela larga");
+
+  const antes = await (mockSupabaseClient as any).from("barbershops").select("*");
+  check("hoje o anônimo consegue ler barbershops", (antes.data ?? []).length > 0);
+  check(
+    "e recebe as colunas internas",
+    Boolean(antes.data?.[0] && "owner_id" in antes.data[0] && "plan_id" in antes.data[0]),
+    "é exatamente esta exposição que a fase 2 fecha",
+  );
+
+  revokeAnonSelect("barbershops");
+
+  group("fase 2 simulada: com o REVOKE, o acesso direto é NEGADO");
+
+  const negado = await (mockSupabaseClient as any).from("barbershops").select("*");
+  check("SELECT direto devolve erro", Boolean(negado.error), JSON.stringify(negado.error));
+  check("o erro é 42501 (privilégio ausente)", negado.error?.code === "42501", String(negado.error?.code));
+  check(
+    "não devolve linha nenhuma",
+    (negado.data ?? []).length === 0,
+    "privilégio ausente é erro, não lista vazia",
+  );
+
+  // O fallback ANTIGO de use-barbershop, reproduzido: é a consulta que a fase 2
+  // teria quebrado em silêncio em toda visita anônima ao domínio principal.
+  const fallbackAntigo = await (mockSupabaseClient as any)
+    .from("barbershops")
+    .select("*")
+    .eq("id", DEFAULT_BARBERSHOP_ID)
+    .maybeSingle();
+  check(
+    "o fallback por DEFAULT_BARBERSHOP_ID na tabela seria negado",
+    fallbackAntigo.error?.code === "42501",
+    "motivo de o fallback sem sessão ter passado a ler a vitrine",
+  );
+
+  group("fase 2 simulada: o que DEVE continuar funcionando");
+
+  const rows = await vitrine();
+  check("a vitrine continua respondendo sem sessão", rows.length > 0);
+  check(
+    "a vitrine continua com as 24 colunas",
+    Object.keys(rows[0] ?? {}).length === 24,
+    `${Object.keys(rows[0] ?? {}).length}`,
+  );
+  for (const coluna of COLUNAS_INTERNAS) {
+    check(`${coluna} continua fora da vitrine`, rows.every((r) => !(coluna in r)));
+  }
+
+  // O fallback NOVO: mesma pergunta, pelo objeto que sobrevive ao REVOKE.
+  const fallbackNovo = await (mockSupabaseClient as any)
+    .from("barbearias_publicas")
+    .select("*")
+    .eq("id", DEFAULT_BARBERSHOP_ID)
+    .maybeSingle();
+  check(
+    "o fallback sem sessão resolve pela vitrine",
+    !fallbackNovo.error && Boolean(fallbackNovo.data),
+    JSON.stringify(fallbackNovo.error),
+  );
+
+  // Resolução por subdomínio — o caminho do visitante que chega pelo tenant.
+  const porSubdominio = await (mockSupabaseClient as any)
+    .from("barbearias_publicas")
+    .select("*")
+    .eq("subdomain", getTableRows("barbershops")[0]?.subdomain)
+    .eq("status", "approved")
+    .maybeSingle();
+  check(
+    "resolução por subdomínio continua funcionando",
+    !porSubdominio.error && Boolean(porSubdominio.data),
+    JSON.stringify(porSubdominio.error),
+  );
+
+  const lista = await barbeiros(MOCK_BARBERSHOP_ID);
+  check("get_public_barbers_v2 continua respondendo (SECURITY DEFINER)", lista.length > 0);
+  check("e continua sem expor owner_id", lista.every((r) => !("owner_id" in r)));
+
+  group("fase 2 simulada: a fronteira da view segue de pé sem a RLS");
+
+  // Com `security_invoker = false` o WHERE da view é a barreira inteira. Se ele
+  // falhasse, o REVOKE teria trocado uma exposição por outra.
+  const base = getTableRows("barbershops");
+  const rejeitada = { ...base[0], id: "f0f0f0f0-0000-4000-8000-000000000011", subdomain: "rejeitada-fase2", status: "rejected" };
+  const pendente = { ...base[0], id: "f0f0f0f0-0000-4000-8000-000000000012", subdomain: "pendente-fase2", status: "pending" };
+  const sentinela = { ...base[0], id: "f0f0f0f0-0000-4000-8000-000000000013", subdomain: "_system", status: "approved" };
+  setTableRows("barbershops", [...base, rejeitada, pendente, sentinela]);
+
+  const comIntrusos = await vitrine();
+  const subdominios = comIntrusos.map((r) => String(r.subdomain));
+  check("rejeitada continua fora com o REVOKE ligado", !subdominios.includes("rejeitada-fase2"), subdominios.join(", "));
+  check("pendente continua fora com o REVOKE ligado", !subdominios.includes("pendente-fase2"), subdominios.join(", "));
+  check("_system continua fora com o REVOKE ligado", !subdominios.includes("_system"), subdominios.join(", "));
+  check(
+    "e nenhuma das intrusas responde pela RPC",
+    (await barbeiros(pendente.id)).length === 0 && (await barbeiros(sentinela.id)).length === 0,
+  );
+
+  setTableRows("barbershops", base);
+
+  group("fase 2 simulada: o REVOKE atinge só o anônimo");
+
+  const login = await mockSupabaseClient.auth.signInWithPassword({
+    email: MOCK_ADMIN_EMAIL,
+    password: "qualquer-senha",
+  });
+  check("sessão de admin estabelecida", Boolean(login.data?.session), login.error?.message ?? "");
+
+  const comSessao = await (mockSupabaseClient as any).from("barbershops").select("*");
+  check(
+    "com sessão a tabela continua legível",
+    !comSessao.error && (comSessao.data ?? []).length > 0,
+    JSON.stringify(comSessao.error),
+  );
+  check(
+    "e continua entregando as colunas internas às telas de staff",
+    Boolean(comSessao.data?.[0] && "owner_id" in comSessao.data[0]),
+  );
+
+  await mockSupabaseClient.auth.signOut();
+
+  group("fase 2 simulada: rollback devolve o acesso");
+
+  // `GRANT SELECT ON TABLE public.barbershops TO anon` — o rollback documentado
+  // no rodapé da migration. Se ele não devolvesse o acesso, o plano de reversão
+  // seria só uma frase.
+  grantAnonSelect("barbershops");
+  const depoisDoRollback = await (mockSupabaseClient as any).from("barbershops").select("*");
+  check(
+    "o GRANT de volta restaura a leitura anônima",
+    !depoisDoRollback.error && (depoisDoRollback.data ?? []).length > 0,
+    JSON.stringify(depoisDoRollback.error),
+  );
+
+  resetAnonGrants();
+  resetMockDatabase();
+}
+
+/* ══════════════ 10. paridade mock ↔ SQL ══════════════ */
 
 function testeParidade() {
   group("paridade entre mock e migration");
@@ -585,6 +1030,8 @@ export async function runHarness() {
   await testeBarbeiros();
   testeFrontendPublico();
   testeFrontendInterno();
+  testeVarreduraGlobal();
+  await testeFase2Simulada();
   testeMigration();
   testeParidade();
 

@@ -1,0 +1,100 @@
+-- Superfície pública de `barbershops` — FASE 2 (restritiva).
+--
+-- Fecha o acesso direto do visitante anônimo à tabela larga. É o conteúdo
+-- prometido no rodapé de `20260804120000_public_barbershop_surface_phase1.sql`,
+-- sem acréscimo: um único `REVOKE`.
+--
+-- ────────────────────────────────────────────────────────────────────────────
+-- ORDEM DE APLICAÇÃO — 20260805120000 PRIMEIRO, SEM EXCEÇÃO
+--
+-- A fase 2a (`…_phase2a_policy_deps.sql`) tira de três policies públicas a
+-- subconsulta literal em `public.barbershops`. Expressão de policy roda com os
+-- privilégios de quem consulta: com este REVOKE aplicado ANTES dela, toda
+-- leitura anônima de `services`, `availability` e `reviews` passa a responder
+-- `42501 permission denied for table barbershops`, e a página pública de
+-- agendamento para de carregar por inteiro.
+--
+-- O `db push` aplica as pendentes em ordem de versão, então o par já está na
+-- ordem certa. O que NÃO pode acontecer é este arquivo ir sozinho.
+--
+-- ────────────────────────────────────────────────────────────────────────────
+-- POR QUE ESTA FASE NÃO ESPEROU DIAS DE PRODUÇÃO
+--
+-- O rodapé da fase 1 pedia alguns dias de uso real antes de versionar o REVOKE.
+-- A espera foi dispensada por decisão explícita, com a razão registrada aqui: o
+-- sistema ainda não tem tráfego real — só o cliente testando esporadicamente —,
+-- e o sinal que a espera compraria (regressão aparecendo sozinha em produção)
+-- não existiria de fato. Adiar só adiaria.
+--
+-- O que substituiu a espera foi uma varredura mais dura que a original, e ela
+-- pagou: encontrou TRÊS coisas que os dias de produção provavelmente não
+-- teriam mostrado antes do REVOKE, porque nenhuma delas quebra ANTES dele.
+--
+--   1. a dependência de policy descrita acima, hoje na fase 2a;
+--   2. o fallback por `DEFAULT_BARBERSHOP_ID` em `use-barbershop`, que roda em
+--      TODA visita anônima ao domínio principal (depois do bloco `if (user)`,
+--      onde a revisão por componente de rota não olhou) e lia a tabela larga.
+--      Passou a ler a vitrine quando não há sessão;
+--   3. o SELECT de `use-plan`, alcançável por visitante anônimo em `/upgrade` —
+--      rota sem guarda —, que depois do REVOKE mostraria "não foi possível
+--      carregar seu plano" a quem nem sessão tem. Passou a exigir sessão.
+--
+-- Os três estão cobertos por harness (`superficie-barbershops`), incluindo um
+-- teste negativo que simula este REVOKE no mock e verifica que a vitrine, a RPC
+-- e os dois caminhos de resolução do tenant continuam de pé enquanto o acesso
+-- direto passa a ser negado.
+--
+-- ────────────────────────────────────────────────────────────────────────────
+-- O QUE ESTE REVOKE NÃO ALCANÇA, E ESTÁ CERTO ASSIM
+--
+-- • a policy "Anyone can view approved barbershops" — NÃO deve ser removida.
+--   Ela é a via de leitura de `authenticated`: cliente, barbeiro,
+--   admin_barbearia e super_admin dependem dela, e um REVOKE de `anon` não a
+--   alcança. Diferente de `products`, aqui a fase 2 é só o REVOKE;
+-- • `authenticated` e `service_role` — mantêm os próprios GRANTs
+--   (20260721140000 e 20260722250000), intocados;
+-- • `INSERT`/`UPDATE`/`DELETE` — não são de `anon` desde 20260721140000.
+--
+-- CONSEQUÊNCIA ACEITA, PARA NÃO VIRAR SUSTO DEPOIS: o canal Realtime
+-- `barbershop-context-<id>` de `use-barbershop` assina `postgres_changes` na
+-- tabela `barbershops`. Um visitante ANÔNIMO com tenant resolvido abre esse
+-- canal, e o Realtime também checa o privilégio do papel — depois deste REVOKE
+-- ele deixa de receber os eventos de UPDATE da linha. O efeito é o visitante
+-- anônimo não ver em tempo real uma troca de nome/logo feita naquele instante;
+-- ele continua vendo o dado correto ao carregar a página. Para quem tem sessão
+-- nada muda.
+--
+-- ────────────────────────────────────────────────────────────────────────────
+-- VERIFICAÇÕES OBRIGATÓRIAS APÓS APLICAR (as do rodapé da fase 1, na íntegra)
+--
+--   • como anon: SELECT em `barbershops` deve ser negado (42501);
+--   • como anon: `barbearias_publicas` deve continuar respondendo 200 — é o
+--     teste que prova que o `security_invoker = false` da fase 1 funcionou;
+--   • como anon: a view NÃO pode devolver barbearia `pending`/`rejected` nem
+--     `_system`. Sem a RLS por baixo, o WHERE da view é a única barreira —
+--     criar uma barbearia `pending` de teste e conferir que ela não aparece;
+--   • como anon: `get_public_barbers_v2` responde para barbearia aprovada e
+--     devolve vazio para `pending`/`rejected`/`_system`/id inexistente;
+--   • como anon: `services`, `availability` e `reviews` continuam respondendo
+--     200 — é o teste que prova que a fase 2a funcionou. Esta é a verificação
+--     que o rodapé da fase 1 não tinha, e é a mais importante das novas;
+--   • como cliente autenticado: /meus-agendamentos e o histórico continuam
+--     resolvendo o nome da barbearia;
+--   • como barbeiro e admin_barbearia: dashboard, agenda, comandas,
+--     configurações e relatórios continuam lendo o próprio tenant;
+--   • como super_admin: /admin/churn continua listando barbearias em TODOS os
+--     status — é o caminho que mais depende da tabela larga;
+--   • onboarding: criar barbearia nova continua funcionando (INSERT não é
+--     afetado pelo REVOKE de SELECT, mas o retorno do INSERT é lido);
+--   • páginas públicas: /barbearias, /agendar, /agendar/$slug e o manifest
+--     por subdomínio continuam carregando — sem sessão, em aba anônima.
+--
+-- ROLLBACK
+--   GRANT SELECT ON TABLE public.barbershops TO anon;
+-- ============================================================================
+
+-- Tira o acesso direto do visitante anônimo à tabela larga. A vitrine continua
+-- respondendo porque a view passou a ler como o dono (security_invoker = false,
+-- feito na fase 1), e as policies públicas de services/availability/reviews
+-- continuam avaliáveis porque deixaram de consultar esta tabela (fase 2a).
+REVOKE SELECT ON TABLE public.barbershops FROM anon;

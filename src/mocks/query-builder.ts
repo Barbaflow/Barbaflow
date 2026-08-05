@@ -11,6 +11,8 @@
  * combinações que o banco real recusaria.
  */
 import { getTableRows, setTableRows, type MockRow } from "./store";
+import { anonSelectRevoked } from "./grants";
+import { getMockActor } from "./session";
 import { attachEmbeds, droppedByInnerJoin, parseSelect, type EmbedSpec } from "./relations";
 import { NEW_BARBERSHOP_DEFAULTS, ratingAggregateFor } from "./fixtures";
 import {
@@ -576,6 +578,23 @@ export class MockQueryBuilder implements PromiseLike<MockResult<MockRow[] | Mock
   }
 
   private run(): MockResult<MockRow[] | MockRow | null> {
+    // GRANT vem ANTES da RLS: sem o privilégio, o PostgREST nem chega a avaliar
+    // policy — devolve 42501 e nenhuma linha. Isto é o que permite exercitar o
+    // `REVOKE SELECT ON public.barbershops FROM anon` da fase 2 sem banco.
+    //
+    // A checagem é pelo NOME PEDIDO na consulta, não pela tabela de origem dos
+    // dados: `barbearias_publicas` é outro objeto, com grant próprio, e lê a
+    // tabela como o dono (security_invoker = false). É exatamente por isso que
+    // ela sobrevive ao REVOKE — e o mock precisa reproduzir essa diferença, não
+    // apagá-la.
+    if (this.operation === "select" && !getMockActor() && anonSelectRevoked(this.table)) {
+      return fail<MockRow[]>(
+        [],
+        error(`permission denied for table ${this.table}`, "42501"),
+        401,
+      );
+    }
+
     // `barbearias_publicas` é uma VIEW: só leitura, e é a superfície pública
     // de `barbershops`. Espelha a migration 20260804120000 — mesmo filtro e
     // mesmas 24 colunas. As colunas internas ficam de fora AQUI TAMBÉM, de

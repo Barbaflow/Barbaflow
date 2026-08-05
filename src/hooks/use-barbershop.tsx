@@ -9,14 +9,20 @@ type Barbershop = Tables<"barbershops">;
 /**
  * Colunas da view pública `barbearias_publicas` (migration 20260804120000).
  *
- * A resolução por subdomínio é o ÚNICO caminho deste provider alcançável por
- * visitante anônimo, e por isso ele passou a ler a view em vez de
- * `select("*")` na tabela larga — que devolve 36 colunas, incluindo owner_id,
- * plan_id, appointments_this_month e os campos de recibo.
+ * Este provider tem DOIS caminhos alcançáveis por visitante anônimo, e os dois
+ * leem a view em vez de fazer `select("*")` na tabela larga — que devolve 36
+ * colunas, incluindo owner_id, plan_id, appointments_this_month e os campos de
+ * recibo:
  *
- * Os demais caminhos (papel, propriedade e o fallback por id) continuam lendo
- * `barbershops`: são caminhos de sessão autenticada, e as telas internas
- * dependem de colunas privadas que a view não expõe de propósito.
+ *   1. a resolução por subdomínio;
+ *   2. o fallback por DEFAULT_BARBERSHOP_ID quando NÃO há sessão — que roda em
+ *      toda visita ao domínio principal e passou despercebido na primeira
+ *      varredura, por estar depois do bloco `if (user)`.
+ *
+ * Os caminhos por papel e por propriedade — e o mesmo fallback COM sessão —
+ * continuam lendo `barbershops`: são caminhos autenticados, cobertos pela
+ * policy que a fase 2 não toca, e as telas internas dependem de colunas
+ * privadas que a view não expõe de propósito.
  */
 const PUBLIC_BARBERSHOP_COLUMNS =
   "id, name, subdomain, logo_url, primary_color, secondary_color, rating_avg, " +
@@ -295,13 +301,32 @@ export function BarbershopProvider({ children }: { children: React.ReactNode }) 
     // existe e é o tenant de demonstração; no modo Supabase quase nunca existe,
     // e é justamente por isso que `resolvedBarbershopId` fica null quando o
     // SELECT não devolve nada — em vez de fingir um tenant.
-    const { data } = await supabase
-      .from("barbershops")
-      .select("*")
-      .eq("id", DEFAULT_BARBERSHOP_ID)
-      .maybeSingle();
+    //
+    // SEM SESSÃO, ESTE FALLBACK É UM CAMINHO ANÔNIMO — e era o último que ainda
+    // lia a tabela larga. Ele roda em TODA visita ao domínio principal: nenhum
+    // subdomínio casa, a resolução por papel/propriedade não se aplica, e a
+    // execução chega aqui. Ler `barbershops` neste ponto é exatamente o que a
+    // fase 2 (`REVOKE SELECT … FROM anon`) passa a negar, então o visitante
+    // anônimo lê a vitrine, que sobrevive ao REVOKE.
+    //
+    // Com sessão o caminho continua na tabela, de propósito: `authenticated`
+    // não é alcançado pelo REVOKE, e um cliente logado sem papel de equipe cai
+    // aqui esperando a linha inteira que as telas dele leem do contexto.
+    const fallback = user
+      ? await supabase
+          .from("barbershops")
+          .select("*")
+          .eq("id", DEFAULT_BARBERSHOP_ID)
+          .maybeSingle()
+      : await (supabase as any)
+          .from("barbearias_publicas")
+          .select(PUBLIC_BARBERSHOP_COLUMNS)
+          .eq("id", DEFAULT_BARBERSHOP_ID)
+          .maybeSingle();
 
     if (isCancelled()) return;
+
+    const data = (fallback.data ?? null) as Barbershop | null;
 
     setBarbershop(data ?? null);
     setIsDefault(true);
