@@ -511,8 +511,12 @@ interface RoleSeed {
 const ROLES: readonly RoleSeed[] = [
   // Barbearia A — o admin também atende, então tem as duas roles.
   // Sem isso, /relatorios (que filtra por barber_id = user.id) vem vazio para ele.
+  // O admin NÃO acumula `barbeiro`: desde 20260805160000 um índice parcial
+  // torna esse estado impossível no banco, e semeá-lo aqui faria o mock
+  // modelar algo que o Supabase real recusa. Ele continua aparecendo como
+  // profissional para agendamento — `get_public_barbers_v2` filtra
+  // `role IN ('barbeiro','admin_barbearia')`.
   { userId: MOCK_USER_IDS.admin, barbershopId: MOCK_BARBERSHOP_ID, role: "admin_barbearia" },
-  { userId: MOCK_USER_IDS.admin, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberAna, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBruno, barbershopId: MOCK_BARBERSHOP_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteCarla, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
@@ -520,8 +524,8 @@ const ROLES: readonly RoleSeed[] = [
   { userId: MOCK_USER_IDS.clienteDiego, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   { userId: MOCK_USER_IDS.walkinEva, barbershopId: MOCK_BARBERSHOP_ID, role: "cliente" },
   // Barbearia B
+  // Mesma razão da barbearia A: um papel de equipe por pessoa.
   { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "admin_barbearia" },
-  { userId: MOCK_USER_IDS.adminBeatriz, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBianca, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.barberBreno, barbershopId: MOCK_BARBERSHOP_B_ID, role: "barbeiro" },
   { userId: MOCK_USER_IDS.clienteBento, barbershopId: MOCK_BARBERSHOP_B_ID, role: "cliente" },
