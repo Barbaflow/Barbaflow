@@ -9,39 +9,82 @@
  *                            nenhuma, e o PostgREST responde ERRO.
  *
  * A distinção importa porque "não carregou" e "não tem nada" precisam
- * renderizar diferente (§8 do CLAUDE.md). Sem ela, o teste negativo da fase 2
- * de `barbershops` seria indistinguível de "a barbearia não existe".
+ * renderizar diferente (§8 do CLAUDE.md). Sem ela, um teste negativo é
+ * indistinguível de "não existe esse dado".
  *
- * Existe para que a fase 2 (`REVOKE SELECT ON public.barbershops FROM anon`)
- * possa ser exercitada SEM banco, antes de ser aplicada: o harness liga o
- * REVOKE, roda o caminho anônimo inteiro e verifica que a vitrine
- * (`barbearias_publicas`, que passou a ler como o dono) e a RPC
- * (`get_public_barbers_v2`, SECURITY DEFINER) continuam de pé enquanto o acesso
- * direto à tabela larga passa a ser negado.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POR QUE ISTO DEIXOU DE SER UM INTERRUPTOR DE TESTE E VIROU O PADRÃO
  *
- * Só o papel anônimo é afetado, como no SQL: com sessão ativa a leitura segue
- * pela policy "Anyone can view approved barbershops", que a fase 2 não toca.
+ * Nasceu para exercitar o `REVOKE SELECT ON barbershops FROM anon` (fase 2,
+ * 20260805130000) sem banco. Virou o comportamento padrão do mock por um motivo
+ * concreto: a consulta de notas por profissional de `PublicBookingWizard` era
+ * IMPOSSÍVEL contra o Supabase real — `anon` nunca teve SELECT em
+ * `appointments` — e mesmo assim passava offline, porque o mock resolvia o
+ * embed lendo o store direto, sem checar privilégio. O defeito atravessou a
+ * revisão inteira da superfície pública por causa disso.
+ *
+ * Agora o mock recusa, sem sessão, qualquer leitura fora da lista abaixo — que
+ * é a lista REAL, conferida no projeto remoto em 05/08/2026:
+ *
+ *     SELECT c.relname, has_table_privilege('anon', c.oid, 'SELECT')
+ *       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+ *      WHERE n.nspname = 'public' AND c.relkind IN ('r','v');
+ *
+ * A checagem vale também para tabela alcançada por EMBED: no PostgREST o
+ * privilégio é exigido de cada relação do plano, não só da que está no `from`.
  */
 
-/** Tabelas cujo `SELECT` está revogado do `anon` nesta execução. */
-const selectRevogadoDoAnon = new Set<string>();
+/**
+ * Objetos que o papel `anon` PODE ler no projeto remoto. Qualquer outro devolve
+ * 42501 quando não há sessão.
+ *
+ * `barbershops` NÃO está aqui: a fase 2 revogou o SELECT do anônimo, e o mock
+ * reflete o banco de hoje. O caminho público lê `barbearias_publicas`.
+ * `products` também não: saiu em 20260730120000, e a leitura passou a ser por
+ * `get_public_products`.
+ */
+const LEITURA_ANONIMA_PERMITIDA = new Set([
+  "availability",
+  "barbearias_publicas",
+  "plans",
+  "reviews",
+  "services",
+]);
 
-/** Liga a simulação de `REVOKE SELECT ON <table> FROM anon`. */
+/** Ajustes pontuais desta execução (testes de REVOKE/GRANT). */
+const concedidasNaExecucao = new Set<string>();
+const revogadasNaExecucao = new Set<string>();
+
+/** Simula `REVOKE SELECT ON <table> FROM anon` a partir de agora. */
 export function revokeAnonSelect(table: string): void {
-  selectRevogadoDoAnon.add(table);
+  revogadasNaExecucao.add(table);
+  concedidasNaExecucao.delete(table);
 }
 
-/** Desfaz a simulação — equivale ao `GRANT SELECT … TO anon` do rollback. */
+/**
+ * Simula `GRANT SELECT ON <table> TO anon`. É o que permite exercitar o estado
+ * ANTERIOR a um REVOKE já aplicado — por exemplo, provar que o rollback
+ * documentado no rodapé de uma migration devolve mesmo o acesso.
+ */
 export function grantAnonSelect(table: string): void {
-  selectRevogadoDoAnon.delete(table);
+  concedidasNaExecucao.add(table);
+  revogadasNaExecucao.delete(table);
 }
 
-/** Devolve todas as tabelas ao estado concedido. */
+/** Volta ao mapa real de privilégios, desfazendo os ajustes da execução. */
 export function resetAnonGrants(): void {
-  selectRevogadoDoAnon.clear();
+  concedidasNaExecucao.clear();
+  revogadasNaExecucao.clear();
 }
 
-/** `true` quando o `anon` NÃO tem `SELECT` na tabela. */
+/** `true` quando o `anon` NÃO tem `SELECT` no objeto. */
 export function anonSelectRevoked(table: string): boolean {
-  return selectRevogadoDoAnon.has(table);
+  if (concedidasNaExecucao.has(table)) return false;
+  if (revogadasNaExecucao.has(table)) return true;
+  return !LEITURA_ANONIMA_PERMITIDA.has(table);
+}
+
+/** A lista real, para o harness afirmar sobre ela em vez de repeti-la. */
+export function tabelasLegiveisPorAnon(): string[] {
+  return [...LEITURA_ANONIMA_PERMITIDA].sort();
 }

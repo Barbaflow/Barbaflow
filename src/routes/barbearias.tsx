@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchProfileSummaries } from "@/lib/profile-summaries";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -177,16 +178,20 @@ function BarbeariasPage() {
         const clientIds = Array.from(
           new Set(Array.from(latestByShop.values()).map((r: any) => r.client_id)),
         );
+        // `profiles` NÃO é legível pelo visitante anônimo — nunca foi (grants
+        // nominais de 20260721140000) — e desde 20260722240000 também não é por
+        // qualquer autenticado. Esta tela é pública: a consulta direta devolvia
+        // 42501, o erro era descartado, e todo avaliador aparecia como
+        // "Cliente". Mesmo defeito que a nota por profissional do assistente de
+        // agendamento; mesma correção, pela RPC de resumo público, que devolve
+        // só nome e avatar.
         let nameMap = new Map<string, string>();
         if (clientIds.length > 0) {
-          const { data: profiles } = await supabase
-            .from("profiles")
-            .select("user_id, full_name")
-            .in("user_id", clientIds);
-          (profiles || []).forEach((p) => {
-            const n = (p.full_name || "").trim();
-            if (n) nameMap.set(p.user_id, n);
-          });
+          const resumos = await fetchProfileSummaries(clientIds);
+          for (const [userId, resumo] of Object.entries(resumos)) {
+            const n = (resumo.full_name || "").trim();
+            if (n) nameMap.set(userId, n);
+          }
         }
 
         list.forEach((b) => {

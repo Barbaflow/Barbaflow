@@ -14,6 +14,7 @@ import { BookingConfirmation } from "./BookingConfirmation";
 import type { AvailabilitySlot, Service } from "./types";
 import { nowInTenantTZ, todayISOInTenantTZ } from "@/lib/tz";
 import { agendaErrorMessage, isSlotConflict } from "@/lib/agenda-errors";
+import { logTechnicalError } from "@/lib/error-reporting";
 import {
   Store,
   User,
@@ -73,6 +74,13 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
     (!preselectedBarbershopId && skipBarbershopStep) ? tenantBarbershop as unknown as Barbershop : null
   );
   const [barbers, setBarbers] = useState<BarberWithProfile[]>([]);
+  /**
+   * A consulta das notas falhou. É estado próprio, e não `rating_count = 0`,
+   * porque "não deu para carregar" não é "este profissional não tem avaliação"
+   * — a segunda é uma afirmação sobre a pessoa, e era o que a tela dizia
+   * quando o erro era descartado.
+   */
+  const [ratingsUnavailable, setRatingsUnavailable] = useState(false);
   const [selectedBarber, setSelectedBarber] = useState<BarberWithProfile | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
@@ -154,21 +162,44 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
         const { data: names } = await supabase
           .rpc("get_barber_display_names", { _user_ids: userIds });
 
-        // Fetch reviews joined with appointments to compute per-barber ratings
-        const { data: reviewRows } = await supabase
-          .from("reviews")
-          .select("rating, appointments!inner(barber_id)")
-          .eq("barbershop_id", selectedBarbershop.id)
-          .in("appointments.barber_id", userIds);
+        // Nota por profissional, agregada no servidor.
+        //
+        // Antes isto era `.from("reviews").select("rating, appointments!inner(barber_id)")`,
+        // e não funcionava para ninguém que importasse: `anon` nunca teve SELECT
+        // em `appointments` (42501), e para o cliente logado a RLS da tabela só
+        // libera os agendamentos DELE — o `!inner` descartava o resto e a média
+        // exibida vinha só das avaliações do próprio visitante. A RPC
+        // (migration 20260805140000) devolve o agregado pronto e igual para
+        // todo mundo, sem expor nada de `appointments`.
+        const { data: ratingRows, error: ratingError } = await (supabase as any).rpc(
+          "get_public_barber_ratings",
+          { _barbershop_id: selectedBarbershop.id },
+        );
 
-        const ratingMap = new Map<string, { sum: number; count: number }>();
-        (reviewRows as unknown as Array<{ rating: number; appointments: { barber_id: string } | null }>)?.forEach((r) => {
-          const bid = r.appointments?.barber_id;
-          if (!bid) return;
-          const cur = ratingMap.get(bid) ?? { sum: 0, count: 0 };
-          cur.sum += r.rating;
-          cur.count += 1;
-          ratingMap.set(bid, cur);
+        // "Não carregou" e "não tem avaliação" são estados diferentes e
+        // renderizam diferente (§8 do CLAUDE.md). Antes o erro era descartado e
+        // a falha virava "Sem avaliações" — uma afirmação falsa sobre o
+        // profissional. A lista de barbeiros continua sendo montada: a nota é
+        // complemento, não pode derrubar o passo de escolha.
+        if (ratingError) {
+          logTechnicalError("PublicBookingWizard", "carregar notas dos profissionais", ratingError);
+        }
+        setRatingsUnavailable(Boolean(ratingError));
+
+        const ratingMap = new Map<string, { avg: number; count: number }>();
+        (
+          (ratingRows ?? []) as Array<{
+            barber_id: string;
+            rating_avg: number | string;
+            rating_count: number;
+          }>
+        ).forEach((r) => {
+          if (!r.barber_id) return;
+          ratingMap.set(r.barber_id, {
+            // `numeric` do Postgres chega como string no supabase-js.
+            avg: Number(r.rating_avg),
+            count: Number(r.rating_count),
+          });
         });
 
         // Map names from RPC, with safe fallback per id
@@ -183,7 +214,7 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
             user_id: id,
             full_name: n?.display_name ?? null,
             avatar_url: n?.avatar_url ?? null,
-            rating_avg: r ? Math.round((r.sum / r.count) * 10) / 10 : 0,
+            rating_avg: r?.avg ?? 0,
             rating_count: r?.count ?? 0,
             is_owner: ownerFlag.get(id) ?? false,
           };
@@ -618,7 +649,14 @@ export function PublicBookingWizard({ preselectedBarbershopId }: PublicBookingWi
                             {isOwner ? "Dono & Barbeiro" : "Profissional"}
                           </p>
                           <div className="flex items-center justify-center gap-1 mt-1.5 h-4">
-                            {b.rating_count && b.rating_count > 0 ? (
+                            {ratingsUnavailable ? (
+                              // Nem "tem nota" nem "não tem": não foi possível
+                              // saber. Dizer "Sem avaliações" aqui seria afirmar
+                              // algo falso sobre o profissional.
+                              <span className="text-[10px] text-muted-foreground italic">
+                                Avaliações indisponíveis
+                              </span>
+                            ) : b.rating_count && b.rating_count > 0 ? (
                               <>
                                 <Star className="w-3 h-3 fill-primary text-primary" />
                                 <span className="text-[11px] font-semibold text-foreground">
