@@ -103,6 +103,39 @@ confira com `--include-all` antes de concluir qualquer coisa.
 O `db push` real **não tem script de npm, de propósito**. É sempre digitado à
 mão, com autorização.
 
+### 2.4 Tabela nova nasce SEM acesso — conceda na mesma migration
+
+Desde `20260805150000`, `ALTER DEFAULT PRIVILEGES` de `postgres` em `public`
+não concede mais nada a `anon` nem a `authenticated`. Consequência direta:
+
+**Toda `CREATE TABLE` em `public` precisa de `GRANT` nominal na mesma
+migration, ou a tabela fica invisível pela Data API.** O sintoma é `42501
+permission denied for table …` no navegador, com a RLS aparentemente correta —
+porque o problema não é policy, é privilégio, e o privilégio vem antes.
+
+```sql
+CREATE TABLE public.nova (...);
+ALTER TABLE public.nova ENABLE ROW LEVEL SECURITY;
+CREATE POLICY ... ;
+GRANT SELECT ON TABLE public.nova TO authenticated;   -- explícito, sempre
+```
+
+Antes disso era o oposto, e pior: tabela nova nascia com **CRUD completo para
+`anon`** — `SELECT`, `INSERT`, `UPDATE` e `DELETE` —, com só a RLS entre o
+visitante e os dados. E o comentário que o schema carregava afirmava
+exatamente o contrário ("Tabelas e funções novas nascem SEM acesso"). Nunca
+explodiu porque nenhuma migration criou tabela entre `20260721140000` e
+`20260805150000`.
+
+Duas ressalvas que continuam valendo:
+
+- **`service_role` mantém o default** de propósito — é a identidade do backend,
+  e toda tabela nova segue legível por ele sem grant.
+- **`supabase_admin` não é alterável** por `postgres` (`42501: permission
+  denied to change default privileges`). Relação criada em `public` por ele
+  ainda herdaria tudo. No fluxo daqui isso não acontece — migrations rodam como
+  `postgres` —, mas a brecha existe e só o suporte do Supabase fecha.
+
 ---
 
 ## 3. Medir layout: force a largura **e** emule o breakpoint
@@ -275,6 +308,24 @@ já foi corrigido. **Não herde afirmação de documento — confirme.** Custa p
   chave anônima, um POST sem credencial esperando `401`).
 - Branch que "não pode ser tocada": `git branch -a` — ela pode nem existir mais.
 - Contagem de suítes ou de verificações: rode `harness:core` e leia o resumo.
+- **Privilégio de tabela: `has_table_privilege(papel, tabela, privilégio)`.**
+  Nunca por comentário, changelog ou cabeçalho de migration.
+
+O último item ganhou linha própria porque custou caro. O comentário do schema
+`public` afirmou por semanas que "tabelas novas nascem SEM acesso"; o banco
+concedia CRUD completo a `anon` em toda tabela nova (§2.4). A frase era plausível,
+estava versionada, e era falsa — e é justamente esse tipo de frase que faz a
+próxima pessoa não conferir. Uma linha resolve:
+
+```sql
+SELECT has_table_privilege('anon', 'public.x', 'SELECT');
+-- e, para o mapa inteiro, aclexplode(relacl) por relação
+```
+
+Atenção: `information_schema.role_table_grants` **não serve** para auditar isto.
+Ela só mostra concessões em que o papel corrente é concedente ou beneficiário,
+então por um canal administrativo ela devolve vazio para tudo — e "vazio" lido
+como "sem privilégio" é a conclusão errada mais fácil de tirar aqui.
 
 E, ao relatar, separe **o que você executou** do **que é inferência**. A §14 de
 `docs/ESTADO_ATUAL_PROJETO.md` é o formato esperado.
