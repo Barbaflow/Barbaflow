@@ -10,7 +10,7 @@ import { logTechnicalError } from "@/lib/error-reporting";
  */
 export type PlanStatus =
   | "loading" // sessão/tenant ou a própria consulta ainda resolvendo
-  | "no-tenant" // resolução terminou sem barbearia: não há plano a mostrar
+  | "no-tenant" // sem barbearia resolvida — ou sem sessão: não há plano a mostrar
   | "ready" // plano lido do banco
   | "not-found" // barbearia sem plano gravado — free é o padrão do produto
   | "error"; // consulta falhou: os limites abaixo NÃO são confiáveis
@@ -110,6 +110,26 @@ export function usePlan(barbershopIdOverride?: string | null): PlanInfo {
       let used = 0;
 
       if (!contextPlanId) {
+        // Este SELECT existe para o super_admin operando OUTRA barbearia — um
+        // cenário sempre autenticado. Sem a checagem abaixo ele também era
+        // alcançável por VISITANTE ANÔNIMO: `/upgrade` não declara guarda (§8
+        // do CLAUDE.md), e quem chega por um subdomínio de tenant monta este
+        // hook com o tenant já resolvido pela vitrine — que não expõe
+        // `plan_id`, justamente o que faz `contextPlanId` ser nulo aqui.
+        //
+        // Depois do REVOKE da fase 2 a consulta voltaria 42501 e a tela diria
+        // "não foi possível carregar seu plano" para quem nem sessão tem. Sem
+        // sessão não há plano a mostrar: é o mesmo desfecho de "sem tenant".
+        //
+        // `getSession` (e não `getUser`) porque basta saber se HÁ sessão: ela
+        // lê o storage local, sem ida à rede em todo mount autenticado.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (cancelled) return;
+        if (!session) {
+          setState({ ...FREE_DEFAULT, status: "no-tenant" });
+          return;
+        }
+
         const { data: shop, error } = await supabase
           .from("barbershops")
           .select("plan_id, appointments_this_month")
