@@ -190,6 +190,161 @@ export function validateScheduleBlock(row: MockRow): string | null {
  * Valida a grade semanal e a disponibilidade: mesmo vínculo
  * profissional ↔ barbearia exigido pelo banco real.
  */
+/* ---------------- horário de funcionamento ---------------- */
+
+/** Nome do dia para as mensagens — espelha `weekday_pt` do SQL. */
+const DIA_PT = [
+  "domingo",
+  "segunda-feira",
+  "terça-feira",
+  "quarta-feira",
+  "quinta-feira",
+  "sexta-feira",
+  "sábado",
+];
+
+function hhmm(valor: unknown): string {
+  return String(valor ?? "").slice(0, 5);
+}
+
+/** Envelope da barbearia naquele dia, ou `undefined` quando não há. */
+function envelopeDe(barbershopId: string, dayOfWeek: unknown): MockRow | undefined {
+  return getTableRows("business_hours").find(
+    (row) => row.barbershop_id === barbershopId && Number(row.day_of_week) === Number(dayOfWeek),
+  );
+}
+
+/**
+ * Coerência da própria linha de expediente — espelha o CHECK
+ * `business_hours_coerent` e o UNIQUE por dia (migration 20260805170000).
+ */
+export function validateBusinessHours(row: MockRow, existing?: MockRow): string | null {
+  const barbershopId = asString(row.barbershop_id) ?? asString(existing?.barbershop_id);
+  const dia = row.day_of_week ?? existing?.day_of_week;
+
+  if (!barbershopId) return "Funcionamento: barbearia é obrigatória.";
+  if (!barbershopExists(barbershopId)) return `Funcionamento: barbearia "${barbershopId}" não existe.`;
+
+  const diaNum = Number(dia);
+  if (!Number.isInteger(diaNum) || diaNum < 0 || diaNum > 6) {
+    return "Funcionamento: dia da semana precisa estar entre 0 (domingo) e 6 (sábado).";
+  }
+
+  const fechado = Boolean(row.is_closed ?? existing?.is_closed ?? false);
+  const abre = asString(row.open_time ?? existing?.open_time);
+  const fecha = asString(row.close_time ?? existing?.close_time);
+
+  if (fechado) {
+    if (abre || fecha) return "Funcionamento: dia fechado não tem horário de abertura nem de fechamento.";
+  } else {
+    if (!abre || !fecha) return "Funcionamento: informe abertura e fechamento, ou marque o dia como fechado.";
+    // Sem virada de dia — decisão explícita da migration.
+    if (timeToMinutes(abre) >= timeToMinutes(fecha)) {
+      return "Funcionamento: o horário de abertura precisa ser anterior ao de fechamento.";
+    }
+  }
+
+  /* ---- um envelope por dia ---- */
+  const duplicado = getTableRows("business_hours").some(
+    (item) =>
+      item.id !== (existing?.id ?? row.id) &&
+      item.barbershop_id === barbershopId &&
+      Number(item.day_of_week) === diaNum,
+  );
+  if (duplicado) return `Funcionamento: já existe expediente cadastrado para ${DIA_PT[diaNum]}.`;
+
+  /* ---- não pode deixar turno ATIVO de fora ---- */
+  // Espelha o trigger `enforce_business_hours_fit_shifts`. Só turnos ativos
+  // contam: desativá-los é justamente a saída do admin, e recontá-los faria a
+  // saída não funcionar.
+  const conflitos = getTableRows("weekly_schedule").filter((turno) => {
+    if (turno.barbershop_id !== barbershopId) return false;
+    if (Number(turno.day_of_week) !== diaNum) return false;
+    if (turno.is_active === false) return false;
+    if (fechado) return true;
+    // `abre`/`fecha` já foram exigidos acima quando o dia não é fechado; o
+    // `String()` é só para o compilador, que não estreita fora do ramo.
+    return (
+      timeToMinutes(String(turno.start_time)) < timeToMinutes(String(abre)) ||
+      timeToMinutes(String(turno.end_time)) > timeToMinutes(String(fecha))
+    );
+  });
+
+  if (conflitos.length > 0) {
+    const lista = conflitos
+      .map((t) => `${nomeDoBarbeiro(t.barber_id)} (${hhmm(t.start_time)}–${hhmm(t.end_time)})`)
+      .join(", ");
+    return fechado
+      ? `Funcionamento: não dá para marcar ${DIA_PT[diaNum]} como fechado — ${conflitos.length} turno(s) ativo(s) neste dia: ${lista}. Desative-os antes.`
+      : `Funcionamento: este expediente (${hhmm(abre)}–${hhmm(fecha)}) deixaria ${conflitos.length} turno(s) de fora ${DIA_PT[diaNum]}: ${lista}. Amplie o horário ou desative os turnos em conflito antes de salvar.`;
+  }
+
+  return null;
+}
+
+/** Nome legível do profissional, com a mesma degradação do SQL. */
+function nomeDoBarbeiro(barberId: unknown): string {
+  const perfil = getTableRows("profiles").find((p) => p.user_id === barberId);
+  const nome = String(perfil?.full_name ?? "").trim();
+  return nome || "profissional";
+}
+
+/**
+ * Turno pessoal precisa caber no expediente — espelha
+ * `enforce_shift_within_business_hours`.
+ *
+ * Turno INATIVO não é validado, e isso é deliberado: é o que permite ao admin
+ * desativar os conflitos quando aperta o expediente. Validá-lo prenderia a
+ * pessoa entre as duas regras.
+ */
+function validateShiftWithinBusinessHours(row: MockRow, existing?: MockRow): string | null {
+  const ativo = Boolean(row.is_active ?? existing?.is_active ?? true);
+  if (!ativo) return null;
+
+  const barbershopId = asString(row.barbershop_id) ?? asString(existing?.barbershop_id);
+  if (!barbershopId) return null;
+
+  const dia = row.day_of_week ?? existing?.day_of_week;
+  const envelope = envelopeDe(barbershopId, dia);
+  // Ausência de envelope = sem restrição.
+  if (!envelope) return null;
+
+  const diaNum = Number(dia);
+
+  if (envelope.is_closed) {
+    return `Grade semanal: a barbearia não abre ${DIA_PT[diaNum]}. Ajuste o expediente antes de cadastrar turno neste dia.`;
+  }
+
+  const inicio = asString(row.start_time ?? existing?.start_time);
+  const fim = asString(row.end_time ?? existing?.end_time);
+  if (!inicio || !fim) return null;
+
+  if (
+    timeToMinutes(inicio) < timeToMinutes(String(envelope.open_time)) ||
+    timeToMinutes(fim) > timeToMinutes(String(envelope.close_time))
+  ) {
+    return (
+      `Grade semanal: a barbearia funciona das ${hhmm(envelope.open_time)} às ${hhmm(envelope.close_time)} ` +
+      `${DIA_PT[diaNum]}. O turno ${hhmm(inicio)}–${hhmm(fim)} fica fora do expediente — ajuste o horário ou ` +
+      `peça ao administrador para ampliar o funcionamento.`
+    );
+  }
+
+  return null;
+}
+
+/**
+ * Grade semanal: o dono da linha precisa atender na barbearia E o turno precisa
+ * caber no expediente. As duas coisas em ordem, porque a primeira falha é a
+ * mais informativa.
+ */
+export function validateWeeklySchedule(row: MockRow, existing?: MockRow): string | null {
+  return (
+    validateBarberOwnedRow(row, "Grade semanal") ??
+    validateShiftWithinBusinessHours(row, existing)
+  );
+}
+
 export function validateBarberOwnedRow(row: MockRow, label: string): string | null {
   const barbershopId = asString(row.barbershop_id);
   const barberId = asString(row.barber_id);
@@ -379,6 +534,22 @@ function authorizeService(_operation: MockOperation, row: MockRow, existing?: Mo
 }
 
 /**
+ * Expediente da barbearia: escrita é da administração do próprio tenant.
+ * Espelha a policy "Admins manage business hours of their barbershop"
+ * (migration 20260805170000), incluindo o `super_admin` — sem ele, ninguém
+ * conserta o expediente de uma barbearia com problema.
+ */
+function authorizeBusinessHours(row: MockRow, existing?: MockRow): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+
+  const barbershopId = tenantOf(row, existing);
+  if (actorIsSuperAdmin() || actorIsAdminOf(barbershopId)) return null;
+
+  return "Apenas o administrador desta barbearia pode definir o horário de funcionamento.";
+}
+
+/**
  * Ponto único de autorização. Devolve a mensagem de recusa, ou `null`
  * quando a operação é permitida.
  */
@@ -411,6 +582,8 @@ export function authorizeWrite(
       return authorizeTicketItem(row, existing);
     case "contact_submissions":
       return authorizeContactSubmission(operation);
+    case "business_hours":
+      return authorizeBusinessHours(row, existing);
     default:
       return null;
   }

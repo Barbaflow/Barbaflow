@@ -521,10 +521,19 @@ function testeMigration() {
 
   group("migration: nenhuma outra versiona esta função");
 
+  // Olha o código EXECUTÁVEL, não o arquivo cru: outra migration pode citar
+  // esta RPC em comentário — ao explicar o padrão que seguiu, por exemplo — sem
+  // redefini-la. A primeira versão deste guard não distinguia os dois casos e
+  // acusou `20260805170000_business_hours.sql`, que só menciona o nome.
   const dir = path.join(ROOT, "supabase", "migrations");
   const outras = readdirSync(dir).filter((arquivo) => {
     if (!arquivo.endsWith(".sql") || arquivo === path.basename(MIGRATION)) return false;
-    return /get_public_barber_ratings/.test(readFileSync(path.join(dir, arquivo), "utf8"));
+    const executavel = readFileSync(path.join(dir, arquivo), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((l) => !l.trimStart().startsWith("--"))
+      .join("\n");
+    return /FUNCTION\s+public\.get_public_barber_ratings/i.test(executavel);
   });
   check("função definida em um único arquivo", outras.length === 0, outras.join(", "));
 }
