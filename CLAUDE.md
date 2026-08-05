@@ -204,8 +204,30 @@ responder 200 enquanto só o cliente quebra, sem nada nos logs.
 
 - **Trabalho novo sempre em branch a partir da `main` atualizada.** Rode
   `git fetch origin` antes: a `main` local costuma estar atrás.
-- **PR para tudo**, inclusive documentação. O merge é **sempre do usuário** —
-  nunca mescle você mesmo.
+- **PR para tudo**, com uma única exceção (abaixo). O merge é **sempre do
+  usuário** — nunca mescle você mesmo.
+
+### 5.1 A única exceção: documentação pura vai direto para a `main`
+
+Mudança que altera **apenas arquivos `.md` na raiz ou em `docs/`** pode ser
+commitada direto na `main`, sem PR — **desde que o portão da §1 tenha sido
+rodado antes**, markdown ou não. É barato, e é o que pega o caso em que "só um
+comentário" mexeu num `.ts` sem você perceber; se o portão não rodou, a exceção
+não vale e a mudança volta para o fluxo de PR.
+
+O que **não** é documentação para efeito desta regra, e portanto segue exigindo
+PR:
+
+- comentário dentro de arquivo de código (`.ts`, `.tsx`, `.mjs`);
+- comentário ou cabeçalho dentro de arquivo de migration (`.sql`) — inclusive
+  quando o diff é *só* comentário: o arquivo é executável e o risco é o de
+  sempre;
+- qualquer configuração (`package.json`, `tsconfig`, `.env*`, scripts);
+- `.md` que venha acompanhado de qualquer outro arquivo no mesmo commit. Aí o
+  commit inteiro é código, não documentação.
+
+Na dúvida sobre se algo se enquadra, é PR. A exceção existe para reduzir
+cerimônia em texto, não para criar uma porta lateral.
 - `gh` está autenticado nesta máquina. Use `--body-file` para o corpo do PR:
   passar markdown longo por `--body` inline quebra no PowerShell.
 - Mensagens de commit **em português**, no padrão do histórico:
