@@ -925,6 +925,51 @@ async function testeDisponibilidade() {
     peloAdmin.error?.message ?? "",
   );
 
+  group("availability: as DUAS formas de recusa de um DELETE");
+
+  // A divergência que o teste no banco real revelou, e que o componente passou
+  // a tratar:
+  //
+  //   • MOCK — `authorizeWrite` recusa devolvendo ERRO. É mais estrito que o
+  //     PostgREST, e de propósito: a mensagem é o que torna a regra legível
+  //     num harness;
+  //   • BANCO — num DELETE a RLS não levanta 42501. Ela FILTRA as linhas que o
+  //     `USING` não deixa passar, e o comando sucede afetando ZERO. Medido em
+  //     06/08/2026 com a 20260806150000 aplicada.
+  //
+  // Uma tela que só olha `error` acerta no mock e erra em produção — foi
+  // exatamente o falso sucesso corrigido aqui. Por isso as duas formas
+  // precisam de cobertura: a de erro acima, e a de lista vazia abaixo.
+  resetMockDatabase();
+  await login("ana@barbearia.teste");
+
+  const inexistente = await (mockSupabaseClient as any)
+    .from("availability")
+    .delete()
+    .eq("id", "00000000-0000-4000-8000-000000000000")
+    .select("id");
+  check(
+    "apagar id que não casa devolve sucesso com lista VAZIA",
+    inexistente.error === null && Array.isArray(inexistente.data) && inexistente.data.length === 0,
+    JSON.stringify({ error: inexistente.error?.message ?? null, n: inexistente.data?.length }),
+  );
+  check(
+    "é a MESMA forma que a RLS do banco produz ao recusar",
+    inexistente.error === null,
+    "se um dia isto virar erro, a tela deixa de exercitar o ramo de produção",
+  );
+
+  const minhaComSelect = await (mockSupabaseClient as any)
+    .from("availability")
+    .delete()
+    .eq("id", primeiraDe(MOCK_USER_IDS.barberAna)?.id)
+    .select("id");
+  check(
+    "e o sucesso de verdade devolve a linha apagada",
+    minhaComSelect.error === null && (minhaComSelect.data ?? []).length === 1,
+    JSON.stringify({ n: minhaComSelect.data?.length }),
+  );
+
   group("availability: criar e editar seguem a mesma regra");
 
   resetMockDatabase();
@@ -1042,6 +1087,35 @@ function testeMigracaoDisponibilidade() {
   check(
     "a falha deixou de ser engolida — erro vira aviso e log redigido",
     /logTechnicalError\("ScheduleManager"/.test(codigo) && /toast\.error\(/.test(codigo),
+  );
+
+  group("ScheduleManager: o DELETE detecta recusa sem erro");
+
+  // Sem `.select()`, um DELETE recusado pela RLS é indistinguível de um bem
+  // sucedido: `error` nulo, nenhuma linha. Pedir as linhas de volta é o que
+  // torna a recusa detectável — e é a única forma, porque o banco não avisa.
+  check(
+    "pede as linhas de volta com .select()",
+    /\.delete\(\)[\s\S]{0,120}?\.select\("id"\)/.test(codigo),
+    "sem isto, `error` nulo + 0 linhas vira 'Removido!'",
+  );
+  check(
+    "trata lista vazia como recusa, não como sucesso",
+    /!data \|\| data\.length === 0/.test(codigo),
+  );
+  check(
+    "com mensagem que diz o que a pessoa pode fazer",
+    /Você só pode remover os seus próprios horários/.test(tela),
+  );
+  check(
+    "e ressincroniza a tela também na recusa",
+    /data\.length === 0[\s\S]{0,400}?fetchData\(\)/.test(codigo),
+    "a linha pode ter sumido por outro caminho; o refetch resolve os dois casos",
+  );
+  check(
+    "os dois ramos de recusa são distintos",
+    (codigo.match(/toast\.error\(/g) ?? []).length >= 2,
+    String((codigo.match(/toast\.error\(/g) ?? []).length),
   );
 
   group("paridade: o mock espelha as policies de availability");

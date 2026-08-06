@@ -211,15 +211,44 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   };
 
   const apagarSlot = async (slot: AvailabilitySlot) => {
-    const { error } = await supabase.from("availability").delete().eq("id", slot.id);
+    // `.select("id")` não é enfeite: é o que torna a recusa DETECTÁVEL.
+    //
+    // Num DELETE, a RLS do Postgres não levanta 42501 — ela FILTRA as linhas
+    // que o `USING` não deixa passar, e o comando sucede afetando zero. Sem
+    // pedir as linhas de volta, `error` vem nulo e não há como distinguir
+    // "apagou" de "não tinha permissão": a tela dizia "Removido!" e a faixa
+    // continuava lá depois do refetch. Falso sucesso, não erro silencioso.
+    //
+    // Medido no banco em 06/08/2026, com a 20260806150000 já aplicada: um
+    // barbeiro apagando faixa alheia devolve 0 linhas e NENHUMA exceção.
+    //
+    // As duas formas de recusa precisam ser tratadas, e são diferentes:
+    //   • `error` preenchido  — falha de rede, constraint, ou o mock, que
+    //     modela autorização como erro;
+    //   • zero linhas         — a RLS do banco real, que modela como sucesso
+    //     vazio.
+    const { data, error } = await supabase
+      .from("availability")
+      .delete()
+      .eq("id", slot.id)
+      .select("id");
+
     if (error) {
-      // Antes o erro era engolido: `if (!error)` só tratava o sucesso, e a
-      // recusa da RLS ficava invisível. Era metade do defeito do barbeiro que
-      // não conseguia apagar a própria janela — a outra metade era a policy.
       logTechnicalError("ScheduleManager", "remover disponibilidade", error);
       toast.error("Não foi possível remover este horário.");
       return;
     }
+
+    if (!data || data.length === 0) {
+      // Duas causas possíveis e indistinguíveis pela resposta: a RLS recusou,
+      // ou a linha já não existia (outra pessoa apagou antes). A mensagem cobre
+      // a primeira, que é a que a pessoa pode corrigir; o `fetchData()` resolve
+      // a tela nos dois casos, porque ressincroniza com o que o banco tem.
+      toast.error("Você só pode remover os seus próprios horários.");
+      fetchData();
+      return;
+    }
+
     toast.success("Removido!");
     fetchData();
   };
