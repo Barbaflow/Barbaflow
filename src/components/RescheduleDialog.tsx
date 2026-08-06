@@ -138,7 +138,10 @@ export function RescheduleDialog({
         .from("user_roles")
         .select("user_id, role")
         .eq("barbershop_id", appointment.barbershop_id)
-        .in("role", ["barbeiro", "admin_barbearia"]);
+        // Só `barbeiro` atende (migration 20260805200000). Um agendamento
+        // ANTIGO cujo profissional era o admin continua existindo e sendo
+        // exibido — o que muda é para quem ele pode ser remarcado.
+        .eq("role", "barbeiro");
       const ids = [...new Set((roles ?? []).map((r) => r.user_id))];
       if (ids.length === 0) {
         setBarbers([]);

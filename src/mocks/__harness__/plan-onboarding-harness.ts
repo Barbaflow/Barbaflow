@@ -219,17 +219,30 @@ async function testOnboarding(): Promise<void> {
   );
 
   /* ---- limite de profissionais do plano free na barbearia recém-criada ---- */
-  // A barbearia nasce free (1 profissional) e já tem o admin → adicionar um
-  // segundo profissional é bloqueado na camada de escrita.
-  const extraBarber = await mockSupabaseClient.from("user_roles").insert({
+  // A barbearia nasce free (1 profissional). Desde 20260805200000 o
+  // `admin_barbearia` NÃO consome vaga — ele administra, não atende —, então o
+  // primeiro barbeiro de verdade cabe. Antes não cabia: o próprio dono ocupava
+  // a única vaga do plano e a barbearia nascia sem poder contratar ninguém.
+  const primeiroBarbeiro = await mockSupabaseClient.from("user_roles").insert({
     user_id: MOCK_USER_IDS.clienteCarla,
     barbershop_id: shopId,
     role: "barbeiro",
   });
   check(
-    "free: 2º profissional bloqueado na barbearia recém-criada",
-    extraBarber.error !== null,
-    extraBarber.error?.message ?? "sem erro",
+    "free: 1º barbeiro cabe — o admin não ocupa vaga de profissional",
+    primeiroBarbeiro.error === null,
+    primeiroBarbeiro.error?.message ?? "",
+  );
+
+  const segundoBarbeiro = await mockSupabaseClient.from("user_roles").insert({
+    user_id: MOCK_USER_IDS.clienteCaio,
+    barbershop_id: shopId,
+    role: "barbeiro",
+  });
+  check(
+    "free: 2º barbeiro bloqueado — o limite continua valendo, só conta quem atende",
+    segundoBarbeiro.error !== null,
+    segundoBarbeiro.error?.message ?? "sem erro",
   );
 }
 

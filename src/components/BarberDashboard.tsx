@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { friendlyTicketError } from "@/lib/comandas";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
+import { useTenantScope } from "@/hooks/use-tenant-scope";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -601,7 +602,11 @@ function OverviewTab({ isAdmin, onSelectTab }: { isAdmin: boolean; onSelectTab: 
           .from("user_roles")
           .select("user_id")
           .eq("barbershop_id", barbershopId)
-          .in("role", ["barbeiro", "admin_barbearia"]);
+          // Só `barbeiro` atende (migration 20260805200000). O seletor de
+          // profissional oferece quem PODE receber atendimento novo; quem já
+          // atendeu continua nos relatórios, que agrupam por `barber_id` e não
+          // consultam papel.
+          .eq("role", "barbeiro");
         if (!roles || roles.length === 0) return;
         const ids = [...new Set(roles.map((r) => r.user_id))];
         const namesMap = await fetchBarberDisplayNames(ids);
@@ -1876,6 +1881,12 @@ function TeamTab() {
  */
 function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
   const { resolvedBarbershopId, tenantStatus } = useBarbershop();
+  // "Minha agenda" depende de SER BARBEIRO, não de "não ser admin". A negação
+  // pegaria também o super_admin operando outro tenant, que não tem grade
+  // nenhuma ali — ele veria um editor pessoal vazio de uma barbearia alheia.
+  // E, desde 20260805200000, o admin não atende: cadastrar grade não teria
+  // efeito, porque ele não aparece como profissional para escolher.
+  const { isBarber } = useTenantScope();
 
   return (
     <div className="space-y-8">
@@ -1904,18 +1915,29 @@ function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
             <BusinessHoursEditor barbershopId={resolvedBarbershopId} canEdit={isAdmin} />
           </section>
 
-          <section className="space-y-3">
-            <div>
-              <h3 className="font-display text-lg font-semibold text-foreground">Minha agenda</h3>
-              <p className="text-sm text-muted-foreground">
-                Seus turnos da semana e os dias em que você não atende. Vale só para você.
-              </p>
-            </div>
-            <div className="space-y-6">
-              <WeeklyScheduleEditor barbershopId={resolvedBarbershopId} />
-              <ScheduleBlocks barbershopId={resolvedBarbershopId} />
-            </div>
-          </section>
+          {isBarber ? (
+            <section className="space-y-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-foreground">Minha agenda</h3>
+                <p className="text-sm text-muted-foreground">
+                  Seus turnos da semana e os dias em que você não atende. Vale só para você.
+                </p>
+              </div>
+              <div className="space-y-6">
+                <WeeklyScheduleEditor barbershopId={resolvedBarbershopId} />
+                <ScheduleBlocks barbershopId={resolvedBarbershopId} />
+              </div>
+            </section>
+          ) : (
+            // Dizer POR QUE a seção não está aqui é melhor do que sumir em
+            // silêncio: quem administra e não atende precisa entender que a
+            // ausência é intencional, não tela quebrada.
+            <p className="text-sm text-muted-foreground">
+              A agenda pessoal aparece para quem atende clientes. Quem administra define o
+              funcionamento da barbearia acima; os turnos de cada profissional são configurados
+              por ele mesmo.
+            </p>
+          )}
         </div>
       ) : (
         <SemBarbearia recurso="os horários" />

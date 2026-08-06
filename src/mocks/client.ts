@@ -124,9 +124,9 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
    * `owner_id` nunca sai da função.
    *
    * Diferenças em relação ao `get_public_barbers` acima são as mesmas do SQL:
-   * inclui `admin_barbearia` (o dono que também atende), deduplica quem tem os
-   * dois papéis, exige barbearia aprovada e não-sentinela, recusa id nulo e
-   * devolve o proprietário primeiro.
+   * exige barbearia aprovada e não-sentinela, recusa id nulo, deduplica linha
+   * de papel repetida e devolve o proprietário primeiro. Desde 20260805200000
+   * as duas concordam em QUEM entra: só `barbeiro`.
    */
   get_public_barbers_v2: (args) => {
     const barbershopId = args._barbershop_id;
@@ -138,7 +138,9 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
     const vistos = new Map<string, boolean>();
     for (const row of getTableRows("user_roles")) {
       if (row.barbershop_id !== barbershopId) continue;
-      if (row.role !== "barbeiro" && row.role !== "admin_barbearia") continue;
+      // Só `barbeiro` atende (migration 20260805200000). `is_owner` continua
+      // existindo porque um barbeiro pode ser o dono sem ser o administrador.
+      if (row.role !== "barbeiro") continue;
       const userId = String(row.user_id);
       if (!vistos.has(userId)) vistos.set(userId, userId === shop.owner_id);
     }
