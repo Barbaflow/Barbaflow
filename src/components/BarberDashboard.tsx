@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { friendlyTicketError } from "@/lib/comandas";
 import { useAuth } from "@/hooks/use-auth";
 import { useBarbershop } from "@/hooks/use-barbershop";
-import { useTenantScope } from "@/hooks/use-tenant-scope";
+import { useTenantScope, tenantAccessMessage } from "@/hooks/use-tenant-scope";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,7 @@ import { BarbershopSettings } from "@/components/BarbershopSettings";
 import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
+import { ScheduleManager } from "@/components/ScheduleManager";
 import { BusinessHoursEditor } from "@/components/BusinessHoursEditor";
 import { ServicesManager } from "@/components/ServicesManager";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
@@ -156,21 +157,55 @@ function formatDateFull(dateStr: string) {
 
 type AdminTab = "overview" | "services" | "products" | "team" | "clients" | "comandas" | "schedule" | "settings";
 
-const TABS: { id: AdminTab; label: string; icon: typeof LayoutDashboard; href?: string }[] = [
-  { id: "overview", label: "Visão Geral", icon: LayoutDashboard },
-  { id: "services", label: "Serviços", icon: Wrench },
-  { id: "products", label: "Produtos", icon: Package },
-  { id: "team", label: "Equipe", icon: UserCog },
-  { id: "clients", label: "Clientes", icon: Users, href: "/clientes" },
-  { id: "comandas", label: "Comandas", icon: ReceiptText, href: "/comandas" },
-  { id: "schedule", label: "Horários", icon: CalendarCog },
-  { id: "settings", label: "Configurações", icon: Settings },
+/**
+ * Quem enxerga cada aba.
+ *
+ *   admin       `admin_barbearia` do próprio tenant — vê tudo, como sempre viu;
+ *   barbeiro    quem atende. Até aqui não via aba NENHUMA: a nav inteira estava
+ *               sob `isAdmin`, e por isso a agenda pessoal precisou virar uma
+ *               página separada (`/agenda`). Agora vê as três que são dele;
+ *   superTenant super_admin operando OUTRA barbearia por `?barbershop=<uuid>`.
+ *               Só "Horários", e a restrição é de CORREÇÃO: as demais abas leem
+ *               `useBarbershop()`, que resolve a barbearia do usuário e não
+ *               aceita override — mostrariam dado do tenant errado.
+ *
+ * A marcação vive AQUI, uma vez, e não espalhada em condicionais pela nav. Aba
+ * nova sem `para` não compila, que é o ponto: obriga a decidir quem vê.
+ */
+type TabAudience = "admin" | "barbeiro" | "superTenant";
+
+const TABS: {
+  id: AdminTab;
+  label: string;
+  icon: typeof LayoutDashboard;
+  href?: string;
+  para: TabAudience[];
+}[] = [
+  { id: "overview", label: "Visão Geral", icon: LayoutDashboard, para: ["admin", "barbeiro"] },
+  { id: "services", label: "Serviços", icon: Wrench, para: ["admin"] },
+  { id: "products", label: "Produtos", icon: Package, para: ["admin"] },
+  { id: "team", label: "Equipe", icon: UserCog, para: ["admin"] },
+  { id: "clients", label: "Clientes", icon: Users, href: "/clientes", para: ["admin"] },
+  {
+    id: "comandas",
+    label: "Comandas",
+    icon: ReceiptText,
+    href: "/comandas",
+    para: ["admin", "barbeiro"],
+  },
+  { id: "schedule", label: "Horários", icon: CalendarCog, para: ["admin", "barbeiro", "superTenant"] },
+  { id: "settings", label: "Configurações", icon: Settings, para: ["admin"] },
 ];
 
 // ─── Main Component ──────────────────────────────────────
 
 interface BarberDashboardProps {
   isAdmin?: boolean;
+  /**
+   * Tenant pedido pela URL (`?barbershop=<uuid>`). Honrado apenas para
+   * super_admin — quem aplica a regra é `useTenantScope`, não este componente.
+   */
+  requestedBarbershopId?: string | null;
 }
 
 // ─── Drag-and-drop helpers (dnd-kit) ─────────────────────
@@ -295,11 +330,27 @@ function DateTitleDroppable({
   );
 }
 
-export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
+export function BarberDashboard({
+  isAdmin = false,
+  requestedBarbershopId = null,
+}: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   // Só o nome/logo. O id legado era lido aqui e nunca usado.
   const { barbershop } = useBarbershop();
+  const scope = useTenantScope({ requestedBarbershopId });
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+
+  // Quem é o leitor desta nav. Uma variável, um lugar — a marcação de quem vê o
+  // quê está em TABS.
+  const audiencia: TabAudience =
+    scope.isSuper && requestedBarbershopId ? "superTenant" : isAdmin ? "admin" : "barbeiro";
+  const abasVisiveis = TABS.filter((tab) => tab.para.includes(audiencia));
+
+  // O super_admin operando tenant alheio cai direto em "Horários": é a única
+  // aba dele, e abrir em "Visão Geral" mostraria a barbearia errada.
+  useEffect(() => {
+    if (audiencia === "superTenant") setActiveTab("schedule");
+  }, [audiencia]);
 
   const name = barbershop?.name || "BarbaFlow";
 
@@ -430,11 +481,12 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
         </div>
       </header>
 
-      {/* Tab navigation — only for admins */}
-      {isAdmin && (
+      {/* Nav de abas — filtrada por papel, nunca mais "só admin". Uma aba só
+          não é navegação: aí o cabeçalho da seção já diz onde a pessoa está. */}
+      {abasVisiveis.length > 1 && (
         <nav className="border-b border-border bg-card/50 overflow-x-auto">
           <div className="max-w-6xl 2xl:max-w-[1440px] mx-auto flex px-4 md:px-8">
-            {TABS.map((tab) => {
+            {abasVisiveis.map((tab) => {
               const Icon = tab.icon;
               const active = activeTab === tab.id;
               const className = `flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -470,7 +522,9 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
         {activeTab === "services" && <ServicesTab isAdmin={isAdmin} />}
         {activeTab === "products" && <ProductsTab />}
         {activeTab === "team" && <TeamTab />}
-        {activeTab === "schedule" && <ScheduleTab isAdmin={isAdmin} />}
+        {activeTab === "schedule" && (
+          <ScheduleTab isAdmin={isAdmin} requestedBarbershopId={requestedBarbershopId} />
+        )}
         {activeTab === "settings" && <SettingsTab />}
       </main>
     </div>
@@ -1903,14 +1957,27 @@ function TeamTab() {
  * leitura, porque é o limite contra o qual a grade dele é validada — sem ver
  * esse limite, a mensagem de recusa do banco vira mistério.
  */
-function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
-  const { resolvedBarbershopId, tenantStatus } = useBarbershop();
+function ScheduleTab({
+  isAdmin,
+  requestedBarbershopId = null,
+}: {
+  isAdmin: boolean;
+  requestedBarbershopId?: string | null;
+}) {
+  const { tenantStatus } = useBarbershop();
   // "Minha agenda" depende de SER BARBEIRO, não de "não ser admin". A negação
   // pegaria também o super_admin operando outro tenant, que não tem grade
   // nenhuma ali — ele veria um editor pessoal vazio de uma barbearia alheia.
   // E, desde 20260805200000, o admin não atende: cadastrar grade não teria
   // efeito, porque ele não aparece como profissional para escolher.
-  const { isBarber } = useTenantScope();
+  //
+  // O tenant vem de `useTenantScope`, não de `useBarbershop().resolvedBarbershopId`:
+  // é o único que honra `?barbershop=<uuid>` para super_admin, e é o que a §8 do
+  // CLAUDE.md manda usar para escopo. Era assim que `/agenda` já fazia.
+  const scope = useTenantScope({ requestedBarbershopId });
+  const { isBarber } = scope;
+  const resolvedBarbershopId = scope.access === "granted" ? scope.tenantId : null;
+  const resolvendo = tenantStatus === "loading" || scope.access === "checking" || scope.isSuper === null;
 
   return (
     <div className="space-y-8">
@@ -1921,7 +1988,7 @@ function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
         </p>
       </div>
 
-      {tenantStatus === "loading" ? (
+      {resolvendo ? (
         <Skeleton className="h-60 rounded-xl" />
       ) : resolvedBarbershopId ? (
         <div className="space-y-8">
@@ -1952,6 +2019,37 @@ function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
                 <ScheduleBlocks barbershopId={resolvedBarbershopId} />
               </div>
             </section>
+          ) : null}
+
+          {/* Terceira seção, vinda de `/agenda` (aba "Agenda Semanal").
+              É coisa DIFERENTE das duas acima, não duplicata: `WeeklyScheduleEditor`
+              escreve `weekly_schedule` — o molde recorrente —, e este escreve
+              `availability` por DATA, que é o que o botão "gerar horários"
+              daquele produz. Também é o único lugar do sistema que lista e
+              cancela `appointments` do profissional.
+
+              Vem junto com "Minha agenda" pelo mesmo `isBarber`: as duas são a
+              agenda de quem atende, e separá-las por condições diferentes só
+              criaria um estado em que metade aparece. */}
+          {isBarber ? (
+            <section className="space-y-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-foreground">
+                  Agenda semanal
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Os horários já gerados, dia a dia, e os atendimentos marcados.
+                </p>
+              </div>
+              {/* `overflow-x-auto` + `min-w-0`: a grade de 7 dias é mais larga
+                  que o container em telas estreitas, e sem isto ela empurrava a
+                  PÁGINA. Medido: a 640px o vazamento da página saía de 0 para
+                  2px só por causa desta seção. Contido aqui, a grade rola
+                  dentro dela mesma e o body nunca rola na horizontal. */}
+              <div className="min-w-0 overflow-x-auto">
+                <ScheduleManager barbershopId={resolvedBarbershopId} />
+              </div>
+            </section>
           ) : (
             // Dizer POR QUE a seção não está aqui é melhor do que sumir em
             // silêncio: quem administra e não atende precisa entender que a
@@ -1963,10 +2061,34 @@ function ScheduleTab({ isAdmin }: { isAdmin: boolean }) {
             </p>
           )}
         </div>
-      ) : (
+      ) : scope.access === "granted" ? (
         <SemBarbearia recurso="os horários" />
+      ) : (
+        // Acesso recusado não é "sem barbearia": dizer qual dos dois é evita
+        // que o super_admin sem `?barbershop=` leia "conclua a criação da sua
+        // barbearia", que seria mentira sobre o estado dele.
+        <SemAcessoAoTenant scope={scope} />
       )}
     </div>
+  );
+}
+
+/** Explica por que não há horários, em vez de mostrar seções vazias. */
+function SemAcessoAoTenant({ scope }: { scope: ReturnType<typeof useTenantScope> }) {
+  const { titulo, texto } = tenantAccessMessage(scope.access, scope.accessError, "os horários");
+  if (!titulo) return null;
+  const isErro = scope.access === "error";
+
+  return (
+    <Card className={isErro ? "border-destructive/40" : undefined}>
+      <CardContent className="p-6 text-center space-y-3">
+        <ShieldAlert
+          className={`w-10 h-10 mx-auto ${isErro ? "text-destructive" : "text-muted-foreground"}`}
+        />
+        <h2 className="font-display text-lg text-foreground">{titulo}</h2>
+        <p className="text-sm text-muted-foreground">{texto}</p>
+      </CardContent>
+    </Card>
   );
 }
 

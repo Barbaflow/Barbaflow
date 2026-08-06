@@ -28,8 +28,14 @@ export const Route = createFileRoute("/dashboard")({
       { name: "twitter:image", content: "https://barbaflow-delta.vercel.app/og-image.jpg" },
     ],
   }),
-  validateSearch: (search: Record<string, unknown>) => ({
+  // `barbershop` é honrado APENAS para super_admin — ver `useTenantScope`. É o
+  // mesmo parâmetro que `/agenda`, `/clientes`, `/comandas` e `/relatorios` já
+  // aceitam, e existe aqui porque a "Agenda Semanal" migrou para a aba
+  // Horários: sem ele o super_admin perderia o caminho de operar a agenda de um
+  // tenant com problema, que hoje passa por `/agenda?barbershop=<uuid>`.
+  validateSearch: (search: Record<string, unknown>): { checkout?: string; barbershop?: string } => ({
     checkout: (search.checkout as string) || undefined,
+    barbershop: typeof search.barbershop === "string" ? search.barbershop : undefined,
   }),
   component: DashboardPage,
 });
@@ -44,7 +50,7 @@ function DashboardPage() {
   // mas ler o campo legado convidava a exatamente esse erro.
   const { resolvedBarbershopId, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
-  const { checkout } = Route.useSearch();
+  const { checkout, barbershop: requestedBarbershopId } = Route.useSearch();
   const [role, setRole] = useState<DashboardRole | null>(null);
   const [roleStatus, setRoleStatus] = useState<"loading" | "ready" | "error">("loading");
   const [orphanShop, setOrphanShop] = useState<OrphanShop | null>(null);
@@ -256,7 +262,21 @@ function DashboardPage() {
   }
 
   if (role === "super_admin") {
-    return <AdminDashboard />;
+    // Sem `?barbershop=`, o super_admin vê o painel da PLATAFORMA. Com ele, vê o
+    // dashboard DAQUELE tenant — é o que `/agenda?barbershop=<uuid>` já fazia, e
+    // que precisa continuar existindo agora que a "Agenda Semanal" mora na aba
+    // Horários.
+    //
+    // A nav de abas nesse modo mostra só "Horários", e a restrição é de
+    // correção, não de cautela: as demais abas leem `useBarbershop()`, que
+    // resolve a barbearia DO USUÁRIO e não aceita override. Exibi-las aqui
+    // mostraria dado da barbearia errada — ou vazio — com o nome da certa no
+    // cabeçalho. Tornar as outras abas escopáveis é trabalho à parte.
+    return requestedBarbershopId ? (
+      <BarberDashboard isAdmin requestedBarbershopId={requestedBarbershopId} />
+    ) : (
+      <AdminDashboard />
+    );
   }
 
   if (role === "admin_barbearia") {
