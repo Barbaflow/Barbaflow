@@ -374,54 +374,8 @@ function testeTelas() {
     /A agenda pessoal aparece para quem atende/.test(lerArquivo("src/components/BarberDashboard.tsx")),
   );
 
-  group("BarberDashboard: uma porta para Comandas por papel, nunca zero");
-
-  // O link do cabeçalho e a aba iam para o MESMO destino, mas não eram
-  // intercambiáveis: a nav de abas renderiza sob `isAdmin`, e o link não tinha
-  // condição nenhuma. Para o admin era duplicata; para o barbeiro era a única
-  // porta incondicional para `/comandas`, que a rota autoriza a ele
-  // (`canManage={scope.isAdmin || scope.isBarber}`).
-  check(
-    "o link do cabeçalho é condicionado a `!isAdmin`",
-    /\{!isAdmin && \([\s\S]{0,120}?<Link to="\/comandas"/.test(dashboard),
-  );
-  check(
-    "e é o ÚNICO <Link to=\"/comandas\" no arquivo — a aba usa `tab.href`",
-    (dashboard.match(/<Link to="\/comandas"/g) ?? []).length === 1,
-    String((dashboard.match(/<Link to="\/comandas"/g) ?? []).length),
-  );
-
-  // As duas metades da garantia: quem perde uma porta tem de manter a outra.
-  // REESCRITAS na fase 1 da consolidação de /agenda: a entrada ganhou `para`, e
-  // a nav deixou de ser `{isAdmin && ...}` para ser filtrada por papel.
-  check(
-    "a aba Comandas continua no array de abas",
-    /id:\s*"comandas"/.test(dashboard) && /href:\s*"\/comandas"/.test(dashboard),
-  );
-  check(
-    "e a nav só renderiza quando há mais de uma aba a mostrar",
-    /\{abasVisiveis\.length > 1 && \(/.test(dashboard),
-  );
-
-  // Aqui a condição NEGATIVA é a correta, ao contrário da aba Horários acima.
-  // Aquela decide quem ATENDE; esta decide quem NÃO TEM A ABA, e a aba é
-  // `isAdmin` — o complemento exato é `!isAdmin`. Com `isBarber`, um papel
-  // futuro (recepção) ficaria sem aba E sem link.
-  check(
-    "a condição do link não foi trocada por `isBarber`",
-    !/\{\s*isBarber && \([\s\S]{0,120}?<Link to="\/comandas"/.test(dashboard),
-    "isBarber deixaria um papel futuro sem porta nenhuma",
-  );
-  check(
-    "o ícone segue em uso nos dois lugares, sem import órfão",
-    (dashboard.match(/ReceiptText/g) ?? []).length >= 2,
-    String((dashboard.match(/ReceiptText/g) ?? []).length),
-  );
-
-  group("BarberDashboard: a nav de abas é filtrada por papel, não por `isAdmin`");
-
   // A marcação de quem vê o quê tem de viver em UM lugar. Se voltar a se
-  // espalhar em condicionais pela nav, estas verificações caem.
+  // espalhar em condicionais pela nav, as verificações abaixo caem.
   const bruto = lerArquivo("src/components/BarberDashboard.tsx");
   // Fecha no `];` que está no INÍCIO da linha. Procurar `];` solto pararia no
   // `para: TabAudience[];` da anotação de tipo, e o bloco sairia vazio — as
@@ -433,6 +387,38 @@ function testeTelas() {
     const m = trecho.match(/para:\s*\[([^\]]*)\]/);
     return m ? m[1].split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean) : [];
   };
+
+  group("BarberDashboard: uma porta para Comandas por papel, nunca zero");
+
+  // A garantia NÃO mudou; mudou onde ela é cumprida. Na fase 2 o link do
+  // cabeçalho saiu, porque a nav filtrada por papel passou a listar "Comandas"
+  // para o barbeiro — antes disso ela renderizava só para admin, e por isso o
+  // link precisava existir. O que continua proibido é o estado de ZERO portas.
+  check(
+    "o cabeçalho não tem mais link para /comandas",
+    (dashboard.match(/<Link to="\/comandas"/g) ?? []).length === 0,
+    String((dashboard.match(/<Link to="\/comandas"/g) ?? []).length),
+  );
+  check(
+    "a aba Comandas continua no array de abas",
+    /id:\s*"comandas"/.test(dashboard) && /href:\s*"\/comandas"/.test(dashboard),
+  );
+  check(
+    "e o barbeiro está entre quem a enxerga — senão ficaria sem porta",
+    audienciaDe("comandas").includes("barbeiro"),
+    audienciaDe("comandas").join(","),
+  );
+  check(
+    "a nav só renderiza quando há mais de uma aba a mostrar",
+    /\{abasVisiveis\.length > 1 && \(/.test(dashboard),
+  );
+  check(
+    "o ícone segue em uso, sem import órfão",
+    (dashboard.match(/ReceiptText/g) ?? []).length >= 2,
+    String((dashboard.match(/ReceiptText/g) ?? []).length),
+  );
+
+  group("BarberDashboard: a nav de abas é filtrada por papel, não por `isAdmin`");
 
   const ids = [...blocoTabs.matchAll(/id:\s*"([a-z]+)"/g)].map((m) => m[1]);
   check("todas as abas declaram `para`", ids.every((id) => audienciaDe(id).length > 0), ids.join(","));
@@ -505,16 +491,53 @@ function testeTelas() {
 
   // FASE 1 é aditiva: nada some ainda. Se alguma destas cair, alguém adiantou
   // a fase 2 sem os passos dela.
-  group("fase 1 é aditiva — nada foi removido");
+  group("fase 2: /agenda vira redirect, e ninguém fica sem caminho");
 
-  check("/agenda continua existindo", existsSync(path.join(ROOT, "src", "routes", "agenda.tsx")));
+  // As três travas da fase 1 continuam aqui, apontadas para o estado NOVO. A
+  // proteção não afrouxou: o que elas impedem é o mesmo — que a consolidação
+  // deixe alguém sem porta ou quebre link já enviado.
+  const agenda = lerArquivo("src/routes/agenda.tsx");
+
+  // 1) A rota NÃO pode ser apagada. Notificação já entregue tem o link gravado
+  //    no dispositivo de quem recebeu, e apagar a rota daria 404 nele.
+  check("/agenda continua existindo como rota", existsSync(path.join(ROOT, "src", "routes", "agenda.tsx")));
   check(
-    "o link do cabeçalho para /agenda continua lá",
-    /<Link to="\/agenda"/.test(dashboard),
+    "mas agora é redirect: sem componente, com beforeLoad",
+    /beforeLoad/.test(agenda) && /redirect\(/.test(agenda) && !/component:/.test(agenda),
   );
+  check(
+    "que leva à aba Horários do dashboard",
+    /to:\s*"\/dashboard"/.test(agenda) && /tab:\s*"schedule"/.test(agenda),
+  );
+  check(
+    "preservando ?barbershop= — descartá-lo mandaria o super_admin para o tenant errado",
+    /barbershop:\s*search\.barbershop/.test(agenda),
+  );
+
+  // 2) O link do cabeçalho SAIU — é o que a fase 2 faz. O que não pode é sair
+  //    sem a nav cobrir o barbeiro, e é isso que a segunda metade verifica.
+  check(
+    "o cabeçalho não tem mais link para /agenda",
+    !/<Link to="\/agenda"/.test(dashboard),
+  );
+  check(
+    "e a aba Horários cobre o barbeiro, que era quem dependia do link",
+    audienciaDe("schedule").includes("barbeiro"),
+    audienciaDe("schedule").join(","),
+  );
+
+  // 3) `notification-links.ts` NÃO foi tocado — era o objetivo do redirect.
   check(
     "os deep-links de notificação continuam apontando para /agenda",
     /"\/agenda"/.test(lerArquivo("src/lib/notification-links.ts")),
+  );
+
+  // O `?tab=` vem da URL, então não pode ser acreditado: precisa ser conferido
+  // contra as abas que o papel enxerga, senão vira porta lateral para telas
+  // administrativas.
+  check(
+    "a aba pedida por URL é conferida contra as abas do papel",
+    /abasVisiveis\.some\(\(t\) => t\.id === activeTab\)/.test(dashboard),
   );
 }
 

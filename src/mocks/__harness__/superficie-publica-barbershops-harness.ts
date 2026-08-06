@@ -490,11 +490,18 @@ function testeFrontendInterno() {
   );
   check("AdminDashboard continua alterando status", /\.update\(\{\s*status/.test(admin));
 
+  // `/agenda` saiu desta lista porque deixou de ser tela: virou redirect para a
+  // aba "Horários" do dashboard e não lê tabela nenhuma.
+  //
+  // A leitura não migrou para o BarberDashboard — ele nunca faz
+  // `from("barbershops")`, resolve tudo por `useBarbershop`/`useTenantScope`.
+  // Quem lê é o hook, e ele já está no mapa de leitores autenticados abaixo.
+  // Por isso aqui é remoção, não substituição: pôr o dashboard nesta lista
+  // criaria uma asserção que nunca foi verdade.
   const internas: Array<[string, string]> = [
     ["BarbershopSettings", "src/components/BarbershopSettings.tsx"],
     ["/configuracoes", "src/routes/configuracoes.tsx"],
     ["/comandas", "src/routes/comandas.tsx"],
-    ["/agenda", "src/routes/agenda.tsx"],
   ];
 
   for (const [nome, arquivo] of internas) {
@@ -830,7 +837,9 @@ const LEITORES_CONHECIDOS: Record<string, string> = {
   "src/components/CloseTicketDialog.tsx": "comandas, tela de staff",
   "src/components/ManualAppointmentDialog.tsx": "agenda, tela de staff",
   "src/components/OnboardingWizard.tsx": "onboarding, exige sessão",
-  "src/routes/agenda.tsx": "rota com guarda de staff",
+  // `src/routes/agenda.tsx` saiu do mapa na fase 2: virou redirect e não lê
+  // mais `barbershops`. A leitura que era dela agora acontece no
+  // BarberDashboard, já listado acima.
   "src/routes/comandas.tsx": "rota com guarda de staff",
   "src/routes/configuracoes.tsx": "rota com guarda de admin",
   "src/routes/dashboard.tsx": "rota com guarda",

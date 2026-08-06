@@ -206,6 +206,11 @@ interface BarberDashboardProps {
    * super_admin — quem aplica a regra é `useTenantScope`, não este componente.
    */
   requestedBarbershopId?: string | null;
+  /**
+   * Aba pedida pela URL (`?tab=`). É uma SUGESTÃO: só vale se o papel enxergar
+   * a aba. Existe para o redirect de `/agenda` abrir em "Horários".
+   */
+  abaInicial?: string;
 }
 
 // ─── Drag-and-drop helpers (dnd-kit) ─────────────────────
@@ -333,12 +338,15 @@ function DateTitleDroppable({
 export function BarberDashboard({
   isAdmin = false,
   requestedBarbershopId = null,
+  abaInicial,
 }: BarberDashboardProps) {
   const { user, signOut } = useAuth();
   // Só o nome/logo. O id legado era lido aqui e nunca usado.
   const { barbershop } = useBarbershop();
   const scope = useTenantScope({ requestedBarbershopId });
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [activeTab, setActiveTab] = useState<AdminTab>(
+    TABS.some((t) => t.id === abaInicial) ? (abaInicial as AdminTab) : "overview",
+  );
 
   // Quem é o leitor desta nav. Uma variável, um lugar — a marcação de quem vê o
   // quê está em TABS.
@@ -346,11 +354,22 @@ export function BarberDashboard({
     scope.isSuper && requestedBarbershopId ? "superTenant" : isAdmin ? "admin" : "barbeiro";
   const abasVisiveis = TABS.filter((tab) => tab.para.includes(audiencia));
 
-  // O super_admin operando tenant alheio cai direto em "Horários": é a única
-  // aba dele, e abrir em "Visão Geral" mostraria a barbearia errada.
+  // A aba ativa é sempre uma que este papel ENXERGA. Uma regra só, e ela cobre
+  // dois casos que antes eram dois códigos diferentes:
+  //
+  //   • o super_admin em tenant alheio, cuja única aba é "Horários";
+  //   • `?tab=` vindo da URL. O parâmetro abre uma aba, não autoriza nenhuma:
+  //     um barbeiro com `?tab=settings` cai na primeira aba dele, e não numa
+  //     tela administrativa que a nav dele nem lista.
+  //
+  // O `?tab=` chegou com o redirect de `/agenda` (fase 2), que precisa cair em
+  // "Horários" direto — e é justamente por vir de URL que ele não pode ser
+  // acreditado sem conferência.
   useEffect(() => {
-    if (audiencia === "superTenant") setActiveTab("schedule");
-  }, [audiencia]);
+    if (abasVisiveis.length > 0 && !abasVisiveis.some((t) => t.id === activeTab)) {
+      setActiveTab(abasVisiveis[0].id);
+    }
+  }, [abasVisiveis, activeTab]);
 
   const name = barbershop?.name || "BarbaFlow";
 
@@ -416,56 +435,16 @@ export function BarberDashboard({
                 </Button>
               </>
             )}
-            {/* /agenda existe e funciona desde sempre, mas não tinha ponto de
-                entrada nenhum na navegação: até aqui só se chegava nela por
-                deep-link de notificação (`notification-links.ts`) ou digitando a
-                URL. É lá que mora a grade semanal do próprio profissional
-                (`WeeklyScheduleEditor`, que filtra por `barber_id = auth.uid()`),
-                a agenda semanal e os bloqueios.
+            {/* Os links "Meus Horários" e "Comandas" viviam aqui e saíram na fase 2.
 
-                Fica no header, e não como aba, porque a nav de abas só renderiza
-                para admin — um barbeiro nunca a alcança, que é justamente o
-                problema. E aparece para os DOIS papéis de propósito: a rota
-                autoriza `admin_barbearia` e `barbeiro` (allow padrão de
-                `useTenantScope`), então o link nunca leva a uma recusa, e o
-                `ScheduleManager` da aba "Agenda Semanal" também não tinha como
-                ser alcançado pelo admin. */}
-            <Link to="/agenda" search={{ barbershop: undefined }}>
-              <Button variant="ghost" size="sm">
-                <CalendarCog className="w-4 h-4" />
-                <span className="hidden 2xl:inline">Meus Horários</span>
-              </Button>
-            </Link>
-            {/* Só para quem NÃO administra, e a condição é o ponto.
+                Eram a porta do BARBEIRO para duas telas que a nav de abas, até
+                a fase 1, só oferecia ao admin. Agora a nav é filtrada por papel
+                e lista as duas para ele, então manter os botões seria repetir no
+                cabeçalho o que está logo abaixo — e era essa duplicata que
+                motivou a consolidação.
 
-                Para o admin este link é duplicata: a nav de abas logo abaixo já
-                tem "Comandas", e ela renderiza sob `isAdmin`. Para o barbeiro
-                não é duplicata nenhuma — é a única porta INCONDICIONAL que ele
-                tem para `/comandas`, uma tela que a rota autoriza a ele
-                explicitamente (`canManage={scope.isAdmin || scope.isBarber}`).
-
-                As outras entradas que um barbeiro alcança ficam no
-                OperationalDashboard e só existem no ramo em que a seção TEM
-                dado — com o dia vazio, ou carregando, ou em erro, elas não
-                renderizam. Remover este link de vez deixaria o barbeiro sem
-                acesso nenhum, que é exatamente o defeito descrito no comentário
-                do "/agenda" acima.
-
-                E aqui a condição é NEGATIVA de propósito, ao contrário da aba
-                "Horários" logo abaixo, que exige `isBarber` positivo. Não é
-                incoerência: aquela decide quem ATENDE, e um papel futuro
-                (recepção, gerência) não deve cair nesse ramo por omissão. Esta
-                decide quem NÃO TEM A ABA, e a aba renderiza sob `isAdmin` — o
-                complemento exato é `!isAdmin`. Trocar por `isBarber` deixaria
-                justamente esse papel futuro sem porta alguma. */}
-            {!isAdmin && (
-              <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
-                <Button variant="ghost" size="sm">
-                  <ReceiptText className="w-4 h-4" />
-                  <span className="hidden 2xl:inline">Comandas</span>
-                </Button>
-              </Link>
-            )}
+                Nada ficou sem caminho: `/agenda` virou redirect para esta
+                mesma aba de Horários, e `/comandas` tem aba própria. */}
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
