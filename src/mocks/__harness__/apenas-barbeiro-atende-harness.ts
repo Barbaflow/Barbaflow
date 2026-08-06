@@ -848,6 +848,212 @@ function testeMigrationSuperAdmin() {
   );
 }
 
+/* ══════════ 7. disponibilidade: dono, apagar e atribuição ══════════ */
+
+/**
+ * Os três defeitos pré-existentes do `ScheduleManager`, encontrados ao mapear a
+ * visão consolidada de equipe. Nenhum nasceu de uma frente anterior — todos
+ * estavam publicados, e a fase 1 só os tornou visíveis ao pôr o componente sob
+ * "Minha agenda".
+ *
+ *   1. a tela lê a barbearia INTEIRA (nunca houve filtro por `barber_id`) e
+ *      desenhava tudo misturado, sem dizer de quem era cada faixa;
+ *   2. o DELETE de `availability` não tinha ramo para o dono, então o barbeiro
+ *      não apagava nem o que ele mesmo criou — e o `if (!error)` do componente
+ *      engolia a recusa, o que escondia o defeito 2 atrás do silêncio;
+ *   3. o admin apagava faixa de qualquer um com o mesmo clique de `x`, sem
+ *      nada dizer de quem era.
+ *
+ * O 2 é de banco (migration 20260806150000) e os outros dois são de tela.
+ */
+async function testeDisponibilidade() {
+  const daBarbearia = () =>
+    getTableRows("availability").filter((a) => a.barbershop_id === MOCK_BARBERSHOP_ID);
+  const primeiraDe = (barberId: string) => daBarbearia().find((a) => a.barber_id === barberId);
+
+  const apagar = (id: unknown) =>
+    (mockSupabaseClient as any).from("availability").delete().eq("id", id);
+
+  group("availability: o dono apaga o que é dele");
+
+  resetMockDatabase();
+  await login("ana@barbearia.teste");
+  const daAna = primeiraDe(MOCK_USER_IDS.barberAna);
+  check("o fixture tem janela da Ana", Boolean(daAna), String(daBarbearia().length));
+
+  const propria = await apagar(daAna?.id);
+  check(
+    "barbeiro apaga a PRÓPRIA janela — era o defeito",
+    propria.error === null,
+    propria.error?.message ?? "",
+  );
+  check(
+    "e ela some do store",
+    !getTableRows("availability").some((a) => a.id === daAna?.id),
+  );
+
+  group("availability: e não a dos outros");
+
+  resetMockDatabase();
+  await login("ana@barbearia.teste");
+  const doBruno = primeiraDe(MOCK_USER_IDS.barberBruno);
+  check("o fixture tem janela do Bruno", Boolean(doBruno));
+
+  const alheia = await apagar(doBruno?.id);
+  check(
+    "barbeiro NÃO apaga janela de outro profissional",
+    alheia.error !== null,
+    alheia.error?.message ?? "sem erro",
+  );
+  check(
+    "e a recusa explica de quem é a regra, sem detalhe técnico",
+    /administração|outro profissional/i.test(alheia.error?.message ?? "") &&
+      !/SQLSTATE|policy|42501|undefined/i.test(alheia.error?.message ?? ""),
+    alheia.error?.message ?? "",
+  );
+  check("nada foi apagado", getTableRows("availability").some((a) => a.id === doBruno?.id));
+
+  group("availability: a administração alcança qualquer um");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  const alvoDoAdmin = primeiraDe(MOCK_USER_IDS.barberBruno);
+  const peloAdmin = await apagar(alvoDoAdmin?.id);
+  check(
+    "admin apaga janela de terceiro — capacidade que ele já tinha",
+    peloAdmin.error === null,
+    peloAdmin.error?.message ?? "",
+  );
+
+  group("availability: criar e editar seguem a mesma regra");
+
+  resetMockDatabase();
+  await login("ana@barbearia.teste");
+  const criaPraSi = await (mockSupabaseClient as any).from("availability").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberAna,
+    date: "2026-12-24",
+    start_time: "09:00",
+    end_time: "10:00",
+    status: "livre",
+  });
+  check("barbeiro cria janela própria", criaPraSi.error === null, criaPraSi.error?.message ?? "");
+
+  const criaPraOutro = await (mockSupabaseClient as any).from("availability").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberBruno,
+    date: "2026-12-24",
+    start_time: "11:00",
+    end_time: "12:00",
+    status: "livre",
+  });
+  check(
+    "e NÃO cria janela para outro",
+    criaPraOutro.error !== null,
+    criaPraOutro.error?.message ?? "sem erro",
+  );
+
+  resetMockDatabase();
+}
+
+/** A migration do ramo que faltava, e as duas correções de tela. */
+function testeMigracaoDisponibilidade() {
+  const sql = readFileSync(
+    path.join(ROOT, "supabase", "migrations", "20260806150000_barber_deletes_own_availability.sql"),
+    "utf8",
+  );
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration 20260806150000: o ramo do dono");
+
+  check(
+    "recria a policy de DELETE de availability",
+    /DROP POLICY IF EXISTS "Admins can delete availability"/.test(corpo) &&
+      /CREATE POLICY "Admins can delete availability"/.test(corpo) &&
+      /FOR DELETE/.test(corpo),
+  );
+  check(
+    "acrescenta o ramo do dono",
+    /barber_id = auth\.uid\(\)/.test(corpo),
+  );
+  check(
+    "com o mesmo AND de papel que INSERT e UPDATE já usam",
+    /barber_id = auth\.uid\(\)[\s\S]{0,120}?has_role_in_barbershop\([\s\S]{0,80}?'barbeiro'/.test(corpo),
+    "sem o AND, quem saiu da equipe seguiria apagando linha antiga",
+  );
+  check(
+    "mantém administração e super_admin",
+    /'admin_barbearia'/.test(corpo) && /'super_admin'/.test(corpo),
+  );
+  check(
+    "não toca weekly_schedule nem schedule_blocks",
+    !/weekly_schedule/.test(corpo) && !/schedule_blocks/.test(corpo),
+  );
+  check(
+    "não apaga linha nenhuma",
+    !/\bDELETE\s+FROM\b/i.test(corpo) && !/\bUPDATE\s+public\./i.test(corpo),
+  );
+  check("declara ser aditiva", /ADITIVA|aditiva/.test(sql));
+  check("registra o rollback", /ROLLBACK/.test(sql));
+
+  group("ScheduleManager: atribuição de dono e confirmação");
+
+  const tela = lerArquivo("src/components/ScheduleManager.tsx");
+  const codigo = semComentarios(tela);
+
+  check(
+    "carrega os nomes dos profissionais das duas listas",
+    /fetchBarberDisplayNames\(/.test(codigo),
+  );
+  check(
+    "e mostra o dono na janela E no agendamento",
+    (codigo.match(/nomeDoDono\(slot\.barber_id\)/g) ?? []).length >= 1 &&
+      (codigo.match(/nomeDoDono\(appt\.barber_id\)/g) ?? []).length >= 1,
+  );
+  check(
+    "o próprio usuário aparece como `Você`, não pelo nome",
+    /barberId === user\?\.id \? "Você"/.test(codigo),
+  );
+  check(
+    "nome sem resposta da RPC degrada para rótulo genérico, não some",
+    /\|\| "Profissional"/.test(codigo),
+    "faixa sem dono identificado reintroduz a mistura",
+  );
+
+  check(
+    "apagar a PRÓPRIA janela não pede confirmação",
+    /slot\.barber_id === user\?\.id/.test(codigo) && /apagarSlot\(slot\)/.test(codigo),
+  );
+  check(
+    "apagar a de OUTRO abre diálogo",
+    /setSlotParaApagar\(slot\)/.test(codigo) && /<AlertDialog/.test(codigo),
+  );
+  check(
+    "e o diálogo nomeia o dono antes do irreversível",
+    /nomeDoDono\(slotParaApagar\.barber_id\)/.test(codigo),
+  );
+  check(
+    "o diálogo avisa que a pessoa não é notificada",
+    /não é avisada/.test(tela),
+  );
+  check(
+    "a falha deixou de ser engolida — erro vira aviso e log redigido",
+    /logTechnicalError\("ScheduleManager"/.test(codigo) && /toast\.error\(/.test(codigo),
+  );
+
+  group("paridade: o mock espelha as policies de availability");
+
+  const regras = semComentarios(lerArquivo("src/mocks/rules.ts"));
+  check("existe regra de escrita para availability", /case "availability":/.test(regras));
+  check(
+    "e ela exige o papel `barbeiro` do dono, como o SQL",
+    /barbeiroRoleIn\(actor\.id, barbershopId\)/.test(regras),
+  );
+}
+
 /* ────────────────────────────── runner ────────────────────────────── */
 
 export async function runHarness() {
@@ -860,6 +1066,8 @@ export async function runHarness() {
   testeMigration();
   testeParidade();
   await testeSuperAdminGrade();
+  await testeDisponibilidade();
+  testeMigracaoDisponibilidade();
   testeMigrationSuperAdmin();
 
   resetMockDatabase();
