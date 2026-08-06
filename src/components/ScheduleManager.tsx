@@ -7,10 +7,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { ChevronLeft, ChevronRight, Plus, Trash2, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { addDaysISO, formatISODateBR, todayISOInTenantTZ, weekdayOfISO } from "@/lib/tz";
+import { fetchBarberDisplayNames, type BarberDisplayMap } from "@/lib/barber-names";
+import { logTechnicalError } from "@/lib/error-reporting";
 
 interface ScheduleManagerProps {
   barbershopId: string;
@@ -70,6 +82,15 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [newSlot, setNewSlot] = useState({ date: "", start_time: "09:00", end_time: "10:00", status: "livre" as string });
+  /** Janela de OUTRA pessoa aguardando confirmação. `null` = nenhum diálogo. */
+  const [slotParaApagar, setSlotParaApagar] = useState<AvailabilitySlot | null>(null);
+  /**
+   * Nome de exibição por `user_id`. Esta tela sempre leu a barbearia INTEIRA
+   * (nunca houve filtro por `barber_id`), e até aqui desenhava tudo misturado,
+   * sem dizer de quem era cada faixa. Com dois profissionais na mesma semana o
+   * resultado era indistinguível.
+   */
+  const [nomes, setNomes] = useState<BarberDisplayMap>({});
 
   const days = getDaysOfWeekISO(weekStartISO);
   const startDate = days[0];
@@ -95,7 +116,24 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
 
     if (avail.data) setAvailability(avail.data);
     if (appts.data) setAppointments(appts.data);
+
+    // Um lote só para as duas listas: os ids se repetem bastante entre elas, e
+    // `fetchBarberDisplayNames` já deduplica.
+    const ids = [
+      ...(avail.data ?? []).map((s) => s.barber_id),
+      ...(appts.data ?? []).map((a) => a.barber_id),
+    ].filter(Boolean);
+    if (ids.length > 0) setNomes(await fetchBarberDisplayNames(ids));
   }, [barbershopId, startDate, endDate]);
+
+  /**
+   * Nome do dono da linha. Degrada como o resto do projeto: quando a RPC de
+   * nomes não devolve o id, o rótulo vira "Profissional" em vez de sumir — uma
+   * faixa sem dono identificado é pior que uma com dono genérico, porque
+   * reintroduz a mistura que esta mudança existe para acabar.
+   */
+  const nomeDoDono = (barberId: string) =>
+    barberId === user?.id ? "Você" : nomes[barberId]?.display_name || "Profissional";
 
   useEffect(() => {
     fetchData();
@@ -154,12 +192,36 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
     }
   };
 
-  const deleteAvailability = async (id: string) => {
-    const { error } = await supabase.from("availability").delete().eq("id", id);
-    if (!error) {
-      toast.success("Removido!");
-      fetchData();
+  /**
+   * Apaga direto quando a janela é DO PRÓPRIO usuário; pede confirmação quando
+   * é de outra pessoa.
+   *
+   * A tela mostra a barbearia inteira, e o admin pode apagar linha de qualquer
+   * profissional (policy de `availability`). Fazer isso com um clique de `x`
+   * idêntico ao da própria linha é apagar agenda alheia sem que a pessoa saiba
+   * — o diálogo existe para tornar a decisão explícita, e para dizer DE QUEM é
+   * a janela antes do irreversível.
+   */
+  const pedirParaApagar = (slot: AvailabilitySlot) => {
+    if (slot.barber_id === user?.id) {
+      apagarSlot(slot);
+      return;
     }
+    setSlotParaApagar(slot);
+  };
+
+  const apagarSlot = async (slot: AvailabilitySlot) => {
+    const { error } = await supabase.from("availability").delete().eq("id", slot.id);
+    if (error) {
+      // Antes o erro era engolido: `if (!error)` só tratava o sucesso, e a
+      // recusa da RLS ficava invisível. Era metade do defeito do barbeiro que
+      // não conseguia apagar a própria janela — a outra metade era a policy.
+      logTechnicalError("ScheduleManager", "remover disponibilidade", error);
+      toast.error("Não foi possível remover este horário.");
+      return;
+    }
+    toast.success("Removido!");
+    fetchData();
   };
 
   const cancelAppointment = async (id: string) => {
@@ -255,24 +317,38 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
               <CardContent className="p-3 pt-0 space-y-1">
                 {/* Availability slots */}
                 {slots.map((slot) => (
-                  <div key={slot.id} className={`text-[10px] px-2 py-1 rounded border flex items-center justify-between ${STATUS_COLORS[slot.status] || ""}`}>
-                    <span>{slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}</span>
-                    <button onClick={() => deleteAvailability(slot.id)} className="opacity-50 hover:opacity-100">
-                      <X className="w-3 h-3" />
-                    </button>
+                  <div key={slot.id} className={`text-[10px] px-2 py-1 rounded border ${STATUS_COLORS[slot.status] || ""}`}>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="min-w-0 truncate">{slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}</span>
+                      <button
+                        onClick={() => pedirParaApagar(slot)}
+                        className="shrink-0 opacity-50 hover:opacity-100"
+                        title={`Remover horário de ${nomeDoDono(slot.barber_id)}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                    {/* De quem é esta faixa. `truncate` + `min-w-0` porque nome
+                        longo numa coluna de dia da semana estoura a célula. */}
+                    <p className="min-w-0 truncate opacity-70">{nomeDoDono(slot.barber_id)}</p>
                   </div>
                 ))}
                 {/* Appointments */}
                 {appts.map((appt) => (
                   <div key={appt.id} className={`text-[10px] px-2 py-1 rounded border ${STATUS_COLORS[appt.status] || ""}`}>
-                    <div className="flex items-center justify-between">
-                      <span>{appt.start_time.slice(0, 5)}-{appt.end_time.slice(0, 5)}</span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="min-w-0 truncate">{appt.start_time.slice(0, 5)}-{appt.end_time.slice(0, 5)}</span>
                       {appt.status === "scheduled" && (
-                        <button onClick={() => cancelAppointment(appt.id)} className="opacity-50 hover:opacity-100">
+                        <button
+                          onClick={() => cancelAppointment(appt.id)}
+                          className="shrink-0 opacity-50 hover:opacity-100"
+                          title={`Cancelar agendamento de ${nomeDoDono(appt.barber_id)}`}
+                        >
                           <Trash2 className="w-3 h-3" />
                         </button>
                       )}
                     </div>
+                    <p className="min-w-0 truncate opacity-70">{nomeDoDono(appt.barber_id)}</p>
                     <Badge variant="outline" className="text-[8px] mt-1">{appt.status}</Badge>
                   </div>
                 ))}
@@ -284,6 +360,39 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
           );
         })}
       </div>
+
+      {/* Só aparece para janela de OUTRA pessoa — a própria é apagada direto,
+          sem cerimônia. O texto nomeia o dono, o dia e o horário porque a
+          coluna do dia é estreita e o clique pode ter sido no item errado. */}
+      <AlertDialog open={slotParaApagar !== null} onOpenChange={(aberto) => !aberto && setSlotParaApagar(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover horário de outro profissional?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {slotParaApagar && (
+                <>
+                  Este horário é de <strong>{nomeDoDono(slotParaApagar.barber_id)}</strong> —{" "}
+                  {formatISODateBR(slotParaApagar.date)}, das{" "}
+                  {slotParaApagar.start_time.slice(0, 5)} às {slotParaApagar.end_time.slice(0, 5)}.
+                  Removê-lo tira essa faixa da agenda dessa pessoa, e ela não é avisada.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const alvo = slotParaApagar;
+                setSlotParaApagar(null);
+                if (alvo) apagarSlot(alvo);
+              }}
+            >
+              Remover mesmo assim
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -669,6 +669,51 @@ function authorizeWeeklySchedule(row: MockRow, existing?: MockRow): string | nul
 }
 
 /**
+ * Janelas de disponibilidade — espelha as quatro policies de `availability`.
+ *
+ * O mock NÃO tinha regra nenhuma para esta tabela: aceitava qualquer escrita,
+ * inclusive as que o banco recusa. Entrou junto com a 20260806150000, que é a
+ * migration que conserta o DELETE.
+ *
+ * A assimetria que a migration corrige, e que o espelho agora reproduz:
+ *
+ *   INSERT / UPDATE   admin do tenant, OU o próprio barbeiro na própria linha
+ *   DELETE            idem — antes da 20260806150000 o ramo do dono não existia,
+ *                     e o barbeiro não conseguia apagar nem o que ele criou
+ *
+ * O admin apaga linha de QUALQUER pessoa do tenant, de propósito. Quem torna
+ * isso visível é a tela (diálogo de confirmação nomeando o dono), não a regra —
+ * são respostas diferentes para o mesmo fato.
+ */
+function authorizeAvailability(
+  operation: MockOperation,
+  row: MockRow,
+  existing?: MockRow,
+): string | null {
+  const actor = getMockActor();
+  if (!actor) return NO_SESSION;
+  if (actorIsSuperAdmin()) return null;
+
+  const barbershopId = tenantOf(row, existing);
+  if (actorIsAdminOf(barbershopId)) return null;
+
+  const dono = asString(existing?.barber_id) ?? asString(row.barber_id);
+  if (dono !== actor.id) {
+    return operation === "delete"
+      ? "Só a administração da barbearia remove o horário de outro profissional."
+      : "Cada profissional gerencia apenas os próprios horários.";
+  }
+
+  // Dono da linha, mas precisa ser `barbeiro` DESTA barbearia — mesmo `AND` das
+  // policies. Sem ele, quem saiu da equipe seguiria mexendo nas linhas antigas.
+  if (!barbeiroRoleIn(actor.id, barbershopId)) {
+    return "Apenas quem atende clientes gerencia horários de disponibilidade.";
+  }
+
+  return null;
+}
+
+/**
  * Ponto único de autorização. Devolve a mensagem de recusa, ou `null`
  * quando a operação é permitida.
  */
@@ -705,6 +750,8 @@ export function authorizeWrite(
       return authorizeBusinessHours(row, existing);
     case "weekly_schedule":
       return authorizeWeeklySchedule(row, existing);
+    case "availability":
+      return authorizeAvailability(operation, row, existing);
     default:
       return null;
   }
