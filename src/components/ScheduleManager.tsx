@@ -32,11 +32,16 @@ interface ScheduleManagerProps {
    */
   barberId?: string;
   /**
-   * Só leitura: nenhum controle de escrita é renderizado. Aqui a rede de
-   * segurança do banco é MAIS FRACA que nas outras duas seções — a policy de
-   * `availability` deixa a administração do tenant escrever e apagar linha de
-   * qualquer profissional. Ou seja, o que impede o admin de mexer na agenda
-   * alheia por esta tela é ESTA condição, não a RLS.
+   * Só leitura: nenhum controle de escrita é renderizado. Desde a
+   * 20260806160000 a rede de segurança do banco COBRE esta seção como cobre as
+   * outras duas — a policy de `availability` deixou de ter ramo para
+   * `admin_barbearia`, e a função geradora passou a autorizar o chamador. A
+   * condição aqui é a primeira barreira, não a única.
+   *
+   * Antes daquela migration era o contrário, e valia o aviso: a policy deixava
+   * a administração do tenant escrever e apagar linha de qualquer profissional,
+   * então só esta condição segurava. Fica registrado porque a diferença entre
+   * "a tela impede" e "o banco impede" é o que decide se vale confiar na tela.
    */
   readOnly?: boolean;
 }

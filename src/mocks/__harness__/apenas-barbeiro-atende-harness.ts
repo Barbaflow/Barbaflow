@@ -1474,10 +1474,16 @@ function testeAgendaDaEquipe() {
   // cobrir: `availability` deixa a administração do tenant apagar linha de
   // qualquer profissional. Nas outras duas a RLS recusaria de qualquer forma.
   check(
-    "o componente registra que a RLS de availability NÃO protege aqui",
-    /rede de[\s\S]{0,40}?segurança do banco é MAIS FRACA/.test(
+    "o componente registra que a RLS de availability protege aqui",
+    /rede de segurança do banco COBRE esta seção/.test(
       lerArquivo("src/components/ScheduleManager.tsx"),
     ),
+    "a nota andou junto com a 20260806160000 — antes dela dizia o contrário",
+  );
+  check(
+    "e o aviso antigo não sobrou em lugar nenhum",
+    !/segurança do banco é MAIS FRACA/.test(lerArquivo("src/components/ScheduleManager.tsx")),
+    "comentário que afirma o contrário do que a RLS faz é pior que comentário nenhum",
   );
 }
 
