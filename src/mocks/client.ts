@@ -312,6 +312,15 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
    * (migration 20260722210000). Deriva da grade semanal (menos os bloqueios do
    * dia) e soma as exceções não-livres lançadas na agenda, para o fluxo público
    * não depender de ninguém ter clicado em "Gerar Agenda".
+   *
+   * Desde 20260806130000 o turno é RECORTADO pelo expediente da barbearia. Até
+   * então a RPC não olhava `business_hours`: a coerência com o expediente vinha
+   * do invariante mantido pelos triggers de escrita (turno ativo ⊆ envelope), e
+   * não de filtro nenhum na leitura. Dia fechado devolve nada; dia sem linha em
+   * `business_hours` segue sem restrição.
+   *
+   * As exceções (segundo bloco) NÃO são recortadas: elas mascaram intervalos
+   * dentro das janelas, e encurtar máscara DESMASCARA horário.
    */
   get_public_availability_windows: (args) => {
     const data = String(args._date ?? "");
@@ -326,21 +335,41 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
       Date.UTC(Number(data.slice(0, 4)), Number(data.slice(5, 7)) - 1, Number(data.slice(8, 10))),
     ).getUTCDay();
 
-    const turnos = bloqueado
-      ? []
-      : getTableRows("weekly_schedule")
-          .filter(
-            (row) =>
-              row.barbershop_id === args._barbershop_id &&
-              row.barber_id === args._barber_id &&
-              row.is_active &&
-              row.day_of_week === diaDaSemana,
-          )
-          .map((row) => ({
-            start_time: row.start_time,
-            end_time: row.end_time,
-            status: "livre",
-          }));
+    const envelope = getTableRows("business_hours").find(
+      (row) =>
+        row.barbershop_id === args._barbershop_id && Number(row.day_of_week) === diaDaSemana,
+    );
+    const fechado = Boolean(envelope?.is_closed);
+
+    const turnos =
+      bloqueado || fechado
+        ? []
+        : getTableRows("weekly_schedule")
+            .filter(
+              (row) =>
+                row.barbershop_id === args._barbershop_id &&
+                row.barber_id === args._barber_id &&
+                row.is_active &&
+                row.day_of_week === diaDaSemana,
+            )
+            .map((row) => {
+              // GREATEST/LEAST do SQL. Sem envelope, o próprio horário do turno
+              // é o limite — que é o mesmo que não ter limite.
+              const abre = envelope?.open_time ? String(envelope.open_time) : String(row.start_time);
+              const fecha = envelope?.close_time ? String(envelope.close_time) : String(row.end_time);
+              const inicio =
+                timeToMinutes(String(row.start_time)) >= timeToMinutes(abre)
+                  ? String(row.start_time)
+                  : abre;
+              const fim =
+                timeToMinutes(String(row.end_time)) <= timeToMinutes(fecha)
+                  ? String(row.end_time)
+                  : fecha;
+              return { start_time: inicio, end_time: fim, status: "livre" };
+            })
+            // Turno inteiramente fora do expediente zera aqui, em vez de virar
+            // janela vazia ou invertida.
+            .filter((janela) => timeToMinutes(janela.start_time) < timeToMinutes(janela.end_time));
 
     const excecoes = getTableRows("availability")
       .filter(

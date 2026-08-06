@@ -940,6 +940,198 @@ function testeParidade() {
   check("e passa a grade pela validação nova", /return validateWeeklySchedule\(row, existing\)/.test(builder));
 }
 
+/* ══════════ 15. janelas públicas recortadas pelo expediente ══════════ */
+
+/** Segunda-feira real: 06/08/2026 é quinta, então 10/08 é a segunda seguinte. */
+const SEGUNDA_ISO = "2026-08-10";
+
+/**
+ * O passo 1 da mudança de regra (migration 20260806130000).
+ *
+ * Até aqui `get_public_availability_windows` NUNCA olhou `business_hours`. A
+ * coerência entre "a barbearia diz que fecha segunda" e "o assistente oferece
+ * segunda" vinha de um INVARIANTE DE ESCRITA (turno ativo ⊆ envelope), mantido
+ * pelos dois triggers — não de filtro nenhum na leitura. Enquanto o invariante
+ * vale, recortar é no-op; o valor deste passo é sustentar a garantia sozinho,
+ * antes de o passo 2 relaxar o trigger.
+ *
+ * Por isso vários cenários abaixo montam o estado por `setTableRows`: turno
+ * fora do envelope AINDA não é alcançável pela API (o trigger da grade recusa),
+ * e é exatamente esse o estado que o passo 2 torna possível. Forçá-lo aqui é o
+ * que prova que a leitura aguenta antes de a escrita afrouxar.
+ */
+async function testeJanelasRecortadas() {
+  const janelas = async () =>
+    (mockSupabaseClient as any).rpc("get_public_availability_windows", {
+      _barbershop_id: MOCK_BARBERSHOP_ID,
+      _barber_id: MOCK_USER_IDS.barberAna,
+      _date: SEGUNDA_ISO,
+    });
+
+  /** Grava o turno direto, sem passar pelas regras de escrita. */
+  const turnoLegado = (start: string, end: string) => {
+    setTableRows("weekly_schedule", [
+      ...getTableRows("weekly_schedule").filter(
+        (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === SEGUNDA),
+      ),
+      {
+        id: `turno-legado-${start}`,
+        barbershop_id: MOCK_BARBERSHOP_ID,
+        barber_id: MOCK_USER_IDS.barberAna,
+        day_of_week: SEGUNDA,
+        start_time: start,
+        end_time: end,
+        is_active: true,
+      },
+    ]);
+  };
+
+  const envelope = (campos: Record<string, unknown> | null) => {
+    setTableRows(
+      "business_hours",
+      campos === null
+        ? []
+        : [{ id: "env-segunda", barbershop_id: MOCK_BARBERSHOP_ID, day_of_week: SEGUNDA, ...campos }],
+    );
+  };
+
+  group("janelas públicas: a data escolhida é mesmo uma segunda");
+
+  check(
+    `${SEGUNDA_ISO} cai em segunda-feira`,
+    new Date(`${SEGUNDA_ISO}T00:00:00Z`).getUTCDay() === SEGUNDA,
+    String(new Date(`${SEGUNDA_ISO}T00:00:00Z`).getUTCDay()),
+  );
+
+  group("janelas públicas: sem envelope, nada muda");
+
+  resetMockDatabase();
+  await mockSupabaseClient.auth.signOut();
+  turnoLegado("09:00", "18:00");
+  envelope(null);
+
+  // Só as JANELAS. O fixture já traz exceções `ocupado` nesta data, e contá-las
+  // junto mediria outra coisa.
+  const livres = (linhas: any[]) => linhas.filter((j) => j.status === "livre");
+  const semEnv = livres((await janelas()).data ?? []);
+  check("devolve o turno inteiro", semEnv.length === 1, JSON.stringify(semEnv));
+  check(
+    "sem recorte: 09:00–18:00",
+    semEnv[0]?.start_time === "09:00" && semEnv[0]?.end_time === "18:00",
+    JSON.stringify(semEnv[0]),
+  );
+
+  group("janelas públicas: dia fechado não oferece nada");
+
+  envelope({ is_closed: true, open_time: null, close_time: null });
+  const comFechado = livres((await janelas()).data ?? []);
+  check("nenhuma janela", comFechado.length === 0, JSON.stringify(comFechado));
+
+  group("janelas públicas: redução parcial recorta");
+
+  envelope({ is_closed: false, open_time: "10:00", close_time: "16:00" });
+  const recortada = livres((await janelas()).data ?? []);
+  check("continua havendo janela", recortada.length === 1, JSON.stringify(recortada));
+  check(
+    "recorta para 10:00–16:00, não descarta o turno",
+    recortada[0]?.start_time === "10:00" && recortada[0]?.end_time === "16:00",
+    JSON.stringify(recortada[0]),
+  );
+
+  group("janelas públicas: turno inteiramente fora some");
+
+  turnoLegado("06:00", "08:00");
+  envelope({ is_closed: false, open_time: "10:00", close_time: "16:00" });
+  const fora = (await janelas()).data ?? [];
+  check(
+    "não vira janela vazia nem invertida",
+    livres(fora).length === 0,
+    JSON.stringify(fora),
+  );
+
+  group("janelas públicas: exceções NÃO são recortadas");
+
+  // Encurtar máscara desmascara horário — o efeito seria o oposto do
+  // pretendido. A folga 06:00–08:00 fica fora do envelope 10:00–16:00 e ainda
+  // assim tem de voltar inteira.
+  turnoLegado("09:00", "18:00");
+  envelope({ is_closed: false, open_time: "10:00", close_time: "16:00" });
+  setTableRows("availability", [
+    ...getTableRows("availability"),
+    {
+      id: "folga-fora-do-envelope",
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      barber_id: MOCK_USER_IDS.barberAna,
+      date: SEGUNDA_ISO,
+      start_time: "06:00",
+      end_time: "08:00",
+      status: "folga",
+    },
+  ]);
+
+  const comFolga = (await janelas()).data ?? [];
+  const folga = comFolga.find((j: Record<string, unknown>) => j.status === "folga");
+  check("a exceção volta", Boolean(folga), JSON.stringify(comFolga));
+  check(
+    "e volta inteira, sem recorte",
+    folga?.start_time === "06:00" && folga?.end_time === "08:00",
+    JSON.stringify(folga),
+  );
+
+  resetMockDatabase();
+}
+
+/** O texto da 20260806130000. */
+function testeMigracaoRecorte() {
+  const sql = readFileSync(
+    path.join(ROOT, "supabase", "migrations", "20260806130000_public_windows_respect_business_hours.sql"),
+    "utf8",
+  );
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration 20260806130000: o recorte");
+
+  check(
+    "recria get_public_availability_windows",
+    /CREATE OR REPLACE FUNCTION public\.get_public_availability_windows\(/.test(corpo),
+  );
+  check("junta business_hours", /LEFT JOIN public\.business_hours/.test(corpo));
+  check(
+    "o JOIN é LEFT — dia sem expediente segue sem restrição",
+    !/\bJOIN public\.business_hours/.test(corpo.replace(/LEFT JOIN public\.business_hours/g, "")),
+  );
+  check("dia fechado não devolve janela", /NOT COALESCE\(bh\.is_closed, false\)/.test(corpo));
+  check("recorta com GREATEST/LEAST", /GREATEST\(/.test(corpo) && /LEAST\s*\(/.test(corpo));
+  check(
+    "descarta janela que zera depois do recorte",
+    /GREATEST\([\s\S]{0,120}<[\s\S]{0,120}LEAST/.test(corpo),
+  );
+  check(
+    "não toca em generate_availability_from_schedule",
+    !/FUNCTION public\.generate_availability_from_schedule/.test(corpo),
+  );
+  check(
+    "não apaga, não migra e não altera tabela",
+    !/\bDELETE\s+FROM\b/i.test(corpo) &&
+      !/\bUPDATE\s+public\./i.test(corpo) &&
+      !/\bALTER TABLE\b/i.test(corpo),
+  );
+
+  group("migration 20260806130000: cabeçalho");
+
+  check("declara ser o passo 1 de 2", /PASSO 1 DE 2/.test(sql));
+  check("explica por que é inócuo sozinho", /NO-OP|inócu/i.test(sql));
+  check("aponta o passo 2 pelo número", /20260806140000/.test(sql));
+  check("registra o rollback", /ROLLBACK/.test(sql));
+  check(
+    "explica por que a exceção não é recortada",
+    /DESMASCARA|desmascara/.test(sql),
+  );
+}
+
 /* ────────────────────────────── runner ────────────────────────────── */
 
 export async function runHarness() {
@@ -959,6 +1151,8 @@ export async function runHarness() {
   testeMigrationRpc();
   testeMigrationPublica();
   testeParidade();
+  await testeJanelasRecortadas();
+  testeMigracaoRecorte();
 
   resetMockDatabase();
   const veredito = falhou === 0 ? "OK" : "FALHOU";
