@@ -8,7 +8,7 @@
 import { getTableRows, setTableRows, type MockRow } from "./store";
 import { getMockActor } from "./session";
 import { MOCK_ACCOUNTS } from "./auth";
-import { nowInTenantTZ, timeToMinutes } from "@/lib/tz";
+import { addDaysISO, nowInTenantTZ, timeToMinutes } from "@/lib/tz";
 
 /**
  * Recusa de uma regra de escrita.
@@ -280,33 +280,71 @@ export function validateBusinessHours(row: MockRow, existing?: MockRow): string 
   );
   if (duplicado) return `Funcionamento: já existe expediente cadastrado para ${DIA_PT[diaNum]}.`;
 
-  /* ---- não pode deixar turno ATIVO de fora ---- */
-  // Espelha o trigger `enforce_business_hours_fit_shifts`. Só turnos ativos
-  // contam: desativá-los é justamente a saída do admin, e recontá-los faria a
-  // saída não funcionar.
-  const conflitos = getTableRows("weekly_schedule").filter((turno) => {
-    if (turno.barbershop_id !== barbershopId) return false;
-    if (Number(turno.day_of_week) !== diaNum) return false;
-    if (turno.is_active === false) return false;
+  /* ---- não pode deixar AGENDAMENTO de fora ---- */
+  // Espelha `enforce_business_hours_fit_shifts` a partir da migration
+  // 20260806140000. Até ela, o conflito era medido contra `weekly_schedule` — a
+  // INTENÇÃO recorrente do profissional, que não é compromisso com ninguém, e
+  // bloquear por causa dela obrigava o admin a mexer na grade alheia para
+  // exercer uma decisão que é dele.
+  //
+  // Agora mede contra `appointments`, que tem cliente do outro lado. A grade
+  // que sobra fora do envelope não vaza: desde 20260806130000 a leitura pública
+  // já recorta pelo expediente, então ela simplesmente não gera janela.
+  const hoje = nowInTenantTZ().iso;
+  const limite = addDaysISO(hoje, 90);
+
+  const conflitos = getTableRows("appointments").filter((ap) => {
+    if (ap.barbershop_id !== barbershopId) return false;
+    // Só compromisso vivo. `completed`, `no_show` e `cancelled` são histórico e
+    // não podem bloquear decisão futura.
+    if (String(ap.status) !== "scheduled") return false;
+
+    const data = String(ap.date ?? "");
+    if (data < hoje || data > limite) return false;
+    if (diaDaSemanaISO(data) !== diaNum) return false;
+
     if (fechado) return true;
-    // `abre`/`fecha` já foram exigidos acima quando o dia não é fechado; o
-    // `String()` é só para o compilador, que não estreita fora do ramo.
     return (
-      timeToMinutes(String(turno.start_time)) < timeToMinutes(String(abre)) ||
-      timeToMinutes(String(turno.end_time)) > timeToMinutes(String(fecha))
+      timeToMinutes(String(ap.start_time)) < timeToMinutes(String(abre)) ||
+      timeToMinutes(String(ap.end_time)) > timeToMinutes(String(fecha))
     );
   });
 
   if (conflitos.length > 0) {
     const lista = conflitos
-      .map((t) => `${nomeDoBarbeiro(t.barber_id)} (${hhmm(t.start_time)}–${hhmm(t.end_time)})`)
+      .map((ap) => `${nomeDoCliente(ap.client_id)} em ${ddmm(ap.date)} às ${hhmm(ap.start_time)}`)
       .join(", ");
     return fechado
-      ? `Funcionamento: não dá para marcar ${DIA_PT[diaNum]} como fechado — ${conflitos.length} turno(s) ativo(s) neste dia: ${lista}. Desative-os antes.`
-      : `Funcionamento: este expediente (${hhmm(abre)}–${hhmm(fecha)}) deixaria ${conflitos.length} turno(s) de fora ${DIA_PT[diaNum]}: ${lista}. Amplie o horário ou desative os turnos em conflito antes de salvar.`;
+      ? `Funcionamento: não dá para marcar ${DIA_PT[diaNum]} como fechado — ${conflitos.length} agendamento(s) já marcado(s): ${lista}. Remarque ou cancele antes.`
+      : `Funcionamento: este expediente (${hhmm(abre)}–${hhmm(fecha)}) deixaria ${conflitos.length} agendamento(s) de fora ${DIA_PT[diaNum]}: ${lista}. Amplie o horário ou remarque antes de salvar.`;
   }
 
   return null;
+}
+
+/**
+ * Dia da semana de um `YYYY-MM-DD`, sem envolver fuso.
+ *
+ * `new Date("2026-08-10")` já é interpretado como UTC, mas passar pelos
+ * componentes deixa isso explícito e imune a quem trocar o formato de entrada.
+ */
+function diaDaSemanaISO(iso: string): number {
+  return new Date(
+    Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))),
+  ).getUTCDay();
+}
+
+/** `YYYY-MM-DD` → `DD/MM`, como o `to_char(…, 'DD/MM')` do SQL. */
+function ddmm(iso: unknown): string {
+  const s = String(iso ?? "");
+  return s.length >= 10 ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : s;
+}
+
+/** Nome legível do cliente, com a mesma degradação do SQL. */
+function nomeDoCliente(clientId: unknown): string {
+  const perfil = getTableRows("profiles").find((p) => p.user_id === clientId);
+  const nome = String(perfil?.full_name ?? "").trim();
+  return nome || "cliente";
 }
 
 /** Nome legível do profissional, com a mesma degradação do SQL. */
@@ -338,26 +376,49 @@ function validateShiftWithinBusinessHours(row: MockRow, existing?: MockRow): str
 
   const diaNum = Number(dia);
 
-  if (envelope.is_closed) {
-    return `Grade semanal: a barbearia não abre ${DIA_PT[diaNum]}. Ajuste o expediente antes de cadastrar turno neste dia.`;
-  }
-
   const inicio = asString(row.start_time ?? existing?.start_time);
   const fim = asString(row.end_time ?? existing?.end_time);
   if (!inicio || !fim) return null;
 
-  if (
+  const viola =
+    Boolean(envelope.is_closed) ||
     timeToMinutes(inicio) < timeToMinutes(String(envelope.open_time)) ||
-    timeToMinutes(fim) > timeToMinutes(String(envelope.close_time))
-  ) {
-    return (
-      `Grade semanal: a barbearia funciona das ${hhmm(envelope.open_time)} às ${hhmm(envelope.close_time)} ` +
-      `${DIA_PT[diaNum]}. O turno ${hhmm(inicio)}–${hhmm(fim)} fica fora do expediente — ajuste o horário ou ` +
-      `peça ao administrador para ampliar o funcionamento.`
-    );
+    timeToMinutes(fim) > timeToMinutes(String(envelope.close_time));
+
+  if (!viola) return null;
+
+  // Linha PREEXISTENTE que já estava fora: pode ser mexida enquanto não
+  // ampliar (migration 20260806140000). Sem isto o dono ficava congelado — com
+  // o expediente apertado por cima de um turno antigo, ele não conseguia nem
+  // encurtá-lo para dentro, só desativá-lo. A condição é geométrica (janela
+  // nova CONTIDA na antiga) e é uma catraca: só fecha. INSERT segue estrito,
+  // então não há como "lavar" um turno largo por esta porta.
+  if (existing) {
+    const inicioAntigo = asString(existing.start_time);
+    const fimAntigo = asString(existing.end_time);
+    const mesmoDia = Number(existing.day_of_week) === diaNum;
+    const mesmaBarbearia = asString(existing.barbershop_id) === barbershopId;
+    if (
+      inicioAntigo &&
+      fimAntigo &&
+      mesmoDia &&
+      mesmaBarbearia &&
+      timeToMinutes(inicio) >= timeToMinutes(inicioAntigo) &&
+      timeToMinutes(fim) <= timeToMinutes(fimAntigo)
+    ) {
+      return null;
+    }
   }
 
-  return null;
+  if (envelope.is_closed) {
+    return `Grade semanal: a barbearia não abre ${DIA_PT[diaNum]}. Ajuste o expediente antes de cadastrar turno neste dia.`;
+  }
+
+  return (
+    `Grade semanal: a barbearia funciona das ${hhmm(envelope.open_time)} às ${hhmm(envelope.close_time)} ` +
+    `${DIA_PT[diaNum]}. O turno ${hhmm(inicio)}–${hhmm(fim)} fica fora do expediente — ajuste o horário ou ` +
+    `peça ao administrador para ampliar o funcionamento.`
+  );
 }
 
 /**

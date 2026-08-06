@@ -25,6 +25,7 @@
  */
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { nowInTenantTZ } from "@/lib/tz";
 import { mockSupabaseClient } from "@/mocks/client";
 import { resetMockDatabase, getTableRows, setTableRows } from "@/mocks/store";
 import {
@@ -90,7 +91,15 @@ async function login(email: string) {
   if (res.error || !res.data.session) throw new Error(`Falha no login fictício: ${email}`);
 }
 
-/** Zera o cenário: sem envelope e sem turnos na segunda da barbearia A. */
+/**
+ * Zera o cenário: sem envelope, sem turnos e SEM AGENDAMENTOS na segunda da
+ * barbearia A.
+ *
+ * Os agendamentos entraram na limpeza junto com a 20260806140000: desde ela o
+ * conflito de expediente é medido contra `appointments`, e o fixture já traz
+ * segundas marcadas. Sem zerá-los, cada teste de expediente passaria a falhar
+ * por um conflito que o cenário não pediu.
+ */
 function limparSegunda() {
   setTableRows("business_hours", []);
   setTableRows(
@@ -99,6 +108,36 @@ function limparSegunda() {
       (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === SEGUNDA),
     ),
   );
+  setTableRows(
+    "appointments",
+    getTableRows("appointments").filter(
+      (a) => !(a.barbershop_id === MOCK_BARBERSHOP_ID && diaDaSemanaDe(a.date) === SEGUNDA),
+    ),
+  );
+}
+
+/** Dia da semana de um `YYYY-MM-DD`, sem envolver fuso. */
+function diaDaSemanaDe(iso: unknown): number {
+  const s = String(iso ?? "");
+  return new Date(
+    Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10))),
+  ).getUTCDay();
+}
+
+/** Marca um agendamento vivo na segunda indicada, para exercer o conflito novo. */
+function agendarNaSegunda(campos: Record<string, unknown>) {
+  setTableRows("appointments", [
+    ...getTableRows("appointments"),
+    {
+      id: `ag-${String(campos.date)}-${String(campos.start_time)}`,
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      barber_id: MOCK_USER_IDS.barberAna,
+      client_id: MOCK_USER_IDS.clienteCaio,
+      service_id: "servico-teste",
+      status: "scheduled",
+      ...campos,
+    },
+  ]);
 }
 
 /**
@@ -237,6 +276,9 @@ async function testeTurnoContraEnvelope() {
     inativo.error?.message ?? "",
   );
 
+  // REESCRITA em 20260806140000. Antes, reativar era recusado — e isso deixava
+  // o dono congelado assim que o expediente apertasse por cima de um turno
+  // antigo. A regra nova é geométrica: aceita enquanto a janela não AMPLIAR.
   const reativar = await (mockSupabaseClient as any)
     .from("weekly_schedule")
     .update({ is_active: true })
@@ -244,9 +286,33 @@ async function testeTurnoContraEnvelope() {
     .eq("barber_id", MOCK_USER_IDS.barberAna)
     .eq("start_time", "06:00");
   check(
-    "mas REATIVAR o mesmo turno é recusado",
-    reativar.error !== null,
-    reativar.error?.message ?? "sem erro",
+    "reativar o mesmo turno, sem mudar horário, é aceito",
+    reativar.error === null,
+    reativar.error?.message ?? "",
+  );
+
+  const amplia = await (mockSupabaseClient as any)
+    .from("weekly_schedule")
+    .update({ end_time: "23:30" })
+    .eq("barbershop_id", MOCK_BARBERSHOP_ID)
+    .eq("barber_id", MOCK_USER_IDS.barberAna)
+    .eq("start_time", "06:00");
+  check(
+    "mas AMPLIAR para ainda mais fora é recusado",
+    amplia.error !== null,
+    amplia.error?.message ?? "sem erro",
+  );
+
+  const encurta = await (mockSupabaseClient as any)
+    .from("weekly_schedule")
+    .update({ start_time: "09:00", end_time: "18:00" })
+    .eq("barbershop_id", MOCK_BARBERSHOP_ID)
+    .eq("barber_id", MOCK_USER_IDS.barberAna)
+    .eq("start_time", "06:00");
+  check(
+    "e ENCURTAR para dentro do expediente é aceito",
+    encurta.error === null,
+    encurta.error?.message ?? "",
   );
 }
 
@@ -310,62 +376,56 @@ async function testeApertarExpediente() {
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
 
-  group("apertar o expediente: a regra não é contornável pela ordem");
+  group("apertar o expediente: a grade recorrente NÃO bloqueia mais");
 
-  // Sem envelope, o turno largo entra.
+  // REESCRITO em 20260806140000. Este grupo provava o oposto: que apertar o
+  // expediente por cima de um turno largo era recusado. A regra mudou de
+  // conceito — `weekly_schedule` é INTENÇÃO recorrente, não compromisso com
+  // ninguém, e obrigar o admin a mexer na grade alheia para exercer uma decisão
+  // que é dele era o custo que se aceitava por não haver filtro na leitura.
+  // Desde 20260806130000 há, então o custo deixou de existir.
   const largo = await cadastrarTurno({ start_time: "08:00", end_time: "20:00" });
   check("turno 08:00–20:00 entra antes de existir expediente", largo.error === null, largo.error?.message ?? "");
 
-  // Agora o admin tenta apertar: é aqui que a ordem seria explorada.
   const aperta = await definirExpediente({ open_time: "09:00", close_time: "18:00" });
-  check("definir expediente que deixa o turno de fora é recusado", aperta.error !== null, aperta.error?.message ?? "sem erro");
   check(
-    "a mensagem LISTA o conflito, com nome e faixa",
-    (aperta.error?.message ?? "").includes("08:00") && (aperta.error?.message ?? "").includes("20:00"),
+    "apertar o expediente por cima do turno largo é ACEITO",
+    aperta.error === null,
     aperta.error?.message ?? "",
   );
+  check("e o expediente foi gravado", getTableRows("business_hours").length === 1);
   check(
-    "e diz as duas saídas possíveis",
-    (aperta.error?.message ?? "").includes("Amplie") && (aperta.error?.message ?? "").includes("desative"),
-    aperta.error?.message ?? "",
-  );
-  check("nada foi gravado", getTableRows("business_hours").length === 0);
-  check(
-    "e o turno de outra pessoa segue intacto",
+    "o turno alheio segue ATIVO e intacto — nada é desativado",
     getTableRows("weekly_schedule").some(
-      (t) => t.barbershop_id === MOCK_BARBERSHOP_ID && t.start_time === "08:00" && t.is_active !== false,
+      (t) =>
+        t.barbershop_id === MOCK_BARBERSHOP_ID &&
+        t.start_time === "08:00" &&
+        t.end_time === "20:00" &&
+        t.is_active !== false,
     ),
-    "nunca apagar nem aparar dado alheio é o ponto desta regra",
+    "nunca apagar nem aparar dado alheio continua sendo o ponto",
   );
 
-  group("apertar o expediente: a saída do admin é a RPC, não o UPDATE direto");
+  group("apertar o expediente: e o turno que sobrou não vaza para o público");
 
-  // O admin NÃO pode desativar turno alheio pelo caminho comum — a policy de
-  // UPDATE de weekly_schedule não o inclui. Esta é a razão de existir a RPC:
-  await login(MOCK_ADMIN_EMAIL);
-  const tentaDireto = await (mockSupabaseClient as any)
-    .from("weekly_schedule")
-    .update({ is_active: false })
-    .eq("barbershop_id", MOCK_BARBERSHOP_ID)
-    .eq("day_of_week", SEGUNDA)
-    .eq("start_time", "08:00");
+  // É o fecho do raciocínio: a grade fora do envelope deixou de bloquear
+  // PORQUE ela já não gera janela. Sem esta verificação, o passo 2 estaria
+  // apoiado numa promessa do passo 1 em vez de na prova dela.
+  await mockSupabaseClient.auth.signOut();
+  const janelas =
+    (
+      await (mockSupabaseClient as any).rpc("get_public_availability_windows", {
+        _barbershop_id: MOCK_BARBERSHOP_ID,
+        _barber_id: MOCK_USER_IDS.barberAna,
+        _date: SEGUNDA_ISO,
+      })
+    ).data ?? [];
+  const livre = janelas.filter((j: Record<string, unknown>) => j.status === "livre");
   check(
-    "admin NÃO desativa turno alheio pelo UPDATE direto",
-    tentaDireto.error !== null,
-    tentaDireto.error?.message ?? "sem erro",
+    "a janela pública sai recortada para 09:00–18:00",
+    livre.length === 1 && livre[0]?.start_time === "09:00" && livre[0]?.end_time === "18:00",
+    JSON.stringify(livre),
   );
-
-  const viaRpc = await (mockSupabaseClient as any).rpc("apply_business_hours", {
-    _barbershop_id: MOCK_BARBERSHOP_ID,
-    _day_of_week: SEGUNDA,
-    _open_time: "09:00:00",
-    _close_time: "18:00:00",
-    _is_closed: false,
-    _deactivate_conflicts: true,
-  });
-  check("mas a RPC resolve e salva", !viaRpc.error, JSON.stringify(viaRpc.error));
-  check("desativando exatamente 1 turno", viaRpc.data?.deactivated === 1, JSON.stringify(viaRpc.data));
-  check("e o expediente entra", getTableRows("business_hours").length === 1);
 
   group("expediente que NÃO conflita passa direto");
 
@@ -461,14 +521,16 @@ async function testeRpcAplicar() {
   check("salva o expediente quando não há conflito", !semConflito.error, JSON.stringify(semConflito.error));
   check("e nada foi desativado", semConflito.data?.deactivated === 0, JSON.stringify(semConflito.data));
 
-  group("apply_business_hours: recusa quando há conflito e não foi mandado resolver");
+  group("apply_business_hours: recusa quando há AGENDAMENTO em conflito");
 
+  // REESCRITO em 20260806140000. O conflito que faz a RPC recusar deixou de ser
+  // o turno recorrente e passou a ser o agendamento — e `_deactivate_conflicts`
+  // não resolve este, de propósito: desativar grade não desmarca cliente. A
+  // saída é remarcar ou cancelar, e isso é decisão de gente.
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
-  await cadastrarTurno({ start_time: "08:00", end_time: "20:00" });
-  // `cadastrarTurno` entra como o dono do turno; a RPC é da administração.
-  await login(MOCK_ADMIN_EMAIL);
+  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "08:00", end_time: "08:30" });
 
   const recusa = await (mockSupabaseClient as any).rpc("apply_business_hours", {
     _barbershop_id: MOCK_BARBERSHOP_ID,
@@ -478,14 +540,16 @@ async function testeRpcAplicar() {
     _is_closed: false,
     _deactivate_conflicts: false,
   });
-  check("recusa sem _deactivate_conflicts", Boolean(recusa.error), JSON.stringify(recusa.error));
-  check("com a mensagem que lista o conflito", String(recusa.error?.message ?? "").includes("08:00"), String(recusa.error?.message));
-  check("e o turno segue ATIVO", getTableRows("weekly_schedule").some((t) => t.start_time === "08:00" && t.is_active !== false));
+  check("recusa quando há agendamento fora do novo expediente", Boolean(recusa.error), JSON.stringify(recusa.error));
+  check(
+    "a mensagem nomeia o cliente e a hora",
+    String(recusa.error?.message ?? "").includes("08:00") &&
+      String(recusa.error?.message ?? "").includes("Caio"),
+    String(recusa.error?.message),
+  );
   check("e o expediente NÃO foi gravado", getTableRows("business_hours").length === 0);
 
-  group("apply_business_hours: resolve quando mandado, sem apagar nada");
-
-  const resolve = await (mockSupabaseClient as any).rpc("apply_business_hours", {
+  const aindaComDeactivate = await (mockSupabaseClient as any).rpc("apply_business_hours", {
     _barbershop_id: MOCK_BARBERSHOP_ID,
     _day_of_week: SEGUNDA,
     _open_time: "09:00:00",
@@ -493,13 +557,34 @@ async function testeRpcAplicar() {
     _is_closed: false,
     _deactivate_conflicts: true,
   });
-  check("aceita com _deactivate_conflicts", !resolve.error, JSON.stringify(resolve.error));
-  check("informa quantos desativou", resolve.data?.deactivated === 1, JSON.stringify(resolve.data));
+  check(
+    "_deactivate_conflicts NÃO contorna agendamento",
+    Boolean(aindaComDeactivate.error),
+    JSON.stringify(aindaComDeactivate.error),
+  );
+
+  group("apply_business_hours: sem agendamento em conflito, passa direto");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  await cadastrarTurno({ start_time: "08:00", end_time: "20:00" });
+  await login(MOCK_ADMIN_EMAIL);
+
+  const resolve = await (mockSupabaseClient as any).rpc("apply_business_hours", {
+    _barbershop_id: MOCK_BARBERSHOP_ID,
+    _day_of_week: SEGUNDA,
+    _open_time: "09:00:00",
+    _close_time: "18:00:00",
+    _is_closed: false,
+    _deactivate_conflicts: false,
+  });
+  check("turno largo não impede mais", !resolve.error, JSON.stringify(resolve.error));
   check("o expediente entrou", getTableRows("business_hours").length === 1);
 
   const turno = getTableRows("weekly_schedule").find((t) => t.start_time === "08:00");
   check("o turno NÃO foi apagado", Boolean(turno), "desativar nunca é apagar");
-  check("apenas desativado", turno?.is_active === false, String(turno?.is_active));
+  check("nem desativado — não foi preciso", turno?.is_active !== false, String(turno?.is_active));
 
   group("apply_business_hours: autorização");
 
@@ -932,7 +1017,19 @@ function testeParidade() {
   check("mock cita a migration", regras.includes("20260805170000"));
   check("mock trata ausência de envelope como sem restrição", /Ausência de envelope = sem restrição/.test(regras));
   check("mock ignora turno inativo", /if \(!ativo\) return null;/.test(regras));
-  check("mock só conta turno ativo como conflito", /if \(turno\.is_active === false\) return false;/.test(regras));
+  check(
+    "mock mede o conflito contra agendamento vivo, não contra a grade",
+    /getTableRows\("appointments"\)[\s\S]{0,400}!== "scheduled"/.test(regras),
+  );
+  check(
+    "e só dentro da janela de 90 dias, no fuso do tenant",
+    /nowInTenantTZ\(\)\.iso/.test(regras) && /addDaysISO\(hoje, 90\)/.test(regras),
+  );
+  check(
+    "mock aceita UPDATE de turno legado enquanto não ampliar",
+    /timeToMinutes\(inicio\) >= timeToMinutes\(inicioAntigo\)/.test(semComentarios(regras)) &&
+      /timeToMinutes\(fim\) <= timeToMinutes\(fimAntigo\)/.test(semComentarios(regras)),
+  );
   check("mock autoriza escrita só para administração", regras.includes("authorizeBusinessHours"));
 
   const builder = readFileSync(path.join(ROOT, "src", "mocks", "query-builder.ts"), "utf8");
@@ -942,8 +1039,30 @@ function testeParidade() {
 
 /* ══════════ 15. janelas públicas recortadas pelo expediente ══════════ */
 
-/** Segunda-feira real: 06/08/2026 é quinta, então 10/08 é a segunda seguinte. */
-const SEGUNDA_ISO = "2026-08-10";
+/** `YYYY-MM-DD` + n dias, sem passar por fuso nenhum. */
+function somaDias(iso: string, dias: number): string {
+  const d = new Date(
+    Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10))),
+  );
+  d.setUTCDate(d.getUTCDate() + dias);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * A próxima segunda ESTRITAMENTE futura, calculada a cada execução.
+ *
+ * Data fixa apodreceria: desde 20260806140000 o conflito só olha agendamento
+ * com `date >= hoje`, então uma constante escrita hoje viraria passado e os
+ * cenários passariam a "provar" que não há conflito — verdes pelo motivo
+ * errado, que é o pior estado possível para um harness.
+ */
+const SEGUNDA_ISO = (() => {
+  const hoje = nowInTenantTZ().iso;
+  const dow = new Date(
+    Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 1, Number(hoje.slice(8, 10))),
+  ).getUTCDay();
+  return somaDias(hoje, ((SEGUNDA - dow + 7) % 7) || 7);
+})();
 
 /**
  * O passo 1 da mudança de regra (migration 20260806130000).
@@ -995,12 +1114,17 @@ async function testeJanelasRecortadas() {
     );
   };
 
-  group("janelas públicas: a data escolhida é mesmo uma segunda");
+  group("janelas públicas: a data escolhida é mesmo uma segunda futura");
 
   check(
     `${SEGUNDA_ISO} cai em segunda-feira`,
-    new Date(`${SEGUNDA_ISO}T00:00:00Z`).getUTCDay() === SEGUNDA,
-    String(new Date(`${SEGUNDA_ISO}T00:00:00Z`).getUTCDay()),
+    diaDaSemanaDe(SEGUNDA_ISO) === SEGUNDA,
+    String(diaDaSemanaDe(SEGUNDA_ISO)),
+  );
+  check(
+    "e é estritamente futura — senão os cenários de conflito ficariam verdes pelo motivo errado",
+    SEGUNDA_ISO > nowInTenantTZ().iso,
+    `${SEGUNDA_ISO} vs hoje ${nowInTenantTZ().iso}`,
   );
 
   group("janelas públicas: sem envelope, nada muda");
@@ -1132,6 +1256,209 @@ function testeMigracaoRecorte() {
   );
 }
 
+/* ══════════ 16. conflito medido contra agendamento ══════════ */
+
+/**
+ * O passo 2 (migration 20260806140000). Os cenários são os do plano aprovado.
+ *
+ * O que amarra o desenho: fechar um dia é ACEITO quando só há grade recorrente
+ * (intenção), e RECUSADO quando há agendamento (compromisso com cliente).
+ */
+async function testeConflitoPorAgendamento() {
+  const fecharSegunda = async () => {
+    await login(MOCK_ADMIN_EMAIL);
+    return (mockSupabaseClient as any).from("business_hours").insert({
+      barbershop_id: MOCK_BARBERSHOP_ID,
+      day_of_week: SEGUNDA,
+      is_closed: true,
+    });
+  };
+
+  group("fechar um dia SEM agendamento");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  await cadastrarTurno({ start_time: "09:00", end_time: "18:00" });
+
+  const semAgenda = await fecharSegunda();
+  check("aceito, mesmo com grade ativa no dia", semAgenda.error === null, semAgenda.error?.message ?? "");
+
+  await mockSupabaseClient.auth.signOut();
+  const depoisDeFechar =
+    (
+      await (mockSupabaseClient as any).rpc("get_public_availability_windows", {
+        _barbershop_id: MOCK_BARBERSHOP_ID,
+        _barber_id: MOCK_USER_IDS.barberAna,
+        _date: SEGUNDA_ISO,
+      })
+    ).data ?? [];
+  check(
+    "e o público para de mostrar horário nesse dia",
+    depoisDeFechar.filter((j: Record<string, unknown>) => j.status === "livre").length === 0,
+    JSON.stringify(depoisDeFechar),
+  );
+
+  group("fechar um dia COM agendamento vivo");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30" });
+
+  const comAgenda = await fecharSegunda();
+  check("recusado", comAgenda.error !== null, comAgenda.error?.message ?? "sem erro");
+  check(
+    "a mensagem nomeia o cliente",
+    (comAgenda.error?.message ?? "").includes("Caio"),
+    comAgenda.error?.message ?? "",
+  );
+  check(
+    "a mensagem traz data e hora",
+    (comAgenda.error?.message ?? "").includes(ddmmDe(SEGUNDA_ISO)) &&
+      (comAgenda.error?.message ?? "").includes("10:00"),
+    comAgenda.error?.message ?? "",
+  );
+  check(
+    "e não vaza detalhe técnico",
+    !/SQLSTATE|constraint|policy|42501|undefined/i.test(comAgenda.error?.message ?? ""),
+    comAgenda.error?.message ?? "",
+  );
+  check("nada foi gravado", getTableRows("business_hours").length === 0);
+
+  group("o que NÃO bloqueia");
+
+  for (const status of ["cancelled", "completed", "no_show"]) {
+    resetMockDatabase();
+    await login(MOCK_ADMIN_EMAIL);
+    limparSegunda();
+    agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30", status });
+    const r = await fecharSegunda();
+    check(`agendamento \`${status}\` não bloqueia`, r.error === null, r.error?.message ?? "");
+  }
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  // 98 dias = 14 semanas: continua sendo segunda, e passa dos 90.
+  agendarNaSegunda({ date: somaDias(SEGUNDA_ISO, 98), start_time: "10:00", end_time: "10:30" });
+  const longe = await fecharSegunda();
+  check("agendamento além de 90 dias não bloqueia", longe.error === null, longe.error?.message ?? "");
+
+  group("redução parcial: só o que fica de fora conta");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30" });
+  const dentro = await definirExpediente({ open_time: "09:00", close_time: "12:00" });
+  check("agendamento DENTRO do novo expediente não bloqueia", dentro.error === null, dentro.error?.message ?? "");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "16:00", end_time: "16:30" });
+  const fora = await definirExpediente({ open_time: "09:00", close_time: "12:00" });
+  check("agendamento FORA do novo expediente bloqueia", fora.error !== null, fora.error?.message ?? "sem erro");
+
+  group("a orientação ao profissional continua de pé");
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  limparSegunda();
+  await definirExpediente({ open_time: "09:00", close_time: "18:00" });
+  const turnoNovo = await cadastrarTurno({ start_time: "06:00", end_time: "08:00" });
+  check(
+    "turno NOVO fora do expediente segue recusado",
+    turnoNovo.error !== null,
+    turnoNovo.error?.message ?? "sem erro",
+  );
+
+  resetMockDatabase();
+}
+
+/** `YYYY-MM-DD` → `DD/MM`, como a mensagem monta. */
+function ddmmDe(iso: string): string {
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+}
+
+/** O texto da 20260806140000. */
+function testeMigracaoConflito() {
+  const sql = readFileSync(
+    path.join(
+      ROOT,
+      "supabase",
+      "migrations",
+      "20260806140000_business_hours_conflict_uses_appointments.sql",
+    ),
+    "utf8",
+  );
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration 20260806140000: o conflito");
+
+  check(
+    "recria as duas funções de trigger",
+    /CREATE OR REPLACE FUNCTION public\.enforce_business_hours_fit_shifts\(/.test(corpo) &&
+      /CREATE OR REPLACE FUNCTION public\.enforce_shift_within_business_hours\(/.test(corpo),
+  );
+  check("o conflito lê appointments", /FROM public\.appointments/.test(corpo));
+  check(
+    "e NÃO lê mais weekly_schedule",
+    !/FROM public\.weekly_schedule/.test(corpo),
+    (corpo.match(/.*weekly_schedule.*/) ?? [""])[0].trim(),
+  );
+  check("só status scheduled", /ap\.status = 'scheduled'/.test(corpo));
+  check("janela de 90 dias", /_hoje \+ 90/.test(corpo));
+  check(
+    "hoje vem do fuso do tenant, não do servidor",
+    /now\(\) AT TIME ZONE _tz/.test(corpo) && /b\.timezone/.test(corpo),
+  );
+  check(
+    "não usa current_date, que erraria o dia toda noite",
+    !/\bcurrent_date\b/i.test(corpo),
+  );
+  check("casa o dia da semana da data do agendamento", /EXTRACT\(DOW FROM ap\.date\)/.test(corpo));
+
+  group("migration 20260806140000: a catraca do turno legado");
+
+  check(
+    "UPDATE contido na janela antiga é liberado",
+    /NEW\.start_time\s*>=\s*OLD\.start_time/.test(corpo) &&
+      /NEW\.end_time\s*<=\s*OLD\.end_time/.test(corpo),
+  );
+  check("só em UPDATE — INSERT segue estrito", /TG_OP = 'UPDATE'/.test(corpo));
+  check(
+    "e só no mesmo dia e barbearia",
+    /NEW\.day_of_week\s*=\s*OLD\.day_of_week/.test(corpo) &&
+      /NEW\.barbershop_id\s*=\s*OLD\.barbershop_id/.test(corpo),
+  );
+
+  group("migration 20260806140000: alcance e cabeçalho");
+
+  check("declara ser o passo 2 de 2", /PASSO 2 DE 2/.test(sql));
+  check("declara a pré-condição do passo 1", /20260806130000/.test(sql) && /PRÉ-CONDIÇÃO/.test(sql));
+  check(
+    "não apaga, não migra e não altera tabela",
+    !/\bDELETE\s+FROM\b/i.test(corpo) &&
+      !/\bUPDATE\s+public\./i.test(corpo) &&
+      !/\bALTER TABLE\b/i.test(corpo),
+  );
+  check(
+    "não reativa turno nenhum — isso é decisão de quem opera",
+    /não apaga, não desativa e não reativa/.test(sql),
+  );
+  check("não altera apply_business_hours", !/FUNCTION public\.apply_business_hours/.test(corpo));
+  check("registra o rollback", /ROLLBACK/.test(sql));
+  check(
+    "assume a consequência de `date >= hoje`",
+    /CONSEQUÊNCIA ACEITA/.test(sql),
+  );
+}
+
 /* ────────────────────────────── runner ────────────────────────────── */
 
 export async function runHarness() {
@@ -1153,6 +1480,8 @@ export async function runHarness() {
   testeParidade();
   await testeJanelasRecortadas();
   testeMigracaoRecorte();
+  await testeConflitoPorAgendamento();
+  testeMigracaoConflito();
 
   resetMockDatabase();
   const veredito = falhou === 0 ? "OK" : "FALHOU";
