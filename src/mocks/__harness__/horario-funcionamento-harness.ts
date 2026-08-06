@@ -645,13 +645,20 @@ function testeTela() {
   const semComent = semComentarios(editor);
   const dash = lerArquivo("src/components/BarberDashboard.tsx");
 
-  group("aba Horários: duas seções nomeadas pelo que são");
+  group("aba Horários: seções nomeadas pelo que são");
 
   check("o título enganoso saiu do cabeçalho da aba", !/>Horários de Funcionamento</.test(dash));
   check("existe a seção do expediente da barbearia", dash.includes("Funcionamento da barbearia"));
   check("existe a seção pessoal", dash.includes("Minha agenda"));
   check("e ela diz que vale só para quem está logado", /Vale só para você|vale só para você/.test(dash));
-  check("a aba passa isAdmin para a seção", /<ScheduleTab isAdmin=\{isAdmin\} \/>/.test(dash));
+  // Passaram a ser TRÊS: a "Agenda semanal" veio de /agenda na fase 1 da
+  // consolidação. E a asserção do `isAdmin` deixou de casar o JSX inteiro —
+  // pregar o formato quebrava a cada prop nova, sem proteger nada a mais.
+  check("existe a seção da agenda já gerada", dash.includes("Agenda semanal"));
+  check(
+    "a aba passa isAdmin para a seção",
+    /<ScheduleTab[\s\S]{0,160}?isAdmin=\{isAdmin\}/.test(dash),
+  );
   check("o editor recebe canEdit do papel", /<BusinessHoursEditor barbershopId=\{resolvedBarbershopId\} canEdit=\{isAdmin\} \/>/.test(dash));
 
   group("expediente: exibição por papel");

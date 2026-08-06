@@ -30,7 +30,7 @@
  * vendo cliente e relatório. E nada é apagado: histórico depende das linhas que
  * já existem.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { mockSupabaseClient } from "@/mocks/client";
 import { resetMockDatabase, getTableRows, setTableRows } from "@/mocks/store";
@@ -357,9 +357,12 @@ function testeTelas() {
 
   // A condição precisa ser POSITIVA. Com "não é admin", um papel futuro
   // (recepção, gerência) cairia no ramo de quem atende sem ninguém perceber.
+  // A chamada ganhou argumento na fase 1 (`?barbershop=` do super_admin); o que
+  // esta verificação guarda continua sendo o mesmo: o papel vem do escopo de
+  // tenant, não de uma negação de `isAdmin`.
   check(
     "a aba Horários usa `isBarber` do useTenantScope",
-    /useTenantScope\(\)/.test(dashboard) && /isBarber/.test(dashboard),
+    /useTenantScope\(\{ requestedBarbershopId \}\)/.test(dashboard) && /isBarber/.test(dashboard),
   );
   check(
     "e a condição é positiva — `isBarber`, não a negação de admin",
@@ -389,13 +392,15 @@ function testeTelas() {
   );
 
   // As duas metades da garantia: quem perde uma porta tem de manter a outra.
+  // REESCRITAS na fase 1 da consolidação de /agenda: a entrada ganhou `para`, e
+  // a nav deixou de ser `{isAdmin && ...}` para ser filtrada por papel.
   check(
     "a aba Comandas continua no array de abas",
-    /\{\s*id:\s*"comandas",[^}]*href:\s*"\/comandas"\s*\}/.test(dashboard),
+    /id:\s*"comandas"/.test(dashboard) && /href:\s*"\/comandas"/.test(dashboard),
   );
   check(
-    "e a nav de abas continua sob `isAdmin`",
-    /\{isAdmin && \([\s\S]{0,120}?<nav/.test(dashboard),
+    "e a nav só renderiza quando há mais de uma aba a mostrar",
+    /\{abasVisiveis\.length > 1 && \(/.test(dashboard),
   );
 
   // Aqui a condição NEGATIVA é a correta, ao contrário da aba Horários acima.
@@ -411,6 +416,105 @@ function testeTelas() {
     "o ícone segue em uso nos dois lugares, sem import órfão",
     (dashboard.match(/ReceiptText/g) ?? []).length >= 2,
     String((dashboard.match(/ReceiptText/g) ?? []).length),
+  );
+
+  group("BarberDashboard: a nav de abas é filtrada por papel, não por `isAdmin`");
+
+  // A marcação de quem vê o quê tem de viver em UM lugar. Se voltar a se
+  // espalhar em condicionais pela nav, estas verificações caem.
+  const bruto = lerArquivo("src/components/BarberDashboard.tsx");
+  // Fecha no `];` que está no INÍCIO da linha. Procurar `];` solto pararia no
+  // `para: TabAudience[];` da anotação de tipo, e o bloco sairia vazio — as
+  // asserções passariam por vacuidade, que é pior que falhar.
+  const inicioTabs = bruto.indexOf("const TABS");
+  const blocoTabs = bruto.slice(inicioTabs, bruto.indexOf("\n];", inicioTabs));
+  const audienciaDe = (id: string): string[] => {
+    const trecho = blocoTabs.slice(blocoTabs.indexOf(`id: "${id}"`));
+    const m = trecho.match(/para:\s*\[([^\]]*)\]/);
+    return m ? m[1].split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean) : [];
+  };
+
+  const ids = [...blocoTabs.matchAll(/id:\s*"([a-z]+)"/g)].map((m) => m[1]);
+  check("todas as abas declaram `para`", ids.every((id) => audienciaDe(id).length > 0), ids.join(","));
+
+  const veBarbeiro = ids.filter((id) => audienciaDe(id).includes("barbeiro"));
+  check(
+    "barbeiro vê exatamente Visão Geral, Comandas e Horários",
+    veBarbeiro.length === 3 &&
+      ["overview", "comandas", "schedule"].every((id) => veBarbeiro.includes(id)),
+    veBarbeiro.join(","),
+  );
+  check(
+    "e NÃO vê as administrativas",
+    !["services", "products", "team", "clients", "settings"].some((id) =>
+      audienciaDe(id).includes("barbeiro"),
+    ),
+  );
+  check(
+    "admin continua vendo todas",
+    ids.every((id) => audienciaDe(id).includes("admin")),
+  );
+  check(
+    "super_admin em tenant alheio vê SÓ Horários",
+    ids.filter((id) => audienciaDe(id).includes("superTenant")).join(",") === "schedule",
+    ids.filter((id) => audienciaDe(id).includes("superTenant")).join(","),
+  );
+  check(
+    "a nav renderiza a lista filtrada, não TABS cru",
+    /abasVisiveis\.map\(/.test(dashboard) && !/\{isAdmin && \([\s\S]{0,80}?<nav/.test(dashboard),
+  );
+
+  group("BarberDashboard: a aba Horários ganhou a Agenda Semanal");
+
+  check(
+    "ScheduleTab monta ScheduleManager",
+    /<ScheduleManager barbershopId=\{resolvedBarbershopId\} \/>/.test(dashboard),
+  );
+  check(
+    "junto das outras duas, sob o mesmo `isBarber`",
+    /WeeklyScheduleEditor/.test(dashboard) &&
+      /ScheduleBlocks/.test(dashboard) &&
+      (dashboard.match(/\{isBarber \?/g) ?? []).length === 2,
+    String((dashboard.match(/\{isBarber \?/g) ?? []).length),
+  );
+  check(
+    "o tenant da aba vem de useTenantScope, não do resolvedBarbershopId legado",
+    /useTenantScope\(\{ requestedBarbershopId \}\)/.test(dashboard) &&
+      /scope\.access === "granted" \? scope\.tenantId : null/.test(dashboard),
+  );
+  check(
+    "recusa de acesso não é confundida com `sem barbearia`",
+    /SemAcessoAoTenant/.test(dashboard) && /tenantAccessMessage/.test(dashboard),
+  );
+
+  group("rota /dashboard: aceita ?barbershop= para super_admin");
+
+  const rota = semComentarios(lerArquivo("src/routes/dashboard.tsx"));
+  check(
+    "o parâmetro entra no validateSearch",
+    /barbershop:\s*typeof search\.barbershop === "string"/.test(rota),
+  );
+  check(
+    "e é repassado ao BarberDashboard",
+    /requestedBarbershopId=\{requestedBarbershopId\}/.test(rota),
+  );
+  check(
+    "sem o parâmetro, o super_admin continua vendo o painel da plataforma",
+    /requestedBarbershopId \?[\s\S]{0,200}?<AdminDashboard \/>/.test(rota),
+  );
+
+  // FASE 1 é aditiva: nada some ainda. Se alguma destas cair, alguém adiantou
+  // a fase 2 sem os passos dela.
+  group("fase 1 é aditiva — nada foi removido");
+
+  check("/agenda continua existindo", existsSync(path.join(ROOT, "src", "routes", "agenda.tsx")));
+  check(
+    "o link do cabeçalho para /agenda continua lá",
+    /<Link to="\/agenda"/.test(dashboard),
+  );
+  check(
+    "os deep-links de notificação continuam apontando para /agenda",
+    /"\/agenda"/.test(lerArquivo("src/lib/notification-links.ts")),
   );
 }
 
