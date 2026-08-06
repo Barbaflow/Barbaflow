@@ -675,15 +675,13 @@ function authorizeWeeklySchedule(row: MockRow, existing?: MockRow): string | nul
  * inclusive as que o banco recusa. Entrou junto com a 20260806150000, que é a
  * migration que conserta o DELETE.
  *
- * A assimetria que a migration corrige, e que o espelho agora reproduz:
+ * Desde a 20260806160000 o admin só LÊ. As três policies de escrita ficaram:
  *
- *   INSERT / UPDATE   admin do tenant, OU o próprio barbeiro na própria linha
- *   DELETE            idem — antes da 20260806150000 o ramo do dono não existia,
- *                     e o barbeiro não conseguia apagar nem o que ele criou
+ *   INSERT / UPDATE / DELETE   o próprio barbeiro na própria linha, ou super_admin
  *
- * O admin apaga linha de QUALQUER pessoa do tenant, de propósito. Quem torna
- * isso visível é a tela (diálogo de confirmação nomeando o dono), não a regra —
- * são respostas diferentes para o mesmo fato.
+ * O ramo `admin_barbearia` saiu das três, alinhando `availability` com
+ * `weekly_schedule` e `schedule_blocks`, onde ele nunca escreveu. A "Agenda da
+ * equipe" já era somente leitura na interface; agora é garantia de banco.
  */
 function authorizeAvailability(
   operation: MockOperation,
@@ -694,13 +692,13 @@ function authorizeAvailability(
   if (!actor) return NO_SESSION;
   if (actorIsSuperAdmin()) return null;
 
+  // Sem ramo para `admin_barbearia`: desde a 20260806160000 ele só LÊ.
   const barbershopId = tenantOf(row, existing);
-  if (actorIsAdminOf(barbershopId)) return null;
 
   const dono = asString(existing?.barber_id) ?? asString(row.barber_id);
   if (dono !== actor.id) {
     return operation === "delete"
-      ? "Só a administração da barbearia remove o horário de outro profissional."
+      ? "Você só pode remover os seus próprios horários."
       : "Cada profissional gerencia apenas os próprios horários.";
   }
 
