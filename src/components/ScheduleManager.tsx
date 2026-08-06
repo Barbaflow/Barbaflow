@@ -26,6 +26,19 @@ import { logTechnicalError } from "@/lib/error-reporting";
 
 interface ScheduleManagerProps {
   barbershopId: string;
+  /**
+   * Restringe a UM profissional. Sem isto a tela mostra a barbearia inteira —
+   * que é como ela sempre foi, e o motivo de cada faixa exibir o dono.
+   */
+  barberId?: string;
+  /**
+   * Só leitura: nenhum controle de escrita é renderizado. Aqui a rede de
+   * segurança do banco é MAIS FRACA que nas outras duas seções — a policy de
+   * `availability` deixa a administração do tenant escrever e apagar linha de
+   * qualquer profissional. Ou seja, o que impede o admin de mexer na agenda
+   * alheia por esta tela é ESTA condição, não a RLS.
+   */
+  readOnly?: boolean;
 }
 
 interface AvailabilitySlot {
@@ -75,7 +88,11 @@ const STATUS_COLORS: Record<string, string> = {
   cancelled: "bg-destructive/20 text-destructive border-destructive/30",
 };
 
-export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
+export function ScheduleManager({
+  barbershopId,
+  barberId,
+  readOnly = false,
+}: ScheduleManagerProps) {
   const { user } = useAuth();
   const [weekStartISO, setWeekStartISO] = useState(() => todayISOInTenantTZ());
   const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
@@ -172,6 +189,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   }, [barbershopId, instanceId]);
 
   const addAvailability = async () => {
+    if (readOnly) return;
     if (!user || !newSlot.date) return;
 
     const { error } = await supabase.from("availability").insert({
@@ -203,6 +221,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
    * a janela antes do irreversível.
    */
   const pedirParaApagar = (slot: AvailabilitySlot) => {
+    if (readOnly) return;
     if (slot.barber_id === user?.id) {
       apagarSlot(slot);
       return;
@@ -211,6 +230,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   };
 
   const apagarSlot = async (slot: AvailabilitySlot) => {
+    if (readOnly) return;
     // `.select("id")` não é enfeite: é o que torna a recusa DETECTÁVEL.
     //
     // Num DELETE, a RLS do Postgres não levanta 42501 — ela FILTRA as linhas
@@ -254,6 +274,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
   };
 
   const cancelAppointment = async (id: string) => {
+    if (readOnly) return;
     const { error } = await supabase
       .from("appointments")
       .update({ status: "cancelled" })
@@ -264,8 +285,17 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
     }
   };
 
-  const slotsForDay = (dateISO: string) => availability.filter((s) => s.date === dateISO);
-  const apptsForDay = (dateISO: string) => appointments.filter((a) => a.date === dateISO);
+  // O filtro por profissional é de LEITURA, não de segurança: a consulta traz a
+  // barbearia inteira (é o que a policy de SELECT permite a staff) e o recorte
+  // acontece aqui. Para a "Agenda da equipe" isso basta — o admin escolhe de
+  // quem quer ver, e sem `barberId` a tela segue mostrando todos, como sempre.
+  const doAlvo = <T extends { barber_id: string }>(linhas: T[]) =>
+    barberId ? linhas.filter((l) => l.barber_id === barberId) : linhas;
+
+  const slotsForDay = (dateISO: string) =>
+    doAlvo(availability).filter((s) => s.date === dateISO);
+  const apptsForDay = (dateISO: string) =>
+    doAlvo(appointments).filter((a) => a.date === dateISO);
 
   return (
     <div className="space-y-6">
@@ -283,6 +313,8 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
           </Button>
         </div>
 
+        {/* leitura: adicionar horário nem aparece */}
+        {!readOnly && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button variant="gold" size="sm">
@@ -327,6 +359,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Weekly grid */}
@@ -349,6 +382,8 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
                   <div key={slot.id} className={`text-[10px] px-2 py-1 rounded border ${STATUS_COLORS[slot.status] || ""}`}>
                     <div className="flex items-center justify-between gap-1">
                       <span className="min-w-0 truncate">{slot.start_time.slice(0, 5)}-{slot.end_time.slice(0, 5)}</span>
+                      {/* leitura: sem remover janela */}
+                      {!readOnly && (
                       <button
                         onClick={() => pedirParaApagar(slot)}
                         className="shrink-0 opacity-50 hover:opacity-100"
@@ -356,6 +391,7 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
                       >
                         <X className="w-3 h-3" />
                       </button>
+                      )}
                     </div>
                     {/* De quem é esta faixa. `truncate` + `min-w-0` porque nome
                         longo numa coluna de dia da semana estoura a célula. */}
@@ -367,7 +403,8 @@ export function ScheduleManager({ barbershopId }: ScheduleManagerProps) {
                   <div key={appt.id} className={`text-[10px] px-2 py-1 rounded border ${STATUS_COLORS[appt.status] || ""}`}>
                     <div className="flex items-center justify-between gap-1">
                       <span className="min-w-0 truncate">{appt.start_time.slice(0, 5)}-{appt.end_time.slice(0, 5)}</span>
-                      {appt.status === "scheduled" && (
+                      {/* leitura: sem cancelar agendamento alheio */}
+                      {!readOnly && appt.status === "scheduled" && (
                         <button
                           onClick={() => cancelAppointment(appt.id)}
                           className="shrink-0 opacity-50 hover:opacity-100"

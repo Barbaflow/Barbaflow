@@ -30,6 +30,19 @@ import { logTechnicalError } from "@/lib/error-reporting";
 interface WeeklyScheduleEditorProps {
   /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
   barbershopId: string;
+  /**
+   * Profissional exibido. Sem isto, é sempre quem está logado — que era o único
+   * modo até a "Agenda da equipe" existir.
+   */
+  barberId?: string;
+  /**
+   * Só leitura: os controles de escrita NÃO SÃO RENDERIZADOS, não ficam
+   * desabilitados. Botão desabilitado ainda anuncia uma capacidade, e aqui ela
+   * não existe — o admin visualiza a grade da equipe e não a edita. As policies
+   * de `weekly_schedule` recusariam de qualquer forma (só o dono ou o
+   * super_admin escrevem), e é essa recusa que serve de rede de segurança.
+   */
+  readOnly?: boolean;
 }
 
 interface ScheduleSlot {
@@ -52,8 +65,14 @@ const DAY_NAMES = [
 
 const DAY_SHORT = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps) {
+export function WeeklyScheduleEditor({
+  barbershopId,
+  barberId,
+  readOnly = false,
+}: WeeklyScheduleEditorProps) {
   const { user } = useAuth();
+  /** De quem é a grade nesta montagem. Sem `barberId`, a de quem está logado. */
+  const alvo = barberId ?? user?.id ?? null;
   const [schedule, setSchedule] = useState<ScheduleSlot[]>([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -65,14 +84,14 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
   });
 
   const fetchSchedule = useCallback(async () => {
-    if (!user) return;
+    if (!alvo) return;
     setLoading(true);
 
     const { data, error } = await supabase
       .from("weekly_schedule")
       .select("id, day_of_week, start_time, end_time, is_active")
       .eq("barbershop_id", barbershopId)
-      .eq("barber_id", user.id)
+      .eq("barber_id", alvo)
       .order("day_of_week", { ascending: true })
       .order("start_time", { ascending: true });
 
@@ -80,14 +99,18 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
       setSchedule(data);
     }
     setLoading(false);
-  }, [user, barbershopId]);
+    // `alvo`, não `user`: com a troca de profissional no seletor da "Agenda da
+    // equipe", o usuário logado não muda e a consulta precisa refazer mesmo
+    // assim. Depender de `user` deixaria a grade do primeiro escolhido na tela.
+  }, [alvo, barbershopId]);
 
   useEffect(() => {
     fetchSchedule();
   }, [fetchSchedule]);
 
   const handleAdd = async () => {
-    if (!user) return;
+    if (readOnly) return;
+    if (!alvo) return;
 
     if (newSlot.start_time >= newSlot.end_time) {
       toast.error("Horário de início deve ser antes do fim.");
@@ -95,7 +118,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     }
 
     const { error } = await supabase.from("weekly_schedule").insert({
-      barber_id: user.id,
+      barber_id: alvo,
       barbershop_id: barbershopId,
       day_of_week: newSlot.day_of_week,
       start_time: newSlot.start_time + ":00",
@@ -123,6 +146,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
   };
 
   const handleToggle = async (id: string, active: boolean) => {
+    if (readOnly) return;
     const { error } = await supabase
       .from("weekly_schedule")
       .update({ is_active: active })
@@ -147,6 +171,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
   };
 
   const handleDelete = async (id: string) => {
+    if (readOnly) return;
     const { error } = await supabase
       .from("weekly_schedule")
       .delete()
@@ -163,7 +188,8 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
   };
 
   const handleApplyTemplate = async () => {
-    if (!user) return;
+    if (readOnly) return;
+    if (!alvo) return;
     const templateSlots = [];
     for (let day = 1; day <= 5; day++) {
       const exists = schedule.some(
@@ -171,7 +197,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
       );
       if (!exists) {
         templateSlots.push({
-          barber_id: user.id,
+          barber_id: alvo,
           barbershop_id: barbershopId,
           day_of_week: day,
           start_time: "09:00:00",
@@ -195,7 +221,8 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
   };
 
   const handleGenerateSlots = async () => {
-    if (!user) return;
+    if (readOnly) return;
+    if (!alvo) return;
     setGenerating(true);
 
     // Janela gerada a partir do "hoje" da barbearia. Com toISOString() o
@@ -204,7 +231,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
     const startDate = todayISOInTenantTZ();
 
     const { data, error } = await supabase.rpc("generate_availability_from_schedule", {
-      _barber_id: user.id,
+      _barber_id: alvo,
       _barbershop_id: barbershopId,
       _start_date: startDate,
       _end_date: addDaysISO(startDate, 14),
@@ -250,6 +277,11 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
             Defina seus horários recorrentes. Use "Gerar Agenda" para criar slots de disponibilidade.
           </p>
         </div>
+        {/* Em modo leitura os controles não existem — não ficam desabilitados.
+            Botão desabilitado ainda anuncia uma capacidade, e o admin não tem
+            nenhuma sobre a grade alheia: as policies de `weekly_schedule`
+            recusam, e é essa recusa que serve de rede de segurança. */}
+        {!readOnly && (
         <div className="flex items-center gap-2">
           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
             <DialogTrigger asChild>
@@ -338,6 +370,7 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
             Gerar Agenda
           </Button>
         </div>
+        )}
       </div>
 
       {/* Schedule grid */}
@@ -379,17 +412,31 @@ export function WeeklyScheduleEditor({ barbershopId }: WeeklyScheduleEditorProps
                             <span className="text-xs font-medium">
                               {slot.start_time.slice(0, 5)} — {slot.end_time.slice(0, 5)}
                             </span>
-                            <Switch
-                              checked={slot.is_active}
-                              onCheckedChange={(v) => handleToggle(slot.id, v)}
-                              className="scale-75"
-                            />
-                            <button
-                              onClick={() => handleDelete(slot.id)}
-                              className="text-muted-foreground hover:text-destructive transition-colors"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {readOnly ? (
+                              // Em leitura, o estado do turno vira TEXTO: quem
+                              // visualiza precisa saber que um turno está
+                              // desativado, e o Switch some junto com a
+                              // capacidade de mexer nele.
+                              !slot.is_active && (
+                                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                                  inativo
+                                </span>
+                              )
+                            ) : (
+                              <>
+                                <Switch
+                                  checked={slot.is_active}
+                                  onCheckedChange={(v) => handleToggle(slot.id, v)}
+                                  className="scale-75"
+                                />
+                                <button
+                                  onClick={() => handleDelete(slot.id)}
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         ))}
                       </div>
