@@ -29,6 +29,14 @@ import { logTechnicalError } from "@/lib/error-reporting";
 interface ScheduleBlocksProps {
   /** Tenant já resolvido — nunca um id "padrão". Ver useTenantScope. */
   barbershopId: string;
+  /** Profissional exibido. Sem isto, é sempre quem está logado. */
+  barberId?: string;
+  /**
+   * Só leitura: os controles de escrita não são renderizados. As policies de
+   * `schedule_blocks` recusariam o admin de qualquer forma (só o dono ou o
+   * super_admin escrevem) — a interface não oferece o que o banco nega.
+   */
+  readOnly?: boolean;
 }
 
 interface ScheduleBlock {
@@ -44,8 +52,14 @@ const BLOCK_TYPE_CONFIG = {
   pessoal: { label: "Pessoal", icon: UserX, color: "bg-blue-500/15 text-blue-400 border-blue-500/30" },
 };
 
-export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
+export function ScheduleBlocks({
+  barbershopId,
+  barberId,
+  readOnly = false,
+}: ScheduleBlocksProps) {
   const { user } = useAuth();
+  /** De quem são os bloqueios nesta montagem. */
+  const alvo = barberId ?? user?.id ?? null;
   const [blocks, setBlocks] = useState<ScheduleBlock[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -57,7 +71,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
   });
 
   const fetchBlocks = useCallback(async () => {
-    if (!user) return;
+    if (!alvo) return;
     setLoading(true);
     // "Hoje" da barbearia: `new Date().toISOString()` converte para UTC antes de
     // cortar a data e, em UTC−3, a partir das 21:00 já escondia os bloqueios de hoje.
@@ -67,7 +81,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
       .from("schedule_blocks")
       .select("id, block_date, reason, block_type")
       .eq("barbershop_id", barbershopId)
-      .eq("barber_id", user.id)
+      .eq("barber_id", alvo)
       .gte("block_date", today)
       .order("block_date", { ascending: true });
 
@@ -75,14 +89,17 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
       setBlocks(data as ScheduleBlock[]);
     }
     setLoading(false);
-  }, [user, barbershopId]);
+    // `alvo`, não `user`: trocar de profissional no seletor não muda quem está
+    // logado, e sem esta dependência a lista ficaria a do primeiro escolhido.
+  }, [alvo, barbershopId]);
 
   useEffect(() => {
     fetchBlocks();
   }, [fetchBlocks]);
 
   const handleAdd = async () => {
-    if (!user) return;
+    if (readOnly) return;
+    if (!alvo) return;
     if (!newBlock.start_date) {
       toast.error("Selecione pelo menos uma data.");
       return;
@@ -101,7 +118,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
     }
 
     const rows = dates.map((d) => ({
-      barber_id: user.id,
+      barber_id: alvo,
       barbershop_id: barbershopId,
       block_date: d,
       reason: newBlock.reason || null,
@@ -125,6 +142,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
   };
 
   const handleDelete = async (id: string) => {
+    if (readOnly) return;
     const { error } = await supabase
       .from("schedule_blocks")
       .delete()
@@ -186,6 +204,8 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
             Feriados, férias e folgas que sobrepõem seus horários semanais.
           </p>
         </div>
+        {/* Em leitura, o diálogo de novo bloqueio nem existe */}
+        {!readOnly && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
@@ -254,6 +274,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {grouped.length > 0 ? (
@@ -289,6 +310,8 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
                         )}
                       </div>
                     </div>
+        {/* Em leitura, sem lixeira: a policy de schedule_blocks recusa o admin */}
+        {!readOnly && (
                     <div className="flex items-center gap-1 flex-shrink-0">
                       {group.dates.map((b) => (
                         <button
@@ -301,6 +324,7 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
                         </button>
                       ))}
                     </div>
+        )}
                   </div>
                 </CardContent>
               </Card>
@@ -315,14 +339,17 @@ export function ScheduleBlocks({ barbershopId }: ScheduleBlocksProps) {
           <p className="text-sm text-muted-foreground font-medium">
             Nenhum bloqueio futuro configurado.
           </p>
-          <Button
-            size="sm"
-            onClick={() => setDialogOpen(true)}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="w-4 h-4" />
-            Adicionar Bloqueio
-          </Button>
+          {/* Em leitura o estado vazio informa, mas não convida a criar. */}
+          {!readOnly && (
+            <Button
+              size="sm"
+              onClick={() => setDialogOpen(true)}
+              className="bg-primary text-primary-foreground hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4" />
+              Adicionar Bloqueio
+            </Button>
+          )}
         </div>
       )}
     </div>
