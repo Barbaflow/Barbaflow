@@ -370,6 +370,48 @@ function testeTelas() {
     "quem não atende vê explicação, não uma seção vazia",
     /A agenda pessoal aparece para quem atende/.test(lerArquivo("src/components/BarberDashboard.tsx")),
   );
+
+  group("BarberDashboard: uma porta para Comandas por papel, nunca zero");
+
+  // O link do cabeçalho e a aba iam para o MESMO destino, mas não eram
+  // intercambiáveis: a nav de abas renderiza sob `isAdmin`, e o link não tinha
+  // condição nenhuma. Para o admin era duplicata; para o barbeiro era a única
+  // porta incondicional para `/comandas`, que a rota autoriza a ele
+  // (`canManage={scope.isAdmin || scope.isBarber}`).
+  check(
+    "o link do cabeçalho é condicionado a `!isAdmin`",
+    /\{!isAdmin && \([\s\S]{0,120}?<Link to="\/comandas"/.test(dashboard),
+  );
+  check(
+    "e é o ÚNICO <Link to=\"/comandas\" no arquivo — a aba usa `tab.href`",
+    (dashboard.match(/<Link to="\/comandas"/g) ?? []).length === 1,
+    String((dashboard.match(/<Link to="\/comandas"/g) ?? []).length),
+  );
+
+  // As duas metades da garantia: quem perde uma porta tem de manter a outra.
+  check(
+    "a aba Comandas continua no array de abas",
+    /\{\s*id:\s*"comandas",[^}]*href:\s*"\/comandas"\s*\}/.test(dashboard),
+  );
+  check(
+    "e a nav de abas continua sob `isAdmin`",
+    /\{isAdmin && \([\s\S]{0,120}?<nav/.test(dashboard),
+  );
+
+  // Aqui a condição NEGATIVA é a correta, ao contrário da aba Horários acima.
+  // Aquela decide quem ATENDE; esta decide quem NÃO TEM A ABA, e a aba é
+  // `isAdmin` — o complemento exato é `!isAdmin`. Com `isBarber`, um papel
+  // futuro (recepção) ficaria sem aba E sem link.
+  check(
+    "a condição do link não foi trocada por `isBarber`",
+    !/\{\s*isBarber && \([\s\S]{0,120}?<Link to="\/comandas"/.test(dashboard),
+    "isBarber deixaria um papel futuro sem porta nenhuma",
+  );
+  check(
+    "o ícone segue em uso nos dois lugares, sem import órfão",
+    (dashboard.match(/ReceiptText/g) ?? []).length >= 2,
+    String((dashboard.match(/ReceiptText/g) ?? []).length),
+  );
 }
 
 /* ══════════ 5. a migration ══════════ */

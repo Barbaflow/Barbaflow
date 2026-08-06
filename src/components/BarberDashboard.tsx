@@ -385,12 +385,36 @@ export function BarberDashboard({ isAdmin = false }: BarberDashboardProps) {
                 <span className="hidden 2xl:inline">Meus Horários</span>
               </Button>
             </Link>
-            <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
-              <Button variant="ghost" size="sm">
-                <ReceiptText className="w-4 h-4" />
-                <span className="hidden 2xl:inline">Comandas</span>
-              </Button>
-            </Link>
+            {/* Só para quem NÃO administra, e a condição é o ponto.
+
+                Para o admin este link é duplicata: a nav de abas logo abaixo já
+                tem "Comandas", e ela renderiza sob `isAdmin`. Para o barbeiro
+                não é duplicata nenhuma — é a única porta INCONDICIONAL que ele
+                tem para `/comandas`, uma tela que a rota autoriza a ele
+                explicitamente (`canManage={scope.isAdmin || scope.isBarber}`).
+
+                As outras entradas que um barbeiro alcança ficam no
+                OperationalDashboard e só existem no ramo em que a seção TEM
+                dado — com o dia vazio, ou carregando, ou em erro, elas não
+                renderizam. Remover este link de vez deixaria o barbeiro sem
+                acesso nenhum, que é exatamente o defeito descrito no comentário
+                do "/agenda" acima.
+
+                E aqui a condição é NEGATIVA de propósito, ao contrário da aba
+                "Horários" logo abaixo, que exige `isBarber` positivo. Não é
+                incoerência: aquela decide quem ATENDE, e um papel futuro
+                (recepção, gerência) não deve cair nesse ramo por omissão. Esta
+                decide quem NÃO TEM A ABA, e a aba renderiza sob `isAdmin` — o
+                complemento exato é `!isAdmin`. Trocar por `isBarber` deixaria
+                justamente esse papel futuro sem porta alguma. */}
+            {!isAdmin && (
+              <Link to="/comandas" search={{ barbershop: undefined, comanda: undefined }}>
+                <Button variant="ghost" size="sm">
+                  <ReceiptText className="w-4 h-4" />
+                  <span className="hidden 2xl:inline">Comandas</span>
+                </Button>
+              </Link>
+            )}
             <Link to="/relatorios">
               <Button variant="ghost" size="sm">
                 <BarChart3 className="w-4 h-4" />
