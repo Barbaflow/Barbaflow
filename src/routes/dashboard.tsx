@@ -33,9 +33,17 @@ export const Route = createFileRoute("/dashboard")({
   // aceitam, e existe aqui porque a "Agenda Semanal" migrou para a aba
   // Horários: sem ele o super_admin perderia o caminho de operar a agenda de um
   // tenant com problema, que hoje passa por `/agenda?barbershop=<uuid>`.
-  validateSearch: (search: Record<string, unknown>): { checkout?: string; barbershop?: string } => ({
+  //
+  // `tab` abre o dashboard numa aba específica. Existe para o redirect de
+  // `/agenda` (fase 2) cair direto em "Horários" em vez da Visão Geral. Não é
+  // uma autorização: o valor é CONFERIDO contra as abas que o papel realmente
+  // enxerga, e um `?tab=settings` de barbeiro cai na primeira aba dele.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { checkout?: string; barbershop?: string; tab?: string } => ({
     checkout: (search.checkout as string) || undefined,
     barbershop: typeof search.barbershop === "string" ? search.barbershop : undefined,
+    tab: typeof search.tab === "string" ? search.tab : undefined,
   }),
   component: DashboardPage,
 });
@@ -50,7 +58,7 @@ function DashboardPage() {
   // mas ler o campo legado convidava a exatamente esse erro.
   const { resolvedBarbershopId, loading: barbershopLoading } = useBarbershop();
   const navigate = useNavigate();
-  const { checkout, barbershop: requestedBarbershopId } = Route.useSearch();
+  const { checkout, barbershop: requestedBarbershopId, tab } = Route.useSearch();
   const [role, setRole] = useState<DashboardRole | null>(null);
   const [roleStatus, setRoleStatus] = useState<"loading" | "ready" | "error">("loading");
   const [orphanShop, setOrphanShop] = useState<OrphanShop | null>(null);
@@ -273,18 +281,18 @@ function DashboardPage() {
     // mostraria dado da barbearia errada — ou vazio — com o nome da certa no
     // cabeçalho. Tornar as outras abas escopáveis é trabalho à parte.
     return requestedBarbershopId ? (
-      <BarberDashboard isAdmin requestedBarbershopId={requestedBarbershopId} />
+      <BarberDashboard isAdmin requestedBarbershopId={requestedBarbershopId} abaInicial={tab} />
     ) : (
       <AdminDashboard />
     );
   }
 
   if (role === "admin_barbearia") {
-    return <BarberDashboard isAdmin />;
+    return <BarberDashboard isAdmin abaInicial={tab} />;
   }
 
   if (role === "barbeiro") {
-    return <BarberDashboard />;
+    return <BarberDashboard abaInicial={tab} />;
   }
 
   // Dono sem vínculo de admin: barbearia existe, papel não. Nunca criamos uma

@@ -96,8 +96,15 @@ function testDatas(tz) {
 
 function testTenantEAgendaReal() {
   group("tenant real na agenda");
+  // A agenda MUDOU DE CASA: `/agenda` virou redirect e o conteúdo passou a
+  // viver na aba "Horários" do dashboard. As três invariantes abaixo seguem
+  // valendo — só passaram a ser cobradas de quem as cumpre hoje. Elas não são
+  // sobre um arquivo, são sobre o comportamento: resolver tenant antes de
+  // montar, e explicar a recusa em vez de mostrar agenda vazia.
   const agenda = readCode("src/routes/agenda.tsx");
-  check("usa useTenantScope", agenda.includes("useTenantScope("));
+  const dashboard = readCode("src/components/BarberDashboard.tsx");
+
+  check("usa useTenantScope", dashboard.includes("useTenantScope("));
   check(
     "não passa mais o barbershopId legado adiante",
     !/const \{[^}]*\bbarbershopId\b/.test(agenda),
@@ -106,12 +113,21 @@ function testTenantEAgendaReal() {
   check("aceita seleção explícita de tenant por ?barbershop=", agenda.includes("validateSearch"));
   check(
     "não monta a agenda enquanto o tenant resolve",
-    agenda.includes("resolving") && agenda.includes('scope.access === "checking"'),
+    dashboard.includes("resolvendo") && dashboard.includes('scope.access === "checking"'),
   );
   check(
     "sem tenant concedido, explica em vez de mostrar agenda vazia",
-    agenda.includes("tenantAccessMessage"),
+    dashboard.includes("tenantAccessMessage"),
   );
+
+  group("/agenda continua atendendo quem chega pelo link antigo");
+
+  // Notificação já entregue tem o link gravado no dispositivo de quem recebeu:
+  // a rota não pode sumir, e o redirect tem de levar à aba certa carregando o
+  // tenant pedido.
+  check("virou redirect, sem componente", agenda.includes("redirect(") && !agenda.includes("component:"));
+  check("aponta para a aba Horários", agenda.includes('tab: "schedule"'));
+  check("e preserva o ?barbershop=", agenda.includes("barbershop: search.barbershop"));
 
   group("datas de calendário");
   const arquivosDeAgenda = [
