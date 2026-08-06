@@ -39,6 +39,7 @@ import {
   MOCK_BARBERSHOP_ID,
   MOCK_ADMIN_C_EMAIL,
   MOCK_BARBERSHOP_C_ID,
+  MOCK_SUPER_ADMIN_EMAIL,
   MOCK_USER_IDS,
 } from "@/mocks/fixtures";
 
@@ -48,6 +49,18 @@ const MIGRATION = path.join(
   "supabase",
   "migrations",
   "20260805200000_only_barbeiro_attends.sql",
+);
+
+/**
+ * A correção do efeito colateral: a 20260805200000 recriou a policy de INSERT
+ * de `weekly_schedule` sem trazer de volta o ramo `super_admin` que a
+ * 20260722220000 tinha acrescentado, e não documentou a remoção.
+ */
+const MIGRATION_SUPER = path.join(
+  ROOT,
+  "supabase",
+  "migrations",
+  "20260806120000_restore_super_admin_weekly_schedule_insert.sql",
 );
 
 function lerArquivo(rel: string): string {
@@ -482,6 +495,190 @@ function testeParidade() {
   );
 }
 
+/* ══════════ 6. o ramo `super_admin` da policy de INSERT ══════════ */
+
+/**
+ * O que a 20260806120000 devolve, e por que tem teste próprio.
+ *
+ * A 20260805200000 recriou a policy de INSERT de `weekly_schedule` escrevendo o
+ * predicado do zero e perdeu o `OR has_role(auth.uid(), 'super_admin')` da
+ * 20260722220000 — sem uma linha a respeito no arquivo, no commit ou no PR.
+ *
+ * O mock NUNCA teve esse defeito: `authorizeWeeklySchedule` sempre retornou
+ * cedo para o super_admin. Quer dizer que entre 05/08 e a correção o mock era
+ * MAIS permissivo que o banco, e esta suíte teria passado enquanto a produção
+ * recusava. É por isso que as asserções abaixo são de duas naturezas — o
+ * comportamento (que já valia) E o texto da migration (que é o que estava
+ * faltando).
+ *
+ * O caso de uso é cadastrar a grade DE OUTRA pessoa: por isso o alvo do INSERT
+ * é sempre um `barber_id` que não é o do ator.
+ */
+async function testeSuperAdminGrade() {
+  resetMockDatabase();
+  setTableRows("business_hours", []);
+  setTableRows(
+    "weekly_schedule",
+    getTableRows("weekly_schedule").filter(
+      (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === SEGUNDA),
+    ),
+  );
+
+  group("weekly_schedule: o super_admin cadastra grade de terceiro");
+
+  await login(MOCK_SUPER_ADMIN_EMAIL);
+  const deOutro = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberBruno,
+    day_of_week: SEGUNDA,
+    start_time: "08:00",
+    end_time: "12:00",
+    is_active: true,
+  });
+  check(
+    "super_admin cadastra a grade de um barbeiro que não é ele",
+    deOutro.error === null,
+    deOutro.error?.message ?? "",
+  );
+  check(
+    "e a linha foi mesmo gravada",
+    getTableRows("weekly_schedule").some(
+      (t) => t.barber_id === MOCK_USER_IDS.barberBruno && String(t.start_time).startsWith("08:00"),
+    ),
+  );
+
+  // O ramo é alternativa ao BLOCO INTEIRO: se ficasse preso a
+  // `barber_id = auth.uid()`, a palavra `super_admin` estaria no predicado sem
+  // devolver a capacidade — a grade que ele conserta nunca é a dele. Por isso a
+  // asserção é sobre o DONO da linha gravada, não sobre quem a gravou.
+  // Escopo pela barbearia: SEGUNDA às 08:00 também existe em OUTRO tenant do
+  // fixture, e sem este filtro a contagem pegava a linha alheia junto.
+  const gravadas = getTableRows("weekly_schedule").filter(
+    (t) =>
+      t.barbershop_id === MOCK_BARBERSHOP_ID &&
+      Number(t.day_of_week) === SEGUNDA &&
+      String(t.start_time).startsWith("08:00"),
+  );
+  check(
+    "a grade gravada é de terceiro, não do próprio super_admin",
+    gravadas.length === 1 &&
+      gravadas.every((t) => String(t.barber_id) !== String(MOCK_USER_IDS.superRita)),
+    `${gravadas.length} linha(s)`,
+  );
+
+  group("weekly_schedule: os outros papéis não mudam");
+
+  await login(MOCK_ADMIN_EMAIL);
+  const doAdmin = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.admin,
+    day_of_week: SEGUNDA,
+    start_time: "13:00",
+    end_time: "17:00",
+    is_active: true,
+  });
+  check(
+    "admin_barbearia segue recusado na PRÓPRIA grade",
+    doAdmin.error !== null,
+    doAdmin.error?.message ?? "sem erro",
+  );
+
+  await login("ana@barbearia.teste");
+  const daAna = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberAna,
+    day_of_week: SEGUNDA,
+    start_time: "13:00",
+    end_time: "17:00",
+    is_active: true,
+  });
+  check("barbeiro segue cadastrando a própria", daAna.error === null, daAna.error?.message ?? "");
+
+  const anaEmBruno = await (mockSupabaseClient as any).from("weekly_schedule").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberBruno,
+    day_of_week: SEGUNDA,
+    start_time: "14:00",
+    end_time: "16:00",
+    is_active: true,
+  });
+  check(
+    "barbeiro segue recusado na grade alheia",
+    anaEmBruno.error !== null,
+    anaEmBruno.error?.message ?? "sem erro",
+  );
+}
+
+/** O texto da 20260806120000 — o ponto exato que faltou na 20260805200000. */
+function testeMigrationSuperAdmin() {
+  const sql = readFileSync(MIGRATION_SUPER, "utf8");
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration 20260806120000: o ramo de plataforma volta");
+
+  check(
+    "recria a policy de INSERT de weekly_schedule",
+    /DROP POLICY IF EXISTS "Barbers can create own schedule"/.test(corpo) &&
+      /CREATE POLICY "Barbers can create own schedule"/.test(corpo),
+  );
+  check(
+    "devolve o ramo `super_admin`",
+    /has_role\(\s*auth\.uid\(\)\s*,\s*'super_admin'/.test(corpo),
+  );
+  check(
+    "mantém a exigência do papel `barbeiro`",
+    /has_role_in_barbershop\(\s*auth\.uid\(\)\s*,\s*barbershop_id\s*,\s*'barbeiro'/.test(corpo),
+  );
+  check("mantém a exigência da grade PRÓPRIA", /barber_id\s*=\s*auth\.uid\(\)/.test(corpo));
+  check(
+    "não reabre para `admin_barbearia`",
+    !/'admin_barbearia'/.test(corpo),
+    (corpo.match(/.*admin_barbearia.*/) ?? [""])[0].trim(),
+  );
+
+  // O ramo precisa ser alternativa ao BLOCO, não conjunção: `... AND
+  // super_admin` seria inútil, e `barber_id = auth.uid() AND (barbeiro OR
+  // super_admin)` prenderia o super_admin à própria grade.
+  check(
+    "o ramo é um OR de topo, não um AND",
+    /\)\s*OR\s*public\.has_role\(\s*auth\.uid\(\)\s*,\s*'super_admin'/.test(corpo),
+  );
+
+  group("migration 20260806120000: alcance e cabeçalho");
+
+  check("mexe em uma policy só", (corpo.match(/CREATE POLICY/g) ?? []).length === 1);
+  check(
+    "não toca em função nenhuma",
+    !/CREATE\s+(OR REPLACE\s+)?FUNCTION/i.test(corpo),
+  );
+  check(
+    "não apaga, não migra e não altera tabela",
+    !/\bDELETE\s+FROM\b/i.test(corpo) &&
+      !/\bUPDATE\s+public\./i.test(corpo) &&
+      !/\bTRUNCATE\b/i.test(corpo) &&
+      !/\bALTER TABLE\b/i.test(corpo),
+  );
+  check("registra o rollback", /ROLLBACK/.test(sql));
+  check("registra que é aditiva", /aditiva|ADITIVA/.test(sql));
+  check(
+    "registra a auditoria das outras sete policies",
+    /schedule_blocks/.test(sql) && /20260722220000/.test(sql),
+  );
+
+  group("paridade: o mock já permitia, e continua permitindo");
+
+  const regras = lerArquivo("src/mocks/rules.ts");
+  check(
+    "authorizeWeeklySchedule libera o super_admin antes de exigir `barbeiro`",
+    /if \(actorIsSuperAdmin\(\)\) return null;[\s\S]*?criando && !barbeiroRoleIn/.test(
+      semComentarios(regras),
+    ),
+  );
+}
+
 /* ────────────────────────────── runner ────────────────────────────── */
 
 export async function runHarness() {
@@ -493,6 +690,8 @@ export async function runHarness() {
   testeTelas();
   testeMigration();
   testeParidade();
+  await testeSuperAdminGrade();
+  testeMigrationSuperAdmin();
 
   resetMockDatabase();
   const veredito = falhou === 0 ? "OK" : "FALHOU";
