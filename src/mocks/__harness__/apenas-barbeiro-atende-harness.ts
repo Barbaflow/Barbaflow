@@ -1314,6 +1314,173 @@ function testeMigracaoAdminSoLe() {
   );
 }
 
+/* ══════════ 8. a visão consolidada de equipe ══════════ */
+
+/**
+ * "Agenda da equipe": o admin VISUALIZA a agenda de quem atende.
+ *
+ * Sem migration — o `admin_barbearia` já tinha SELECT em `weekly_schedule` e
+ * `schedule_blocks` do próprio tenant. O que faltava era tela.
+ *
+ * A decisão de ser somente leitura não é cautela: desde a 20260805200000 o
+ * admin não atende, e grade e bloqueios são o instrumento de trabalho de quem
+ * atende. Ele ganha visibilidade para coordenar, não posse.
+ */
+function testeAgendaDaEquipe() {
+  const dashboard = semComentarios(lerArquivo("src/components/BarberDashboard.tsx"));
+  const bruto = lerArquivo("src/components/BarberDashboard.tsx");
+  const seletor = lerArquivo("src/components/SeletorDeBarbeiro.tsx");
+  const seletorCodigo = semComentarios(seletor);
+
+  group("SeletorDeBarbeiro: extraído e com os quatro estados");
+
+  check(
+    "o componente existe como arquivo próprio",
+    existsSync(path.join(ROOT, "src", "components", "SeletorDeBarbeiro.tsx")),
+  );
+  check(
+    "carrega quem tem papel `barbeiro` — o admin não atende, não é opção",
+    /\.eq\("role", "barbeiro"\)/.test(seletorCodigo),
+  );
+  check(
+    "o hook é separado do componente, para reuso sem arrastar interface",
+    /export function useBarbeirosDoTenant\(/.test(seletorCodigo) &&
+      /export function SeletorDeBarbeiro\(/.test(seletorCodigo),
+  );
+  check(
+    "recebe a lista pronta em vez de recarregá-la",
+    /barbeiros: BarbeiroDaEquipe\[\]/.test(seletorCodigo),
+    "duas consultas para a mesma coisa é o que a extração evita",
+  );
+  check(
+    "traz a opção `todos` por prop — o filtro da Visão Geral precisa dela depois",
+    /incluirTodos/.test(seletorCodigo) && /TODOS_OS_BARBEIROS/.test(seletorCodigo),
+  );
+
+  // Os quatro estados, que era o que o carregador inline NÃO tinha: ele fazia
+  // `return` no erro e na lista vazia, e o seletor sumia da tela.
+  check("carregando mostra skeleton", /estado === "loading"[\s\S]{0,120}?<Skeleton/.test(seletorCodigo));
+  check(
+    "erro oferece tentar de novo, não some",
+    /estado === "error"/.test(seletorCodigo) && /Tentar novamente/.test(seletor),
+  );
+  check(
+    "e o erro é registrado com o técnico redigido",
+    /logTechnicalError\("SeletorDeBarbeiro"/.test(seletorCodigo),
+  );
+  check(
+    "lista vazia usa o vazio que a tela passar",
+    /barbeiros\.length === 0[\s\S]{0,120}?vazio/.test(seletorCodigo),
+  );
+
+  group("aba Horários: equipe para quem administra, própria para quem atende");
+
+  check(
+    "a seção da equipe é para admin que NÃO atende",
+    /const mostraEquipe = isAdmin && !isBarber;/.test(dashboard),
+    "um admin que também fosse barbeiro veria a própria agenda, que é o certo",
+  );
+  check("a seção se chama `Agenda da equipe`", /Agenda da equipe/.test(bruto));
+  check("e a de quem atende continua `Minha agenda`", /Minha agenda/.test(bruto));
+  check(
+    "os três componentes recebem o barbeiro escolhido",
+    (dashboard.match(/barberId=\{barbeiroEscolhido\}/g) ?? []).length === 3,
+    String((dashboard.match(/barberId=\{barbeiroEscolhido\}/g) ?? []).length),
+  );
+  check(
+    "e os três em modo leitura",
+    (dashboard.match(/\breadOnly\b/g) ?? []).length >= 3,
+    String((dashboard.match(/\breadOnly\b/g) ?? []).length),
+  );
+  check(
+    "trocar de profissional remonta os três, sem estado do anterior",
+    /key=\{`grade-\$\{barbeiroEscolhido\}`\}/.test(dashboard) &&
+      /key=\{`bloqueios-\$\{barbeiroEscolhido\}`\}/.test(dashboard) &&
+      /key=\{`agenda-\$\{barbeiroEscolhido\}`\}/.test(dashboard),
+  );
+  check(
+    "o primeiro da lista já vem escolhido",
+    /setBarbeiroEscolhido\(equipe\.barbeiros\[0\]\.id\)/.test(dashboard),
+    "abrir vazio esperando um clique é pior que abrir mostrando alguém",
+  );
+  check(
+    "e a escolha se reajusta se a pessoa sair da equipe",
+    /!equipe\.barbeiros\.some\(\(b\) => b\.id === barbeiroEscolhido\)/.test(dashboard),
+  );
+
+  group("equipe vazia: explica e leva para a saída");
+
+  check("existe um estado vazio próprio", /function EquipeVazia\(\)/.test(dashboard));
+  check(
+    "com o texto acordado",
+    /Nenhum profissional na equipe ainda/.test(bruto) &&
+      /Convide alguém na aba Equipe/.test(bruto),
+  );
+  check(
+    "e com link que leva mesmo para a aba Equipe",
+    /search=\{\{ tab: "team"/.test(dashboard),
+    "texto que manda ir a um lugar sem levar lá é meia solução",
+  );
+  // Defeito encontrado ao testar este link: `?tab=` só era lido no estado
+  // INICIAL, então clicar nele trocava a URL e não a aba — a pessoa continuava
+  // em Horários. O parâmetro precisa valer depois da montagem também.
+  check(
+    "e `?tab=` também vale DEPOIS da montagem, não só no primeiro render",
+    /ultimaAbaDaUrl/.test(dashboard) && /abaInicial === ultimaAbaDaUrl\.current/.test(dashboard),
+  );
+  check(
+    "reagindo à MUDANÇA do parâmetro, para não desfazer clique manual",
+    /ultimaAbaDaUrl\.current = abaInicial;/.test(dashboard),
+    "comparar com o valor desfaria a troca de aba enquanto a URL guardasse o tab antigo",
+  );
+
+  group("modo leitura: os controles não EXISTEM, não ficam desabilitados");
+
+  for (const [nome, arquivo] of [
+    ["WeeklyScheduleEditor", "src/components/WeeklyScheduleEditor.tsx"],
+    ["ScheduleBlocks", "src/components/ScheduleBlocks.tsx"],
+    ["ScheduleManager", "src/components/ScheduleManager.tsx"],
+  ] as const) {
+    const src = semComentarios(lerArquivo(arquivo));
+    check(`${nome} aceita barberId e readOnly`, /barberId\?: string;/.test(src) && /readOnly\?: boolean;/.test(src));
+    check(
+      `${nome} esconde controle em vez de desabilitar`,
+      /\{!readOnly &&/.test(src),
+      "botão desabilitado ainda anuncia uma capacidade que não existe",
+    );
+    check(
+      `${nome} não usa disabled={readOnly} em lugar nenhum`,
+      !/disabled=\{readOnly/.test(src),
+    );
+    check(
+      `${nome} tem rede de segurança no próprio handler`,
+      /if \(readOnly\) return;/.test(src),
+      "se um controle escapar da renderização condicional, a mutação não sai",
+    );
+  }
+
+  check(
+    "a consulta segue o profissional escolhido, não o usuário logado",
+    /\}, \[alvo, barbershopId\]\);/.test(
+      semComentarios(lerArquivo("src/components/WeeklyScheduleEditor.tsx")),
+    ) &&
+      /\}, \[alvo, barbershopId\]\);/.test(
+        semComentarios(lerArquivo("src/components/ScheduleBlocks.tsx")),
+      ),
+    "depender de `user` deixaria a grade do primeiro escolhido na tela",
+  );
+
+  // Onde a rede de segurança do banco NÃO cobre, e por isso a tela precisa
+  // cobrir: `availability` deixa a administração do tenant apagar linha de
+  // qualquer profissional. Nas outras duas a RLS recusaria de qualquer forma.
+  check(
+    "o componente registra que a RLS de availability NÃO protege aqui",
+    /rede de[\s\S]{0,40}?segurança do banco é MAIS FRACA/.test(
+      lerArquivo("src/components/ScheduleManager.tsx"),
+    ),
+  );
+}
+
 /* ────────────────────────────── runner ────────────────────────────── */
 
 export async function runHarness() {
@@ -1328,6 +1495,7 @@ export async function runHarness() {
   await testeSuperAdminGrade();
   await testeDisponibilidade();
   testeMigracaoDisponibilidade();
+  testeAgendaDaEquipe();
   testeMigrationSuperAdmin();
   await testeGeracaoAutorizada();
   testeMigracaoAdminSoLe();

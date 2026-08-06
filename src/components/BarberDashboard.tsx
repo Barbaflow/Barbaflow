@@ -22,6 +22,7 @@ import { ProfilePhotoUpload } from "@/components/ProfilePhotoUpload";
 import { WeeklyScheduleEditor } from "@/components/WeeklyScheduleEditor";
 import { ScheduleBlocks } from "@/components/ScheduleBlocks";
 import { ScheduleManager } from "@/components/ScheduleManager";
+import { SeletorDeBarbeiro, useBarbeirosDoTenant } from "@/components/SeletorDeBarbeiro";
 import { BusinessHoursEditor } from "@/components/BusinessHoursEditor";
 import { ServicesManager } from "@/components/ServicesManager";
 import { ManualAppointmentDialog } from "@/components/ManualAppointmentDialog";
@@ -353,6 +354,22 @@ export function BarberDashboard({
   const audiencia: TabAudience =
     scope.isSuper && requestedBarbershopId ? "superTenant" : isAdmin ? "admin" : "barbeiro";
   const abasVisiveis = TABS.filter((tab) => tab.para.includes(audiencia));
+
+  // `?tab=` também vale DEPOIS da montagem. Ler só no estado inicial fazia um
+  // link interno para `/dashboard?tab=team` trocar a URL e não trocar a aba — a
+  // pessoa clicava em "Convide alguém na aba Equipe" e continuava em Horários.
+  //
+  // Reage à MUDANÇA do parâmetro, não ao valor: comparar com o último aplicado
+  // é o que impede o efeito de desfazer um clique manual em outra aba enquanto
+  // a URL continua com o `?tab=` antigo.
+  const ultimaAbaDaUrl = useRef(abaInicial);
+  useEffect(() => {
+    if (abaInicial === ultimaAbaDaUrl.current) return;
+    ultimaAbaDaUrl.current = abaInicial;
+    if (abaInicial && TABS.some((t) => t.id === abaInicial)) {
+      setActiveTab(abaInicial as AdminTab);
+    }
+  }, [abaInicial]);
 
   // A aba ativa é sempre uma que este papel ENXERGA. Uma regra só, e ela cobre
   // dois casos que antes eram dois códigos diferentes:
@@ -1958,6 +1975,21 @@ function ScheduleTab({
   const resolvedBarbershopId = scope.access === "granted" ? scope.tenantId : null;
   const resolvendo = tenantStatus === "loading" || scope.access === "checking" || scope.isSuper === null;
 
+  // Equipe: só quem administra e NÃO atende precisa da visão consolidada. Quem
+  // atende vê a própria agenda, que é o caso de sempre.
+  const mostraEquipe = isAdmin && !isBarber;
+  const equipe = useBarbeirosDoTenant(mostraEquipe ? resolvedBarbershopId : null);
+  const [barbeiroEscolhido, setBarbeiroEscolhido] = useState<string | null>(null);
+
+  // Pré-seleciona o primeiro, para a seção não abrir vazia esperando um clique.
+  // Reajusta se a lista mudar e o escolhido sair dela (alguém deixou a equipe).
+  useEffect(() => {
+    if (equipe.estado !== "ready" || equipe.barbeiros.length === 0) return;
+    if (!barbeiroEscolhido || !equipe.barbeiros.some((b) => b.id === barbeiroEscolhido)) {
+      setBarbeiroEscolhido(equipe.barbeiros[0].id);
+    }
+  }, [equipe.estado, equipe.barbeiros, barbeiroEscolhido]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -2029,10 +2061,69 @@ function ScheduleTab({
                 <ScheduleManager barbershopId={resolvedBarbershopId} />
               </div>
             </section>
+          ) : mostraEquipe ? (
+            /* "Agenda da equipe" — quem administra VISUALIZA a agenda de quem
+               atende, e só isso. Read-only por decisão de produto: desde a
+               20260805200000 o admin não atende, e grade e bloqueios são o
+               instrumento de trabalho de quem atende. Ele ganha visibilidade
+               para coordenar, não posse.
+
+               Não precisou de migration: o `admin_barbearia` já tem SELECT em
+               `weekly_schedule` e `schedule_blocks` do próprio tenant. */
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                <div>
+                  <h3 className="font-display text-lg font-semibold text-foreground">
+                    Agenda da equipe
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Os turnos, bloqueios e horários de cada profissional. Somente leitura — quem
+                    edita a própria agenda é cada um.
+                  </p>
+                </div>
+                <SeletorDeBarbeiro
+                  estado={equipe.estado}
+                  barbeiros={equipe.barbeiros}
+                  value={barbeiroEscolhido}
+                  onChange={setBarbeiroEscolhido}
+                  onTentarNovamente={equipe.recarregar}
+                  rotulo="Escolha o profissional"
+                  vazio={<EquipeVazia />}
+                />
+              </div>
+
+              {equipe.estado === "ready" && barbeiroEscolhido && (
+                <div className="space-y-6">
+                  {/* `key` no id: trocar de profissional REMONTA os três, em vez
+                      de reaproveitar estado da pessoa anterior. Sem isso, um
+                      instante de dado antigo aparece sob o nome novo. */}
+                  <WeeklyScheduleEditor
+                    key={`grade-${barbeiroEscolhido}`}
+                    barbershopId={resolvedBarbershopId}
+                    barberId={barbeiroEscolhido}
+                    readOnly
+                  />
+                  <ScheduleBlocks
+                    key={`bloqueios-${barbeiroEscolhido}`}
+                    barbershopId={resolvedBarbershopId}
+                    barberId={barbeiroEscolhido}
+                    readOnly
+                  />
+                  <div className="min-w-0 overflow-x-auto">
+                    <ScheduleManager
+                      key={`agenda-${barbeiroEscolhido}`}
+                      barbershopId={resolvedBarbershopId}
+                      barberId={barbeiroEscolhido}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              )}
+            </section>
           ) : (
-            // Dizer POR QUE a seção não está aqui é melhor do que sumir em
-            // silêncio: quem administra e não atende precisa entender que a
-            // ausência é intencional, não tela quebrada.
+            // Sobra quem não atende E não administra este tenant — o super_admin
+            // operando de fora, por exemplo. Dizer POR QUE a seção não está aqui
+            // é melhor do que sumir em silêncio.
             <p className="text-sm text-muted-foreground">
               A agenda pessoal aparece para quem atende clientes. Quem administra define o
               funcionamento da barbearia acima; os turnos de cada profissional são configurados
@@ -2049,6 +2140,24 @@ function ScheduleTab({
         <SemAcessoAoTenant scope={scope} />
       )}
     </div>
+  );
+}
+
+/**
+ * Barbearia sem nenhum `barbeiro` — o caso de `wwwpaulobabershopcom` hoje.
+ *
+ * A seção NÃO some: sumir em silêncio faz parecer tela quebrada, e a §8 do
+ * CLAUDE.md separa "não carregou" de "não tem nada". Aqui é o segundo, e o
+ * texto é acionável — leva para onde o problema se resolve.
+ */
+function EquipeVazia() {
+  return (
+    <p className="text-sm text-muted-foreground">
+      Nenhum profissional na equipe ainda.{" "}
+      <Link to="/dashboard" search={{ tab: "team", barbershop: undefined, checkout: undefined }} className="text-primary hover:underline">
+        Convide alguém na aba Equipe.
+      </Link>
+    </p>
   );
 }
 
