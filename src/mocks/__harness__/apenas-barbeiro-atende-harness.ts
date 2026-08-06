@@ -906,23 +906,49 @@ async function testeDisponibilidade() {
     alheia.error?.message ?? "sem erro",
   );
   check(
-    "e a recusa explica de quem é a regra, sem detalhe técnico",
-    /administração|outro profissional/i.test(alheia.error?.message ?? "") &&
+    "e a recusa diz o que a pessoa pode, sem detalhe técnico",
+    /próprios horários/i.test(alheia.error?.message ?? "") &&
       !/SQLSTATE|policy|42501|undefined/i.test(alheia.error?.message ?? ""),
     alheia.error?.message ?? "",
   );
   check("nada foi apagado", getTableRows("availability").some((a) => a.id === doBruno?.id));
 
-  group("availability: a administração alcança qualquer um");
+  // REESCRITO na 20260806160000. Este grupo afirmava o OPOSTO: que o admin
+  // alcançava a janela de qualquer um, "capacidade que ele já tinha". Ela foi
+  // retirada — a assimetria com `weekly_schedule` e `schedule_blocks`, onde ele
+  // nunca escreveu, não tinha razão de existir.
+  group("availability: a administração passou a só LER");
 
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   const alvoDoAdmin = primeiraDe(MOCK_USER_IDS.barberBruno);
   const peloAdmin = await apagar(alvoDoAdmin?.id);
   check(
-    "admin apaga janela de terceiro — capacidade que ele já tinha",
-    peloAdmin.error === null,
-    peloAdmin.error?.message ?? "",
+    "admin NÃO apaga janela de terceiro",
+    peloAdmin.error !== null,
+    peloAdmin.error?.message ?? "sem erro",
+  );
+  check("e a linha continua lá", getTableRows("availability").some((a) => a.id === alvoDoAdmin?.id));
+
+  const adminInsere = await (mockSupabaseClient as any).from("availability").insert({
+    barbershop_id: MOCK_BARBERSHOP_ID,
+    barber_id: MOCK_USER_IDS.barberBruno,
+    date: "2026-12-24",
+    start_time: "09:00",
+    end_time: "10:00",
+    status: "livre",
+  });
+  check("nem cria", adminInsere.error !== null, adminInsere.error?.message ?? "sem erro");
+
+  // Ler continua valendo — é do que a "Agenda da equipe" depende.
+  const adminLe = await (mockSupabaseClient as any)
+    .from("availability")
+    .select("id")
+    .eq("barbershop_id", MOCK_BARBERSHOP_ID);
+  check(
+    "mas continua LENDO — a Agenda da equipe depende disso",
+    adminLe.error === null && (adminLe.data ?? []).length > 0,
+    adminLe.error?.message ?? String((adminLe.data ?? []).length),
   );
 
   group("availability: as DUAS formas de recusa de um DELETE");
@@ -1128,6 +1154,166 @@ function testeMigracaoDisponibilidade() {
   );
 }
 
+/* ══════════ 7b. as duas portas de escrita em availability ══════════ */
+
+/**
+ * A 20260806160000 fecha as DUAS, e é o ponto de fecharem juntas: a policy
+ * restritiva sozinha daria uma garantia que parece mais forte do que é.
+ *
+ *   porta 1  a policy — o admin escrevia `availability` de qualquer um;
+ *   porta 2  `generate_availability_from_schedule` — SECURITY DEFINER, o
+ *            INSERT ignora a RLS de quem chama, e ela não verificava nada.
+ *            `authenticated` tem EXECUTE.
+ */
+async function testeGeracaoAutorizada() {
+  const gerar = (barberId: string, barbershopId = MOCK_BARBERSHOP_ID) =>
+    (mockSupabaseClient as any).rpc("generate_availability_from_schedule", {
+      _barber_id: barberId,
+      _barbershop_id: barbershopId,
+      _start_date: "2026-12-20",
+      _end_date: "2026-12-27",
+    });
+
+  group("generate_availability_from_schedule: quem pode chamar");
+
+  resetMockDatabase();
+  await login("ana@barbearia.teste");
+  const paraSi = await gerar(MOCK_USER_IDS.barberAna);
+  check("barbeiro gera a PRÓPRIA agenda", !paraSi.error, JSON.stringify(paraSi.error));
+
+  const paraOutro = await gerar(MOCK_USER_IDS.barberBruno);
+  check(
+    "barbeiro NÃO gera a de outro — era a porta lateral",
+    Boolean(paraOutro.error),
+    JSON.stringify(paraOutro.error),
+  );
+  check(
+    "com mensagem que diz o que ele pode",
+    /sua própria agenda/i.test(paraOutro.error?.message ?? ""),
+    paraOutro.error?.message ?? "",
+  );
+
+  resetMockDatabase();
+  await login(MOCK_ADMIN_EMAIL);
+  const peloAdmin = await gerar(MOCK_USER_IDS.barberBruno);
+  check("admin do tenant gera para qualquer profissional", !peloAdmin.error, JSON.stringify(peloAdmin.error));
+  check(
+    "e isso é assimetria deliberada: gerar não é editar",
+    /Gerar não é editar/.test(
+      lerArquivo("supabase/migrations/20260806160000_admin_reads_availability_only.sql"),
+    ),
+    "a função só materializa o que a grade do profissional já declara",
+  );
+
+  resetMockDatabase();
+  await login(MOCK_SUPER_ADMIN_EMAIL);
+  const peloSuper = await gerar(MOCK_USER_IDS.barberBruno);
+  check("super_admin gera para qualquer um", !peloSuper.error, JSON.stringify(peloSuper.error));
+
+  resetMockDatabase();
+  await mockSupabaseClient.auth.signOut();
+  const semSessao = await gerar(MOCK_USER_IDS.barberAna);
+  check("sem sessão é recusado antes de tudo", Boolean(semSessao.error), JSON.stringify(semSessao.error));
+
+  resetMockDatabase();
+}
+
+/** O texto da 20260806160000. */
+function testeMigracaoAdminSoLe() {
+  const sql = readFileSync(
+    path.join(ROOT, "supabase", "migrations", "20260806160000_admin_reads_availability_only.sql"),
+    "utf8",
+  );
+  const corpo = sql
+    .split("\n")
+    .filter((l) => !l.trimStart().startsWith("--"))
+    .join("\n");
+
+  group("migration 20260806160000: porta 1, a policy");
+
+  check(
+    "recria as TRÊS policies de escrita de availability",
+    (corpo.match(/CREATE POLICY/g) ?? []).length === 3,
+    String((corpo.match(/CREATE POLICY/g) ?? []).length),
+  );
+  // Só o trecho das POLICIES. A função geradora, na seção 2 do arquivo, cita
+  // `admin_barbearia` de propósito — é ela que autoriza o admin a GERAR.
+  const soPolicies = corpo.split("CREATE OR REPLACE FUNCTION")[0];
+  check(
+    "e nenhuma delas cita mais `admin_barbearia`",
+    !/'admin_barbearia'/.test(soPolicies),
+    (soPolicies.match(/.*admin_barbearia.*/) ?? [""])[0].trim(),
+  );
+  check(
+    "cada uma exige dono + papel `barbeiro`",
+    (corpo.match(/barber_id = auth\.uid\(\)/g) ?? []).length >= 3,
+  );
+  check("super_admin fica em todas", (corpo.match(/'super_admin'/g) ?? []).length >= 3);
+  check(
+    "a policy de SELECT NÃO é tocada — a Agenda da equipe depende dela",
+    !/FOR SELECT/.test(corpo),
+  );
+
+  group("migration 20260806160000: porta 2, a função geradora");
+
+  check(
+    "recria generate_availability_from_schedule",
+    /CREATE OR REPLACE FUNCTION public\.generate_availability_from_schedule\(/.test(corpo),
+  );
+  check(
+    "autoriza pelo próprio id, admin do tenant ou super_admin",
+    /_caller = _barber_id/.test(corpo) &&
+      /has_role_in_barbershop\(_caller, _barbershop_id, 'admin_barbearia'/.test(corpo) &&
+      /has_role\(_caller, 'super_admin'/.test(corpo),
+  );
+  check("recusa sem sessão antes de qualquer coisa", /_caller IS NULL/.test(corpo));
+  check(
+    "com mensagem legível, não SQLSTATE cru",
+    /Você só pode gerar horários da sua própria agenda/.test(corpo),
+  );
+  check(
+    "e segue SECURITY DEFINER com search_path fixo",
+    /SECURITY DEFINER/.test(corpo) && /SET search_path TO 'public'/.test(corpo),
+  );
+  check(
+    "o corpo que gera não mudou — só ganhou o porteiro",
+    /ON CONFLICT ON CONSTRAINT availability_janela_unica DO NOTHING/.test(corpo),
+  );
+
+  group("migration 20260806160000: cabeçalho");
+
+  check("explica por que as duas portas fecham juntas", /PORTA 1/.test(sql) && /PORTA 2/.test(sql));
+  check(
+    "justifica não entrar nas duas fases da §2.1",
+    // Sem tolerância a quebra de linha, o regex falha por causa do reflow do
+    // comentário — e a verificação viraria uma armadilha para quem reformatar.
+    /§2\.1/.test(sql) && /nenhuma\s+interface\s+exercita/.test(sql.replace(/\n--\s*/g, " ")),
+  );
+  check(
+    "registra a conferência dos dados antes de restringir",
+    /11 em/.test(sql) && /barbearia-demo-cliente/.test(sql),
+  );
+  check(
+    "e deixa a limpeza FORA da migration, como manda a §2.3",
+    /§2\.3/.test(sql) && /FORA desta migration/.test(sql),
+  );
+  check("registra o rollback", /ROLLBACK/.test(sql));
+
+  group("paridade: o mock espelha as duas portas");
+
+  const cliente = semComentarios(lerArquivo("src/mocks/client.ts"));
+  check(
+    "a regra de availability não tem mais ramo de admin",
+    !/if \(actorIsAdminOf\(barbershopId\)\) return null;/.test(
+      semComentarios(lerArquivo("src/mocks/rules.ts")).split("function authorizeAvailability")[1] ?? "",
+    ),
+  );
+  check(
+    "e a RPC do mock autoriza igual à função real",
+    /Você só pode gerar horários da sua própria agenda/.test(cliente),
+  );
+}
+
 /* ══════════ 8. a visão consolidada de equipe ══════════ */
 
 /**
@@ -1311,6 +1497,8 @@ export async function runHarness() {
   testeMigracaoDisponibilidade();
   testeAgendaDaEquipe();
   testeMigrationSuperAdmin();
+  await testeGeracaoAutorizada();
+  testeMigracaoAdminSoLe();
 
   resetMockDatabase();
   const veredito = falhou === 0 ? "OK" : "FALHOU";

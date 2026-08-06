@@ -709,6 +709,29 @@ const RPC_HANDLERS: Record<string, RpcHandler> = {
   generate_availability_from_schedule: (args) => {
     const barbershopId = String(args._barbershop_id);
     const barberId = String(args._barber_id);
+
+    // Autorização, espelhando a 20260806160000. A função real é SECURITY
+    // DEFINER: o INSERT dela ignora a RLS de quem chama, então sem esta
+    // verificação qualquer autenticado gerava disponibilidade para qualquer
+    // profissional de qualquer barbearia — e a policy restritiva de
+    // `availability` não alcançaria esse caminho.
+    const ator = getMockActor();
+    if (!ator) {
+      throw new MockRpcError("Não autenticado.", "insufficient_privilege");
+    }
+    const ehSuper = getTableRows("user_roles").some(
+      (r) => r.user_id === ator.id && r.role === "super_admin",
+    );
+    const ehAdminDoTenant = getTableRows("user_roles").some(
+      (r) => r.user_id === ator.id && r.barbershop_id === barbershopId && r.role === "admin_barbearia",
+    );
+    if (ator.id !== barberId && !ehAdminDoTenant && !ehSuper) {
+      throw new MockRpcError(
+        "Você só pode gerar horários da sua própria agenda.",
+        "insufficient_privilege",
+      );
+    }
+
     const startDate = String(args._start_date);
     const endDate = String(args._end_date);
     const timestamp = new Date().toISOString();
