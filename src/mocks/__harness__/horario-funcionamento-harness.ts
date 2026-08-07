@@ -63,10 +63,92 @@ function semComentarios(src: string): string {
     .join("\n");
 }
 
+/** Domingo: o dia que o cenário público fecha, para provar `is_closed`. */
+const DOMINGO = 0;
 /** Segunda-feira: o dia usado em quase todos os cenários. */
 const SEGUNDA = 1;
 /** Terça: usado onde é preciso um dia SEM envelope, para provar a ausência. */
 const TERCA = 2;
+
+/* ══════════ o relógio do harness ══════════ */
+
+/**
+ * "Hoje" do harness, fixo — uma QUARTA-FEIRA.
+ *
+ * Antes disto o harness ficava vermelho em 3 dos 7 dias da semana, e verde nos
+ * outros 4, sem que uma linha de código mudasse. O mecanismo: as datas do
+ * fixture nascem de `isoDateOffset(n)` = `new Date()` + n, enquanto os cenários
+ * daqui escolhem data por aritmética de dia da semana. Nos dias em que as duas
+ * contas caem na mesma data, um cenário esbarra no dado de outro:
+ *
+ *   sex/sáb  a âncora de agendamento (+2 e +1) cai no DOMINGO, e o banco recusa
+ *            — corretamente — fechar um dia que tem compromisso marcado;
+ *   seg      a próxima segunda futura é hoje+7, exatamente onde o fixture põe
+ *            as férias da Ana, e dia bloqueado não devolve janela nenhuma.
+ *
+ * Fixar a âncora resolve na raiz: o fixture inteiro passa a ser gerado a partir
+ * de uma data que não anda, e as duas contas param de se cruzar por acaso.
+ *
+ * Fixa-se o RELÓGIO, não as constantes de data. É a diferença que faz esta
+ * correção não cair na armadilha que `segundaISO()` documenta: uma constante
+ * escrita à mão viraria passado com o tempo, e os cenários de conflito ficariam
+ * verdes pelo motivo errado, porque a regra só olha agendamento com
+ * `date >= hoje`. Com o relógio parado, "hoje" também não anda, e a relação
+ * entre as datas continua a mesma para sempre.
+ *
+ * Por que quarta: os deslocamentos do fixture (-6 a +7) não põem nenhum
+ * agendamento VIVO no domingo, e as férias da Ana (+7) caem numa quarta, longe
+ * da segunda que os cenários de janela usam (+5). Não é o que sustenta a
+ * correção — `limparDia()` sustenta —, é só uma âncora que já nasce sem atrito.
+ */
+const HOJE_ANCORA = "2026-08-05";
+
+const DateReal = Date;
+
+/**
+ * Fixa `Date` em `iso` e devolve o restaurador.
+ *
+ * Trocar o `Date` global alcança de uma vez os dois lados do problema: o
+ * `isoDateOffset()` do fixture e o `nowInTenantTZ()` que as regras usam para o
+ * recorte de 90 dias. Fixar só um dos dois criaria um mundo incoerente — dado
+ * de teste numa data e regra medindo de outra —, que é pior que o defeito.
+ */
+function fixarRelogio(iso: string): () => void {
+  // Restaura o relógio ANTERIOR, não o real: a varredura dos sete dias fixa uma
+  // data por dia por dentro da âncora de `runHarness()`, e devolver o relógio
+  // real ali soltaria a âncora no meio da execução.
+  const anterior = globalThis.Date;
+  const instante = new DateReal(`${iso}T12:00:00Z`).getTime();
+
+  class DataFixa extends DateReal {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    constructor(...args: any[]) {
+      // Sem argumento é "agora" — o único caso que interessa fixar. Com
+      // argumento, repassa para o Date real e se comporta como sempre.
+      if (args.length === 0) super(instante);
+      else super(...(args as [number]));
+    }
+    static now(): number {
+      return instante;
+    }
+  }
+
+  globalThis.Date = DataFixa as DateConstructor;
+  return () => {
+    globalThis.Date = anterior;
+  };
+}
+
+/** Os sete dias, para a varredura que prova a independência de calendário. */
+const SEMANA = [
+  { nome: "domingo", iso: "2026-08-02" },
+  { nome: "segunda", iso: "2026-08-03" },
+  { nome: "terça", iso: "2026-08-04" },
+  { nome: "quarta", iso: "2026-08-05" },
+  { nome: "quinta", iso: "2026-08-06" },
+  { nome: "sexta", iso: "2026-08-07" },
+  { nome: "sábado", iso: "2026-08-08" },
+] as const;
 
 let passou = 0;
 let falhou = 0;
@@ -102,16 +184,41 @@ async function login(email: string) {
  */
 function limparSegunda() {
   setTableRows("business_hours", []);
+  limparDia(SEGUNDA);
+}
+
+/**
+ * Devolve um dia da semana ao cenário: sem turno, sem agendamento e sem
+ * bloqueio do fixture na barbearia A.
+ *
+ * O `schedule_blocks` entrou aqui junto com a correção de calendário. Ele é o
+ * que faltava para o cenário ser dono da própria data: enquanto o fixture podia
+ * ter as férias da Ana na mesma segunda que os cenários de janela escolhem,
+ * `get_public_availability_windows` devolvia `[]` — e não por causa do
+ * expediente, que é o que aqueles cenários medem.
+ *
+ * Note que isto NÃO é o que torna o harness determinístico; `HOJE_ANCORA` é.
+ * Isto é o que o mantém correto sob QUALQUER âncora, e é o que a varredura dos
+ * sete dias exercita. Os dois juntos: um evita a colisão, o outro prova que não
+ * há colisão a evitar.
+ */
+function limparDia(dia: number) {
   setTableRows(
     "weekly_schedule",
     getTableRows("weekly_schedule").filter(
-      (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === SEGUNDA),
+      (t) => !(t.barbershop_id === MOCK_BARBERSHOP_ID && Number(t.day_of_week) === dia),
     ),
   );
   setTableRows(
     "appointments",
     getTableRows("appointments").filter(
-      (a) => !(a.barbershop_id === MOCK_BARBERSHOP_ID && diaDaSemanaDe(a.date) === SEGUNDA),
+      (a) => !(a.barbershop_id === MOCK_BARBERSHOP_ID && diaDaSemanaDe(a.date) === dia),
+    ),
+  );
+  setTableRows(
+    "schedule_blocks",
+    getTableRows("schedule_blocks").filter(
+      (b) => !(b.barbershop_id === MOCK_BARBERSHOP_ID && diaDaSemanaDe(b.block_date) === dia),
     ),
   );
 }
@@ -417,7 +524,7 @@ async function testeApertarExpediente() {
       await (mockSupabaseClient as any).rpc("get_public_availability_windows", {
         _barbershop_id: MOCK_BARBERSHOP_ID,
         _barber_id: MOCK_USER_IDS.barberAna,
-        _date: SEGUNDA_ISO,
+        _date: segundaISO(),
       })
     ).data ?? [];
   const livre = janelas.filter((j: Record<string, unknown>) => j.status === "livre");
@@ -530,7 +637,7 @@ async function testeRpcAplicar() {
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
-  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "08:00", end_time: "08:30" });
+  agendarNaSegunda({ date: segundaISO(), start_time: "08:00", end_time: "08:30" });
 
   const recusa = await (mockSupabaseClient as any).rpc("apply_business_hours", {
     _barbershop_id: MOCK_BARBERSHOP_ID,
@@ -780,6 +887,11 @@ async function testePublico() {
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
+  // O domingo é fechado mais abaixo, e fechar dia com agendamento vivo é
+  // recusado pelo banco — corretamente. Sem esta linha, o cenário só passava
+  // nos dias da semana em que nenhuma âncora do fixture calhava de cair num
+  // domingo, e essa era a origem de 5 das falhas.
+  limparDia(DOMINGO);
   await mockSupabaseClient.auth.signOut();
 
   const publico = async (id: unknown) =>
@@ -1056,20 +1168,25 @@ function somaDias(iso: string, dias: number): string {
 }
 
 /**
- * A próxima segunda ESTRITAMENTE futura, calculada a cada execução.
+ * A próxima segunda ESTRITAMENTE futura, derivada do "hoje" vigente.
  *
  * Data fixa apodreceria: desde 20260806140000 o conflito só olha agendamento
  * com `date >= hoje`, então uma constante escrita hoje viraria passado e os
  * cenários passariam a "provar" que não há conflito — verdes pelo motivo
  * errado, que é o pior estado possível para um harness.
+ *
+ * Continua derivada, e não fixa, mesmo com `HOJE_ANCORA`: é o que deixa a
+ * varredura dos sete dias medir alguma coisa. Deixou de ser `const` de módulo
+ * porque a constante era avaliada no import, antes de `runHarness()` fixar o
+ * relógio — congelaria o dia real da máquina e a varredura seria decorativa.
  */
-const SEGUNDA_ISO = (() => {
+function segundaISO(): string {
   const hoje = nowInTenantTZ().iso;
   const dow = new Date(
     Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 1, Number(hoje.slice(8, 10))),
   ).getUTCDay();
   return somaDias(hoje, ((SEGUNDA - dow + 7) % 7) || 7);
-})();
+}
 
 /**
  * O passo 1 da mudança de regra (migration 20260806130000).
@@ -1091,7 +1208,7 @@ async function testeJanelasRecortadas() {
     (mockSupabaseClient as any).rpc("get_public_availability_windows", {
       _barbershop_id: MOCK_BARBERSHOP_ID,
       _barber_id: MOCK_USER_IDS.barberAna,
-      _date: SEGUNDA_ISO,
+      _date: segundaISO(),
     });
 
   /** Grava o turno direto, sem passar pelas regras de escrita. */
@@ -1124,20 +1241,24 @@ async function testeJanelasRecortadas() {
   group("janelas públicas: a data escolhida é mesmo uma segunda futura");
 
   check(
-    `${SEGUNDA_ISO} cai em segunda-feira`,
-    diaDaSemanaDe(SEGUNDA_ISO) === SEGUNDA,
-    String(diaDaSemanaDe(SEGUNDA_ISO)),
+    `${segundaISO()} cai em segunda-feira`,
+    diaDaSemanaDe(segundaISO()) === SEGUNDA,
+    String(diaDaSemanaDe(segundaISO())),
   );
   check(
     "e é estritamente futura — senão os cenários de conflito ficariam verdes pelo motivo errado",
-    SEGUNDA_ISO > nowInTenantTZ().iso,
-    `${SEGUNDA_ISO} vs hoje ${nowInTenantTZ().iso}`,
+    segundaISO() > nowInTenantTZ().iso,
+    `${segundaISO()} vs hoje ${nowInTenantTZ().iso}`,
   );
 
   group("janelas públicas: sem envelope, nada muda");
 
   resetMockDatabase();
   await mockSupabaseClient.auth.signOut();
+  // Dia bloqueado não devolve janela nenhuma, e o fixture põe as férias da Ana
+  // numa data que podia ser justamente esta segunda. O cenário mede recorte por
+  // EXPEDIENTE; um bloqueio residual o zeraria por outro motivo.
+  limparDia(SEGUNDA);
   turnoLegado("09:00", "18:00");
   envelope(null);
 
@@ -1193,7 +1314,7 @@ async function testeJanelasRecortadas() {
       id: "folga-fora-do-envelope",
       barbershop_id: MOCK_BARBERSHOP_ID,
       barber_id: MOCK_USER_IDS.barberAna,
-      date: SEGUNDA_ISO,
+      date: segundaISO(),
       start_time: "06:00",
       end_time: "08:00",
       status: "folga",
@@ -1297,7 +1418,7 @@ async function testeConflitoPorAgendamento() {
       await (mockSupabaseClient as any).rpc("get_public_availability_windows", {
         _barbershop_id: MOCK_BARBERSHOP_ID,
         _barber_id: MOCK_USER_IDS.barberAna,
-        _date: SEGUNDA_ISO,
+        _date: segundaISO(),
       })
     ).data ?? [];
   check(
@@ -1311,7 +1432,7 @@ async function testeConflitoPorAgendamento() {
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
-  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30" });
+  agendarNaSegunda({ date: segundaISO(), start_time: "10:00", end_time: "10:30" });
 
   const comAgenda = await fecharSegunda();
   check("recusado", comAgenda.error !== null, comAgenda.error?.message ?? "sem erro");
@@ -1322,7 +1443,7 @@ async function testeConflitoPorAgendamento() {
   );
   check(
     "a mensagem traz data e hora",
-    (comAgenda.error?.message ?? "").includes(ddmmDe(SEGUNDA_ISO)) &&
+    (comAgenda.error?.message ?? "").includes(ddmmDe(segundaISO())) &&
       (comAgenda.error?.message ?? "").includes("10:00"),
     comAgenda.error?.message ?? "",
   );
@@ -1339,7 +1460,7 @@ async function testeConflitoPorAgendamento() {
     resetMockDatabase();
     await login(MOCK_ADMIN_EMAIL);
     limparSegunda();
-    agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30", status });
+    agendarNaSegunda({ date: segundaISO(), start_time: "10:00", end_time: "10:30", status });
     const r = await fecharSegunda();
     check(`agendamento \`${status}\` não bloqueia`, r.error === null, r.error?.message ?? "");
   }
@@ -1348,7 +1469,7 @@ async function testeConflitoPorAgendamento() {
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
   // 98 dias = 14 semanas: continua sendo segunda, e passa dos 90.
-  agendarNaSegunda({ date: somaDias(SEGUNDA_ISO, 98), start_time: "10:00", end_time: "10:30" });
+  agendarNaSegunda({ date: somaDias(segundaISO(), 98), start_time: "10:00", end_time: "10:30" });
   const longe = await fecharSegunda();
   check("agendamento além de 90 dias não bloqueia", longe.error === null, longe.error?.message ?? "");
 
@@ -1357,14 +1478,14 @@ async function testeConflitoPorAgendamento() {
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
-  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "10:00", end_time: "10:30" });
+  agendarNaSegunda({ date: segundaISO(), start_time: "10:00", end_time: "10:30" });
   const dentro = await definirExpediente({ open_time: "09:00", close_time: "12:00" });
   check("agendamento DENTRO do novo expediente não bloqueia", dentro.error === null, dentro.error?.message ?? "");
 
   resetMockDatabase();
   await login(MOCK_ADMIN_EMAIL);
   limparSegunda();
-  agendarNaSegunda({ date: SEGUNDA_ISO, start_time: "16:00", end_time: "16:30" });
+  agendarNaSegunda({ date: segundaISO(), start_time: "16:00", end_time: "16:30" });
   const fora = await definirExpediente({ open_time: "09:00", close_time: "12:00" });
   check("agendamento FORA do novo expediente bloqueia", fora.error !== null, fora.error?.message ?? "sem erro");
 
@@ -1468,7 +1589,75 @@ function testeMigracaoConflito() {
 
 /* ────────────────────────────── runner ────────────────────────────── */
 
+/* ══════════ 12. independência de calendário ══════════ */
+
+/**
+ * Roda os cenários datados uma vez por dia da semana.
+ *
+ * É a verificação que teria pego o defeito antes de ele chegar à `main`. As
+ * outras suítes rodam com o dia real da máquina, então um cenário que só
+ * quebra às sextas fica invisível em quatro dias de sete — e quem rodar o
+ * portão numa terça vê verde e conclui, de boa-fé, que está tudo certo.
+ *
+ * Aqui a âncora é varrida de propósito: cada dia reconstrói o fixture inteiro
+ * (as datas nascem de `isoDateOffset`, que lê o relógio fixado) e reexecuta os
+ * três cenários que escolhem data por conta própria. Se qualquer um deles
+ * voltar a depender de dado residual de outro fixture, um dos sete cai.
+ *
+ * O detalhe de 3 cenários × 7 dias afogaria o relatório, então só o veredito
+ * por dia entra — as falhas voltam ao texto apenas quando há o que investigar.
+ */
+async function testeCalendarioIndependente() {
+  group("independência de calendário: os cenários datados nos 7 dias da semana");
+
+  for (const dia of SEMANA) {
+    const marcaLinhas = linhas.length;
+    const marcaPassou = passou;
+    const marcaFalhou = falhou;
+
+    const restaurar = fixarRelogio(dia.iso);
+    try {
+      await testePublico();
+      await testeJanelasRecortadas();
+      await testeConflitoPorAgendamento();
+    } finally {
+      restaurar();
+    }
+
+    const falhasDoDia = falhou - marcaFalhou;
+    const detalhe = linhas.slice(marcaLinhas).filter((l) => l.includes("✗"));
+
+    linhas.length = marcaLinhas;
+    passou = marcaPassou;
+    falhou = marcaFalhou;
+
+    check(
+      `${dia.nome} (${dia.iso}): cenários datados sem colisão`,
+      falhasDoDia === 0,
+      detalhe.map((l) => l.trim()).join(" | "),
+    );
+  }
+}
+
 export async function runHarness() {
+  // Âncora fixa para a execução inteira: o fixture e as regras passam a ler o
+  // mesmo "hoje", que não anda. Ver `HOJE_ANCORA`.
+  const restaurarRelogio = fixarRelogio(HOJE_ANCORA);
+  try {
+    await rodarCenarios();
+  } finally {
+    restaurarRelogio();
+  }
+
+  const veredito = falhou === 0 ? "OK" : "FALHOU";
+  return {
+    passed: passou,
+    failed: falhou,
+    report: `${linhas.join("\n")}\n\n${veredito} — ${passou} passaram, ${falhou} falharam.\n`,
+  };
+}
+
+async function rodarCenarios() {
   resetMockDatabase();
 
   await testeSemEnvelope();
@@ -1489,12 +1678,7 @@ export async function runHarness() {
   testeMigracaoRecorte();
   await testeConflitoPorAgendamento();
   testeMigracaoConflito();
+  await testeCalendarioIndependente();
 
   resetMockDatabase();
-  const veredito = falhou === 0 ? "OK" : "FALHOU";
-  return {
-    passed: passou,
-    failed: falhou,
-    report: `${linhas.join("\n")}\n\n${veredito} — ${passou} passaram, ${falhou} falharam.\n`,
-  };
 }
