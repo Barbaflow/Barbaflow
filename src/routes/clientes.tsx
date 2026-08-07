@@ -61,6 +61,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { displayBRPhone, whatsappUrl } from "@/lib/phone";
+import { alternarFiltro, proximaOrdenacao } from "@/lib/clientes-filtros";
 
 /** Sentinela `_system` — nunca é um tenant operacional. */
 const SYSTEM_BARBERSHOP_ID = "00000000-0000-0000-0000-000000000000";
@@ -211,13 +212,30 @@ function ClientesPage() {
   }, [sortDir]);
 
   const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      const def = SORT_OPTIONS.find((o) => o.key === key)?.defaultDir ?? "asc";
-      setSortKey(key);
-      setSortDir(def);
-    }
+    const def = SORT_OPTIONS.find((o) => o.key === key)?.defaultDir ?? "asc";
+    const proxima = proximaOrdenacao(sortKey, sortDir, key, def);
+    setSortKey(proxima.chave);
+    setSortDir(proxima.direcao);
+  };
+
+  /**
+   * Cards de filtro rápido. O ramo de volta é o que faltava: sem ele
+   * `set(valorFixo)` era idempotente e o segundo clique não desmarcava nada.
+   */
+  const alternarStatus = (alvo: StatusFilter) =>
+    setStatusFilter((atual) => alternarFiltro(atual, alvo, "all"));
+  const alternarPeriodo = (alvo: LastFilter) =>
+    setLastFilter((atual) => alternarFiltro(atual, alvo, "all"));
+
+  /**
+   * "Clientes" não é toggle — desmarcar "sem filtro" não significa nada. Ele
+   * limpa os DOIS eixos, que é o que o próprio destaque do card já exigia:
+   * mexer só em `statusFilter` deixava um período ativo de pé e o clique não
+   * tinha efeito visível nenhum.
+   */
+  const mostrarTodos = () => {
+    setStatusFilter("all");
+    setLastFilter("all");
   };
 
   const activeFilterCount =
@@ -845,21 +863,30 @@ function ClientesPage() {
             value={stats.total}
             icon={Users}
             color="text-primary"
-            onClick={() => setStatusFilter("all")}
+            onClick={mostrarTodos}
             active={statusFilter === "all" && lastFilter === "all"}
           />
+          {/* Ordenação, não filtro — e por isso com aparência própria. O número
+              deste card é a SOMA de agendamentos, não a contagem de clientes
+              que os outros quatro mostram; filtrar por ele não teria sentido.
+              A dimensão que o código já modela para "Agendamentos" é a de
+              ordenar (`SORT_OPTIONS`), e é ela que o clique aciona. */}
           <StatCard
             label="Agendamentos"
             value={stats.totalAppointments}
             icon={Calendar}
             color="text-foreground"
+            onClick={() => handleSort("total")}
+            acao="ordenacao"
+            ordenando={sortKey === "total"}
+            direcao={sortDir}
           />
           <StatCard
             label="Com falta"
             value={stats.withNoshow}
             icon={AlertCircle}
             color="text-yellow-500"
-            onClick={() => setStatusFilter("noshow")}
+            onClick={() => alternarStatus("noshow")}
             active={statusFilter === "noshow"}
           />
           <StatCard
@@ -867,7 +894,7 @@ function ClientesPage() {
             value={stats.inactive60}
             icon={Clock}
             color="text-orange-500"
-            onClick={() => setLastFilter("inactive60")}
+            onClick={() => alternarPeriodo("inactive60")}
             active={lastFilter === "inactive60"}
           />
           <StatCard
@@ -875,7 +902,7 @@ function ClientesPage() {
             value={stats.blocked}
             icon={ShieldAlert}
             color="text-destructive"
-            onClick={() => setStatusFilter("blocked")}
+            onClick={() => alternarStatus("blocked")}
             active={statusFilter === "blocked"}
           />
         </div>
@@ -1346,6 +1373,23 @@ function ClientesPage() {
   );
 }
 
+/**
+ * Card de número com duas ações possíveis — e são DIFERENTES de propósito.
+ *
+ *   `acao="filtro"`     recorta a lista. Liga e desliga, então é um toggle:
+ *                       `aria-pressed`, anel cheio, fundo tingido.
+ *   `acao="ordenacao"`  reordena a lista inteira, sem esconder ninguém. Não
+ *                       liga nem desliga — cada clique inverte a direção —,
+ *                       então NÃO usa `aria-pressed`: um botão "pressionado"
+ *                       anuncia um estado ligado/desligado que aqui não
+ *                       existe. O destaque é mais leve (só a borda) e a seta
+ *                       diz para que lado está ordenando.
+ *
+ * A distinção é visual porque é semântica: os quatro cards de filtro mudam
+ * QUEM aparece; o de ordenação muda só a ORDEM. Dar a eles o mesmo destaque
+ * faria o usuário ler "filtrando por agendamentos", que é o que a versão
+ * anterior sugeria — e que nunca aconteceu, porque o card sequer era clicável.
+ */
 function StatCard({
   label,
   value,
@@ -1353,6 +1397,9 @@ function StatCard({
   color,
   onClick,
   active = false,
+  acao = "filtro",
+  ordenando = false,
+  direcao,
 }: {
   label: string;
   value: number;
@@ -1360,22 +1407,37 @@ function StatCard({
   color: string;
   onClick?: () => void;
   active?: boolean;
+  acao?: "filtro" | "ordenacao";
+  /** Só para `acao="ordenacao"`: a lista está ordenada por este card. */
+  ordenando?: boolean;
+  direcao?: SortDir;
 }) {
   const interactive = typeof onClick === "function";
+  const ehOrdenacao = acao === "ordenacao";
+  const destacado = ehOrdenacao ? ordenando : active;
   const classes = [
     interactive ? "cursor-pointer transition-colors" : "",
-    interactive && !active ? "hover:border-primary/50" : "",
-    active ? "border-primary ring-2 ring-primary/40 bg-primary/5" : "",
+    interactive && !destacado ? "hover:border-primary/50" : "",
+    // Filtro ativo: anel + fundo. Ordenação: só a borda — recorte de lista e
+    // troca de ordem não podem parecer a mesma coisa.
+    destacado && !ehOrdenacao ? "border-primary ring-2 ring-primary/40 bg-primary/5" : "",
+    destacado && ehOrdenacao ? "border-primary/60" : "",
   ]
     .filter(Boolean)
     .join(" ");
+  const Seta = direcao === "asc" ? ArrowUp : ArrowDown;
   return (
     <Card
       onClick={onClick}
       className={classes || undefined}
       role={interactive ? "button" : undefined}
       tabIndex={interactive ? 0 : undefined}
-      aria-pressed={interactive ? active : undefined}
+      aria-pressed={interactive && !ehOrdenacao ? active : undefined}
+      title={
+        ehOrdenacao
+          ? `Ordenar por ${label.toLowerCase()}${ordenando ? (direcao === "asc" ? " (crescente)" : " (decrescente)") : ""}`
+          : undefined
+      }
       onKeyDown={
         interactive
           ? (e) => {
@@ -1391,6 +1453,11 @@ function StatCard({
         <div className="flex items-center gap-2 mb-1">
           <Icon className={`w-4 h-4 ${color}`} />
           <span className="text-xs text-muted-foreground">{label}</span>
+          {/* A seta só aparece quando a lista está mesmo ordenada por aqui —
+              seta permanente sugeriria uma ordenação que não está em vigor. */}
+          {ehOrdenacao && ordenando && (
+            <Seta className="w-3 h-3 text-primary shrink-0" aria-hidden="true" />
+          )}
         </div>
         <p className="text-2xl font-display font-bold text-foreground">{value}</p>
       </CardContent>
