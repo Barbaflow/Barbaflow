@@ -1380,12 +1380,31 @@ function testeAgendaDaEquipe() {
     /const mostraEquipe = isAdmin && !isBarber;/.test(dashboard),
     "um admin que também fosse barbeiro veria a própria agenda, que é o certo",
   );
-  check("a seção se chama `Agenda da equipe`", /Agenda da equipe/.test(bruto));
+  // O h3 "Agenda da equipe" deixou de existir quando o funcionamento da casa
+  // entrou nas mesmas abas: o título não cobria mais o próprio conteúdo. Quem
+  // nomeia cada parte agora é a aba. Note que a asserção antiga
+  // (`/Agenda da equipe/.test(bruto)`) continuaria VERDE — a expressão sobrevive
+  // num comentário do arquivo —, e é por isso que ela foi trocada por uma que
+  // olha o que a tela realmente monta.
+  check(
+    "as quatro abas existem, e o funcionamento é a primeira",
+    /value="funcionamento"/.test(dashboard) &&
+      /value="turnos"/.test(dashboard) &&
+      /value="bloqueios"/.test(dashboard) &&
+      /value="calendario"/.test(dashboard) &&
+      dashboard.indexOf('value="funcionamento"') < dashboard.indexOf('value="turnos"'),
+  );
+  check(
+    "o expediente da casa NÃO fica atrás do seletor de profissional",
+    /subSecao !== "funcionamento" &&/.test(dashboard),
+    "é configuração da barbearia inteira; oferecer 'escolha o profissional' ali seria mentira",
+  );
   check("e a de quem atende continua `Minha agenda`", /Minha agenda/.test(bruto));
   check(
     "os três componentes recebem o barbeiro escolhido",
-    (dashboard.match(/barberId=\{barbeiroEscolhido\}/g) ?? []).length === 3,
-    String((dashboard.match(/barberId=\{barbeiroEscolhido\}/g) ?? []).length),
+    (dashboard.match(/barberId=\{id\}/g) ?? []).length === 3 &&
+      (dashboard.match(/escolhido=\{barbeiroEscolhido\}/g) ?? []).length === 3,
+    `${(dashboard.match(/barberId=\{id\}/g) ?? []).length} / ${(dashboard.match(/escolhido=\{barbeiroEscolhido\}/g) ?? []).length}`,
   );
   check(
     "e os três em modo leitura",
@@ -1394,9 +1413,14 @@ function testeAgendaDaEquipe() {
   );
   check(
     "trocar de profissional remonta os três, sem estado do anterior",
-    /key=\{`grade-\$\{barbeiroEscolhido\}`\}/.test(dashboard) &&
-      /key=\{`bloqueios-\$\{barbeiroEscolhido\}`\}/.test(dashboard) &&
-      /key=\{`agenda-\$\{barbeiroEscolhido\}`\}/.test(dashboard),
+    /key=\{`grade-\$\{id\}`\}/.test(dashboard) &&
+      /key=\{`bloqueios-\$\{id\}`\}/.test(dashboard) &&
+      /key=\{`agenda-\$\{id\}`\}/.test(dashboard),
+  );
+  check(
+    "e o título interno não é repetido dentro das abas",
+    (dashboard.match(/mostrarTitulo=\{false\}/g) ?? []).length === 2,
+    "a aba já nomeia o conteúdo; o ScheduleManager não tem título próprio a suprimir",
   );
   check(
     "o primeiro da lista já vem escolhido",

@@ -43,6 +43,17 @@ interface WeeklyScheduleEditorProps {
    * super_admin escrevem), e é essa recusa que serve de rede de segurança.
    */
   readOnly?: boolean;
+  /**
+   * Renderiza o próprio título e a própria descrição. Padrão `true`.
+   *
+   * Existe porque este componente passou a viver dentro de um seletor de abas,
+   * onde a aba JÁ nomeia o que está embaixo: "Turnos da semana" sobre um bloco
+   * intitulado "Horários Semanais" é o mesmo assunto dito duas vezes, com dois
+   * nomes diferentes — pior que redundância, porque sugere que são coisas
+   * distintas. Quem chama de fora das abas (a agenda do próprio barbeiro) não
+   * passa nada e continua com o cabeçalho.
+   */
+  mostrarTitulo?: boolean;
 }
 
 interface ScheduleSlot {
@@ -69,6 +80,7 @@ export function WeeklyScheduleEditor({
   barbershopId,
   barberId,
   readOnly = false,
+  mostrarTitulo = true,
 }: WeeklyScheduleEditorProps) {
   const { user } = useAuth();
   /** De quem é a grade nesta montagem. Sem `barberId`, a de quem está logado. */
@@ -267,8 +279,12 @@ export function WeeklyScheduleEditor({
 
   return (
     <div className="space-y-5">
-      {/* Actions bar */}
+      {/* Actions bar. Some inteira quando não há título nem controle — sem
+          isto, o `space-y-5` do container reservava a altura de uma linha
+          vazia acima da grade. */}
+      {(mostrarTitulo || !readOnly) && (
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {mostrarTitulo ? (
         <div>
           <h3 className="font-display text-lg font-semibold text-foreground">
             Horários Semanais
@@ -277,6 +293,10 @@ export function WeeklyScheduleEditor({
             Defina seus horários recorrentes. Use "Gerar Agenda" para criar slots de disponibilidade.
           </p>
         </div>
+        ) : (
+          // Espaçador: mantém os controles à direita quando o título não vem.
+          <div />
+        )}
         {/* Em modo leitura os controles não existem — não ficam desabilitados.
             Botão desabilitado ainda anuncia uma capacidade, e o admin não tem
             nenhuma sobre a grade alheia: as policies de `weekly_schedule`
@@ -372,6 +392,7 @@ export function WeeklyScheduleEditor({
         </div>
         )}
       </div>
+      )}
 
       {/* Schedule grid */}
       <div className="space-y-2">
