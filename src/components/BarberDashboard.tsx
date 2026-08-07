@@ -1940,11 +1940,32 @@ function TeamTab() {
 // ─── Schedule Tab ────────────────────────────────────────
 
 /**
- * Sub-seções de "Agenda da equipe". Só a visão de quem administra tem seletor:
+ * As quatro abas da aba "Horários". Só a visão de quem administra tem seletor:
  * "Minha agenda" continua empilhando os componentes, porque lá quem edita a
  * grade precisa ver o efeito nos bloqueios e no calendário sem trocar de aba.
  */
-type SubSecaoEquipe = "turnos" | "bloqueios" | "calendario";
+type SubSecaoEquipe = "funcionamento" | "turnos" | "bloqueios" | "calendario";
+
+/**
+ * A descrição de cada aba, dita UMA vez.
+ *
+ * Antes o texto aparecia em duas granularidades sobrepostas: a aba dizia
+ * "Turnos da semana" e o bloco embaixo repetia "Horários Semanais" com a
+ * própria descrição — o mesmo assunto com dois nomes, o que sugere que são
+ * coisas diferentes. Agora a aba é o título e esta linha é a descrição; os
+ * componentes recebem `mostrarTitulo={false}` e não repetem nada.
+ *
+ * A condição de leitura NÃO se repete aqui de aba em aba: ela é dita uma vez
+ * no cabeçalho da página, porque vale para as três abas de profissional e não
+ * vale para "Funcionamento", que é a única coisa que o admin realmente edita.
+ */
+const DESCRICAO_DA_SUBSECAO: Record<SubSecaoEquipe, string> = {
+  funcionamento:
+    "O horário em que a casa abre e fecha, dia a dia. É o limite dentro do qual a agenda de cada profissional precisa caber.",
+  turnos: "Os turnos recorrentes do profissional escolhido — o molde que gera os horários.",
+  bloqueios: "Feriados, férias e folgas que sobrepõem os turnos do profissional escolhido.",
+  calendario: "Os horários já gerados, dia a dia, e os atendimentos marcados.",
+};
 
 /**
  * Aba "Horários" — DUAS coisas diferentes, que até 20260805180000 apareciam
@@ -1988,11 +2009,11 @@ function ScheduleTab({
   const mostraEquipe = isAdmin && !isBarber;
   const equipe = useBarbeirosDoTenant(mostraEquipe ? resolvedBarbershopId : null);
   const [barbeiroEscolhido, setBarbeiroEscolhido] = useState<string | null>(null);
-  // Sub-seção visível de "Agenda da equipe". Vive AQUI, e não dentro da seção,
+  // Aba visível na visão de quem administra. Vive AQUI, e não dentro da seção,
   // pelo mesmo motivo que `barbeiroEscolhido`: os dois precisam sobreviver um
   // ao outro. Trocar de sub-seção não pode reabrir o seletor de profissional,
   // e trocar de profissional não pode devolver a pessoa para a primeira aba.
-  const [subSecao, setSubSecao] = useState<SubSecaoEquipe>("turnos");
+  const [subSecao, setSubSecao] = useState<SubSecaoEquipe>("funcionamento");
 
   // Pré-seleciona o primeiro, para a seção não abrir vazia esperando um clique.
   // Reajusta se a lista mudar e o escolhido sair dela (alguém deixou a equipe).
@@ -2007,8 +2028,15 @@ function ScheduleTab({
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-display font-bold text-foreground">Horários</h2>
+        {/* O texto antigo — "o expediente da barbearia e a SUA agenda pessoal" —
+            já era falso para quem administra: desde a 20260805200000 o admin não
+            atende, então ele não tem agenda pessoal aqui. Agora cada papel lê o
+            que de fato tem pela frente, e a condição de leitura é dita UMA vez,
+            aqui, em vez de repetida em cada aba. */}
         <p className="text-sm text-muted-foreground">
-          O expediente da barbearia e a sua agenda pessoal.
+          {mostraEquipe
+            ? "O expediente da barbearia, que você define, e a agenda de quem atende, que você acompanha em leitura."
+            : "O expediente da barbearia e a sua agenda pessoal."}
         </p>
       </div>
 
@@ -2016,19 +2044,25 @@ function ScheduleTab({
         <Skeleton className="h-60 rounded-xl" />
       ) : resolvedBarbershopId ? (
         <div className="space-y-8">
-          <section className="space-y-3">
-            <div>
-              <h3 className="font-display text-lg font-semibold text-foreground">
-                Funcionamento da barbearia
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {isAdmin
-                  ? "Define o limite dentro do qual a agenda de cada profissional precisa caber."
-                  : "Limite definido pela administração. Sua agenda precisa caber nele."}
-              </p>
-            </div>
-            <BusinessHoursEditor barbershopId={resolvedBarbershopId} canEdit={isAdmin} />
-          </section>
+          {/* Para quem administra, o funcionamento virou a 1ª aba lá embaixo —
+              é configuração da casa, e deixá-lo solto acima das abas fazia a
+              página ter duas estruturas concorrentes. Quem atende continua com
+              ele solto: não há seletor de abas na visão do barbeiro. */}
+          {!mostraEquipe && (
+            <section className="space-y-3">
+              <div>
+                <h3 className="font-display text-lg font-semibold text-foreground">
+                  Funcionamento da barbearia
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  {isAdmin
+                    ? "Define o limite dentro do qual a agenda de cada profissional precisa caber."
+                    : "Limite definido pela administração. Sua agenda precisa caber nele."}
+                </p>
+              </div>
+              <BusinessHoursEditor barbershopId={resolvedBarbershopId} canEdit={isAdmin} />
+            </section>
+          )}
 
           {isBarber ? (
             <section className="space-y-3">
@@ -2075,101 +2109,137 @@ function ScheduleTab({
               </div>
             </section>
           ) : mostraEquipe ? (
-            /* "Agenda da equipe" — quem administra VISUALIZA a agenda de quem
-               atende, e só isso. Read-only por decisão de produto: desde a
-               20260805200000 o admin não atende, e grade e bloqueios são o
-               instrumento de trabalho de quem atende. Ele ganha visibilidade
-               para coordenar, não posse.
+            /* A visão de quem administra: define o expediente da CASA e
+               VISUALIZA a agenda de quem atende. Read-only na parte da agenda
+               por decisão de produto: desde a 20260805200000 o admin não
+               atende, e grade e bloqueios são o instrumento de trabalho de quem
+               atende. Ele ganha visibilidade para coordenar, não posse — e o
+               funcionamento, que é da casa, ele edita.
 
                Não precisou de migration: o `admin_barbearia` já tem SELECT em
                `weekly_schedule` e `schedule_blocks` do próprio tenant. */
             <section className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-                <div>
-                  <h3 className="font-display text-lg font-semibold text-foreground">
-                    Agenda da equipe
-                  </h3>
-                  <p className="text-sm text-muted-foreground">
-                    Os turnos, bloqueios e horários de cada profissional. Somente leitura — quem
-                    edita a própria agenda é cada um.
-                  </p>
+              {/* O h3 "Agenda da equipe" saiu daqui. Com o funcionamento da
+                  casa dentro das mesmas abas, ele deixou de descrever o que
+                  está embaixo — e um título que não cobre o próprio conteúdo é
+                  pior que nenhum. Quem nomeia cada parte agora é a aba, e o
+                  cabeçalho "Horários" da página cobre o conjunto. */}
+              <Tabs
+                value={subSecao}
+                onValueChange={(v) => setSubSecao(v as SubSecaoEquipe)}
+              >
+                {/* Contido, como a grade do ScheduleManager: o que não couber
+                    rola aqui dentro e nunca empurra a página. `pb-1` deixa
+                    espaço para o anel de foco, que o `overflow` cortaria. */}
+                <div className="min-w-0 overflow-x-auto pb-1">
+                  {/* Grade 2×2 abaixo de `sm`, linha única a partir dela.
+                      Medido antes de escrever: com 4 abas o grupo completo dá
+                      464px e não cabe em linha única em NENHUMA largura abaixo
+                      de 640px — nem com os rótulos curtos, que ainda dão 318px
+                      contra 288px de seção a 320px. Duas linhas resolvem sem
+                      rolagem lateral e sem abreviar "Funcionamento", que é o
+                      rótulo que o usuário lê primeiro.
+
+                      `px-2 sm:px-3`: os 8px a menos por aba são o que faz
+                      "Funcionamento" caber na célula de 144px a 320px. Classes
+                      literais — Tailwind não gera variante montada por
+                      interpolação (§3 do CLAUDE.md). */}
+                  <TabsList className="grid w-full grid-cols-2 gap-1 h-auto sm:inline-flex sm:w-auto sm:gap-0 sm:h-9">
+                    <TabsTrigger value="funcionamento" className="px-2 sm:px-3">
+                      Funcionamento
+                    </TabsTrigger>
+                    <TabsTrigger value="turnos" className="px-2 sm:px-3">
+                      <span className="sm:hidden">Turnos</span>
+                      <span className="hidden sm:inline">Turnos da semana</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="bloqueios" className="px-2 sm:px-3">
+                      Bloqueios
+                    </TabsTrigger>
+                    <TabsTrigger value="calendario" className="px-2 sm:px-3">
+                      Calendário
+                    </TabsTrigger>
+                  </TabsList>
                 </div>
-                <SeletorDeBarbeiro
-                  estado={equipe.estado}
-                  barbeiros={equipe.barbeiros}
-                  value={barbeiroEscolhido}
-                  onChange={setBarbeiroEscolhido}
-                  onTentarNovamente={equipe.recarregar}
-                  rotulo="Escolha o profissional"
-                  vazio={<EquipeVazia />}
-                />
-              </div>
 
-              {/* Os três empilhados davam 1771px de seção e 2647px de página a
-                  1280px — rolagem longa para ler UMA das três. O seletor mostra
-                  uma de cada vez; o de profissional fica FORA dele, no cabeçalho
-                  acima, e por isso continua valendo para as três.
+                {/* Descrição da aba ativa + seletor de profissional. O seletor
+                    fica FORA do conteúdo das abas para não remontar a cada
+                    troca, e continua valendo para as três abas de profissional.
 
-                  Segmented control do shadcn (`TabsList`), o mesmo padrão que
-                  `admin.mensagens` e `admin.churn` já usam para recortar o que
-                  a tela mostra. */}
-              {equipe.estado === "ready" && barbeiroEscolhido && (
-                <Tabs
-                  value={subSecao}
-                  onValueChange={(v) => setSubSecao(v as SubSecaoEquipe)}
-                >
-                  {/* Contido, como a grade do ScheduleManager: o que não couber
-                      rola aqui dentro e nunca empurra a página. Medido: o grupo
-                      dá 261px com o rótulo curto e 337px com o longo, contra
-                      288px de seção a 320px e 608px a 640px — não chega a rolar
-                      em nenhuma largura testada. `pb-1` deixa espaço para o anel
-                      de foco, que o `overflow` cortaria. */}
-                  <div className="min-w-0 overflow-x-auto pb-1">
-                    <TabsList>
-                      <TabsTrigger value="turnos">
-                        {/* Rótulo curto abaixo de `sm`: com "Turnos da semana" o
-                            grupo mede 337px e estoura os 328px de seção a 360px.
-                            Classes literais — Tailwind não gera variante montada
-                            por interpolação (§3 do CLAUDE.md). */}
-                        <span className="sm:hidden">Turnos</span>
-                        <span className="hidden sm:inline">Turnos da semana</span>
-                      </TabsTrigger>
-                      <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
-                      <TabsTrigger value="calendario">Calendário</TabsTrigger>
-                    </TabsList>
-                  </div>
-
-                  {/* `key` no id: trocar de profissional REMONTA o conteúdo, em
-                      vez de reaproveitar estado da pessoa anterior. Sem isso, um
-                      instante de dado antigo aparece sob o nome novo. */}
-                  <TabsContent value="turnos" className="mt-4">
-                    <WeeklyScheduleEditor
-                      key={`grade-${barbeiroEscolhido}`}
-                      barbershopId={resolvedBarbershopId}
-                      barberId={barbeiroEscolhido}
-                      readOnly
+                    Em "Funcionamento" ele some: o expediente é da casa inteira,
+                    e oferecer "escolha o profissional" ali sugeriria que o
+                    horário da barbearia muda de pessoa para pessoa. */}
+                <div className="mt-4 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                  <p className="text-sm text-muted-foreground">
+                    {DESCRICAO_DA_SUBSECAO[subSecao]}
+                  </p>
+                  {subSecao !== "funcionamento" && (
+                    <SeletorDeBarbeiro
+                      estado={equipe.estado}
+                      barbeiros={equipe.barbeiros}
+                      value={barbeiroEscolhido}
+                      onChange={setBarbeiroEscolhido}
+                      onTentarNovamente={equipe.recarregar}
+                      rotulo="Escolha o profissional"
+                      vazio={<EquipeVazia />}
                     />
-                  </TabsContent>
-                  <TabsContent value="bloqueios" className="mt-4">
-                    <ScheduleBlocks
-                      key={`bloqueios-${barbeiroEscolhido}`}
-                      barbershopId={resolvedBarbershopId}
-                      barberId={barbeiroEscolhido}
-                      readOnly
-                    />
-                  </TabsContent>
-                  <TabsContent value="calendario" className="mt-4">
-                    <div className="min-w-0 overflow-x-auto">
-                      <ScheduleManager
-                        key={`agenda-${barbeiroEscolhido}`}
+                  )}
+                </div>
+
+                {/* Funcionamento não depende da equipe: é da casa. Por isso fica
+                    fora da guarda de `barbeiroEscolhido` — antes, uma barbearia
+                    sem nenhum profissional cadastrado ainda precisa poder
+                    definir o próprio expediente. */}
+                <TabsContent value="funcionamento" className="mt-4">
+                  <BusinessHoursEditor barbershopId={resolvedBarbershopId} canEdit={isAdmin} />
+                </TabsContent>
+
+                {/* `key` no id: trocar de profissional REMONTA o conteúdo, em
+                    vez de reaproveitar estado da pessoa anterior. Sem isso, um
+                    instante de dado antigo aparece sob o nome novo.
+
+                    `mostrarTitulo={false}`: a aba já nomeia o que está embaixo.
+                    Ver `DESCRICAO_DA_SUBSECAO`. */}
+                <TabsContent value="turnos" className="mt-4">
+                  <ComProfissional equipe={equipe} escolhido={barbeiroEscolhido}>
+                    {(id) => (
+                      <WeeklyScheduleEditor
+                        key={`grade-${id}`}
                         barbershopId={resolvedBarbershopId}
-                        barberId={barbeiroEscolhido}
+                        barberId={id}
                         readOnly
+                        mostrarTitulo={false}
                       />
-                    </div>
-                  </TabsContent>
-                </Tabs>
-              )}
+                    )}
+                  </ComProfissional>
+                </TabsContent>
+                <TabsContent value="bloqueios" className="mt-4">
+                  <ComProfissional equipe={equipe} escolhido={barbeiroEscolhido}>
+                    {(id) => (
+                      <ScheduleBlocks
+                        key={`bloqueios-${id}`}
+                        barbershopId={resolvedBarbershopId}
+                        barberId={id}
+                        readOnly
+                        mostrarTitulo={false}
+                      />
+                    )}
+                  </ComProfissional>
+                </TabsContent>
+                <TabsContent value="calendario" className="mt-4">
+                  <ComProfissional equipe={equipe} escolhido={barbeiroEscolhido}>
+                    {(id) => (
+                      <div className="min-w-0 overflow-x-auto">
+                        <ScheduleManager
+                          key={`agenda-${id}`}
+                          barbershopId={resolvedBarbershopId}
+                          barberId={id}
+                          readOnly
+                        />
+                      </div>
+                    )}
+                  </ComProfissional>
+                </TabsContent>
+              </Tabs>
             </section>
           ) : (
             // Sobra quem não atende E não administra este tenant — o super_admin
@@ -2210,6 +2280,41 @@ function EquipeVazia() {
       </Link>
     </p>
   );
+}
+
+/**
+ * O conteúdo das três abas de profissional, que só existe com alguém escolhido.
+ *
+ * Antes, a guarda `equipe.estado === "ready" && barbeiroEscolhido` envolvia o
+ * seletor de abas INTEIRO. Com "Funcionamento" lá dentro isso passou a ser
+ * errado: o expediente é da casa e não depende de haver profissional nenhum —
+ * uma barbearia recém-criada precisa poder defini-lo antes de convidar a
+ * primeira pessoa. A guarda desceu para as abas que de fato precisam dela.
+ *
+ * Os três estados são distintos de propósito (§8 do CLAUDE.md): "carregando",
+ * "não carregou" e "não tem ninguém" não podem renderizar igual.
+ */
+function ComProfissional({
+  equipe,
+  escolhido,
+  children,
+}: {
+  equipe: ReturnType<typeof useBarbeirosDoTenant>;
+  escolhido: string | null;
+  children: (barbeiroId: string) => ReactNode;
+}) {
+  if (equipe.estado === "loading") return <Skeleton className="h-60 rounded-xl" />;
+  if (equipe.estado === "error") {
+    // O botão de tentar novamente já está no seletor, logo acima — repeti-lo
+    // aqui daria dois controles para a mesma ação.
+    return (
+      <p className="text-sm text-muted-foreground">
+        A equipe não carregou, então não há de quem mostrar a agenda.
+      </p>
+    );
+  }
+  if (!escolhido) return <EquipeVazia />;
+  return <>{children(escolhido)}</>;
 }
 
 /** Explica por que não há horários, em vez de mostrar seções vazias. */

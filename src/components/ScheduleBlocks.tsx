@@ -37,6 +37,14 @@ interface ScheduleBlocksProps {
    * super_admin escrevem) — a interface não oferece o que o banco nega.
    */
   readOnly?: boolean;
+  /**
+   * Renderiza o próprio título e a própria descrição. Padrão `true`.
+   *
+   * Ver `WeeklyScheduleEditor`: dentro das abas, a aba já nomeia o conteúdo, e
+   * "Bloqueios" sobre um bloco intitulado "Bloqueios de Agenda" é o mesmo
+   * assunto dito duas vezes.
+   */
+  mostrarTitulo?: boolean;
 }
 
 interface ScheduleBlock {
@@ -56,6 +64,7 @@ export function ScheduleBlocks({
   barbershopId,
   barberId,
   readOnly = false,
+  mostrarTitulo = true,
 }: ScheduleBlocksProps) {
   const { user } = useAuth();
   /** De quem são os bloqueios nesta montagem. */
@@ -195,7 +204,11 @@ export function ScheduleBlocks({
 
   return (
     <div className="space-y-5">
+      {/* Some inteira quando não há título nem controle — sem isto o
+          `space-y-5` reservava a altura de uma linha vazia. */}
+      {(mostrarTitulo || !readOnly) && (
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        {mostrarTitulo ? (
         <div>
           <h3 className="font-display text-lg font-semibold text-foreground">
             Bloqueios de Agenda
@@ -204,6 +217,10 @@ export function ScheduleBlocks({
             Feriados, férias e folgas que sobrepõem seus horários semanais.
           </p>
         </div>
+        ) : (
+          // Espaçador: mantém o controle à direita quando o título não vem.
+          <div />
+        )}
         {/* Em leitura, o diálogo de novo bloqueio nem existe */}
         {!readOnly && (
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -276,6 +293,7 @@ export function ScheduleBlocks({
         </Dialog>
         )}
       </div>
+      )}
 
       {grouped.length > 0 ? (
         <div className="space-y-2">
