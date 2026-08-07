@@ -12,6 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PlanCard } from "@/components/PlanCard";
 import { OperationalDashboard } from "@/components/OperationalDashboard";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -1939,6 +1940,13 @@ function TeamTab() {
 // ─── Schedule Tab ────────────────────────────────────────
 
 /**
+ * Sub-seções de "Agenda da equipe". Só a visão de quem administra tem seletor:
+ * "Minha agenda" continua empilhando os componentes, porque lá quem edita a
+ * grade precisa ver o efeito nos bloqueios e no calendário sem trocar de aba.
+ */
+type SubSecaoEquipe = "turnos" | "bloqueios" | "calendario";
+
+/**
  * Aba "Horários" — DUAS coisas diferentes, que até 20260805180000 apareciam
  * como uma só.
  *
@@ -1980,6 +1988,11 @@ function ScheduleTab({
   const mostraEquipe = isAdmin && !isBarber;
   const equipe = useBarbeirosDoTenant(mostraEquipe ? resolvedBarbershopId : null);
   const [barbeiroEscolhido, setBarbeiroEscolhido] = useState<string | null>(null);
+  // Sub-seção visível de "Agenda da equipe". Vive AQUI, e não dentro da seção,
+  // pelo mesmo motivo que `barbeiroEscolhido`: os dois precisam sobreviver um
+  // ao outro. Trocar de sub-seção não pode reabrir o seletor de profissional,
+  // e trocar de profissional não pode devolver a pessoa para a primeira aba.
+  const [subSecao, setSubSecao] = useState<SubSecaoEquipe>("turnos");
 
   // Pré-seleciona o primeiro, para a seção não abrir vazia esperando um clique.
   // Reajusta se a lista mudar e o escolhido sair dela (alguém deixou a equipe).
@@ -2092,32 +2105,70 @@ function ScheduleTab({
                 />
               </div>
 
+              {/* Os três empilhados davam 1771px de seção e 2647px de página a
+                  1280px — rolagem longa para ler UMA das três. O seletor mostra
+                  uma de cada vez; o de profissional fica FORA dele, no cabeçalho
+                  acima, e por isso continua valendo para as três.
+
+                  Segmented control do shadcn (`TabsList`), o mesmo padrão que
+                  `admin.mensagens` e `admin.churn` já usam para recortar o que
+                  a tela mostra. */}
               {equipe.estado === "ready" && barbeiroEscolhido && (
-                <div className="space-y-6">
-                  {/* `key` no id: trocar de profissional REMONTA os três, em vez
-                      de reaproveitar estado da pessoa anterior. Sem isso, um
+                <Tabs
+                  value={subSecao}
+                  onValueChange={(v) => setSubSecao(v as SubSecaoEquipe)}
+                >
+                  {/* Contido, como a grade do ScheduleManager: o que não couber
+                      rola aqui dentro e nunca empurra a página. Medido: o grupo
+                      dá 261px com o rótulo curto e 337px com o longo, contra
+                      288px de seção a 320px e 608px a 640px — não chega a rolar
+                      em nenhuma largura testada. `pb-1` deixa espaço para o anel
+                      de foco, que o `overflow` cortaria. */}
+                  <div className="min-w-0 overflow-x-auto pb-1">
+                    <TabsList>
+                      <TabsTrigger value="turnos">
+                        {/* Rótulo curto abaixo de `sm`: com "Turnos da semana" o
+                            grupo mede 337px e estoura os 328px de seção a 360px.
+                            Classes literais — Tailwind não gera variante montada
+                            por interpolação (§3 do CLAUDE.md). */}
+                        <span className="sm:hidden">Turnos</span>
+                        <span className="hidden sm:inline">Turnos da semana</span>
+                      </TabsTrigger>
+                      <TabsTrigger value="bloqueios">Bloqueios</TabsTrigger>
+                      <TabsTrigger value="calendario">Calendário</TabsTrigger>
+                    </TabsList>
+                  </div>
+
+                  {/* `key` no id: trocar de profissional REMONTA o conteúdo, em
+                      vez de reaproveitar estado da pessoa anterior. Sem isso, um
                       instante de dado antigo aparece sob o nome novo. */}
-                  <WeeklyScheduleEditor
-                    key={`grade-${barbeiroEscolhido}`}
-                    barbershopId={resolvedBarbershopId}
-                    barberId={barbeiroEscolhido}
-                    readOnly
-                  />
-                  <ScheduleBlocks
-                    key={`bloqueios-${barbeiroEscolhido}`}
-                    barbershopId={resolvedBarbershopId}
-                    barberId={barbeiroEscolhido}
-                    readOnly
-                  />
-                  <div className="min-w-0 overflow-x-auto">
-                    <ScheduleManager
-                      key={`agenda-${barbeiroEscolhido}`}
+                  <TabsContent value="turnos" className="mt-4">
+                    <WeeklyScheduleEditor
+                      key={`grade-${barbeiroEscolhido}`}
                       barbershopId={resolvedBarbershopId}
                       barberId={barbeiroEscolhido}
                       readOnly
                     />
-                  </div>
-                </div>
+                  </TabsContent>
+                  <TabsContent value="bloqueios" className="mt-4">
+                    <ScheduleBlocks
+                      key={`bloqueios-${barbeiroEscolhido}`}
+                      barbershopId={resolvedBarbershopId}
+                      barberId={barbeiroEscolhido}
+                      readOnly
+                    />
+                  </TabsContent>
+                  <TabsContent value="calendario" className="mt-4">
+                    <div className="min-w-0 overflow-x-auto">
+                      <ScheduleManager
+                        key={`agenda-${barbeiroEscolhido}`}
+                        barbershopId={resolvedBarbershopId}
+                        barberId={barbeiroEscolhido}
+                        readOnly
+                      />
+                    </div>
+                  </TabsContent>
+                </Tabs>
               )}
             </section>
           ) : (
