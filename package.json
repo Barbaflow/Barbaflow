@@ -29,6 +29,7 @@
     "harness:avaliacoes-publicas": "node scripts/run-avaliacoes-publicas-harness.mjs",
     "harness:horario-funcionamento": "node scripts/run-horario-funcionamento-harness.mjs",
     "harness:mensagens-contato": "node scripts/run-mensagens-contato-harness.mjs",
+    "harness:clientes-filtros": "node scripts/run-clientes-filtros-harness.mjs",
     "harness:cron-endpoints": "node scripts/run-cron-endpoints-harness.mjs",
     "harness:senha": "node scripts/run-recuperacao-senha-harness.mjs",
     "db:status:remote": "node scripts/db-status-remote.mjs",
